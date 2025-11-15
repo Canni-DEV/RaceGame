@@ -1,5 +1,7 @@
 import * as THREE from 'three'
 import { CameraRig } from '../render/CameraRig'
+import { SocketClient } from '../net/SocketClient'
+import { GameStateStore } from '../state/GameStateStore'
 import { TrackScene } from './TrackScene'
 
 export class SceneManager {
@@ -10,6 +12,8 @@ export class SceneManager {
   private readonly cameraRig: CameraRig
   private readonly clock: THREE.Clock
   private readonly trackScene: TrackScene
+  private readonly socketClient: SocketClient
+  private readonly gameStateStore: GameStateStore
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -32,7 +36,25 @@ export class SceneManager {
     this.setupLights()
 
     this.clock = new THREE.Clock()
-    this.trackScene = new TrackScene(this.scene, this.camera, this.cameraRig)
+    this.gameStateStore = new GameStateStore()
+    this.trackScene = new TrackScene(
+      this.scene,
+      this.camera,
+      this.cameraRig,
+      this.gameStateStore,
+    )
+
+    this.socketClient = new SocketClient()
+    this.socketClient.onRoomInfo((info) => {
+      this.gameStateStore.setRoomInfo(info.roomId, info.playerId, info.track, info.players)
+    })
+    this.socketClient.onState((state) => {
+      this.gameStateStore.updateState(state)
+    })
+    this.socketClient.onError((message) => {
+      console.error(`[SceneManager] ${message}`)
+    })
+    this.socketClient.connect()
 
     window.addEventListener('resize', this.handleResize)
     this.animate()

@@ -24,7 +24,7 @@ export class SocketServer {
   }
 
   broadcastState(roomId: string, state: RoomState): void {
-    this.io.to(roomId).emit("state", { room: state });
+    this.io.to(roomId).emit("state", state);
   }
 
   private onConnection(socket: Socket): void {

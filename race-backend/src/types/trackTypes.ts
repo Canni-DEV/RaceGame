@@ -16,6 +16,7 @@ export interface CarState {
   z: number;
   angle: number;
   speed: number;
+  isNpc?: boolean;
 }
 
 export interface RoomState {

@@ -1,5 +1,6 @@
 import { CarState, RoomState, TrackData } from "../types/trackTypes";
 import { updateCarsForRoom } from "./Physics";
+import { NpcControllerState, updateNpcControllers } from "./NpcController";
 
 export interface PlayerInput {
   steer: number;
@@ -17,8 +18,12 @@ export class Room {
   private viewerPlayers: Map<string, string> = new Map();
   private controllerToPlayer: Map<string, string> = new Map();
   private playerToController: Map<string, string> = new Map();
+  private npcIds: Set<string> = new Set();
+  private npcStates: Map<string, NpcControllerState> = new Map();
 
-  constructor(public readonly roomId: string, public readonly track: TrackData) {}
+  constructor(public readonly roomId: string, public readonly track: TrackData) {
+    this.initializeNpc();
+  }
 
   addViewer(socketId: string, playerId: string): void {
     this.viewers.add(socketId);
@@ -43,7 +48,8 @@ export class Room {
       x: spawnPoint.x,
       z: spawnPoint.z,
       angle,
-      speed: 0
+      speed: 0,
+      isNpc: false
     };
 
     this.cars.set(playerId, car);
@@ -52,6 +58,14 @@ export class Room {
   }
 
   removePlayer(playerId: string): string | undefined {
+    if (this.npcIds.has(playerId)) {
+      this.cars.delete(playerId);
+      this.latestInputs.delete(playerId);
+      this.npcIds.delete(playerId);
+      this.npcStates.delete(playerId);
+      return undefined;
+    }
+
     this.cars.delete(playerId);
     this.latestInputs.delete(playerId);
     const controllerSocket = this.playerToController.get(playerId);
@@ -94,13 +108,28 @@ export class Room {
     });
   }
 
+  setNpcInput(playerId: string, input: PlayerInput): void {
+    if (!this.npcIds.has(playerId)) {
+      return;
+    }
+    this.latestInputs.set(playerId, {
+      steer: input.steer,
+      throttle: input.throttle,
+      brake: input.brake
+    });
+  }
+
   update(dt: number): void {
+    updateNpcControllers(this, this.npcStates, dt);
     updateCarsForRoom(this, dt);
     this.serverTime += dt;
   }
 
-  getPlayers(): { playerId: string }[] {
-    return Array.from(this.cars.keys()).map((playerId) => ({ playerId }));
+  getPlayers(): { playerId: string; isNpc: boolean }[] {
+    return Array.from(this.cars.keys()).map((playerId) => ({
+      playerId,
+      isNpc: this.npcIds.has(playerId)
+    }));
   }
 
   toRoomState(): RoomState {
@@ -114,5 +143,34 @@ export class Room {
 
   isEmpty(): boolean {
     return this.viewers.size === 0 && this.controllers.size === 0;
+  }
+
+  getHumanPlayerCount(): number {
+    return Math.max(0, this.cars.size - this.npcIds.size);
+  }
+
+  private initializeNpc(): void {
+    if (this.track.centerline.length < 2) {
+      return;
+    }
+
+    const npcId = "npc_1";
+    const spawnPoint = this.track.centerline[0];
+    const nextPoint = this.track.centerline[1 % this.track.centerline.length];
+    const angle = Math.atan2(nextPoint.z - spawnPoint.z, nextPoint.x - spawnPoint.x);
+
+    const car: CarState = {
+      playerId: npcId,
+      x: spawnPoint.x,
+      z: spawnPoint.z,
+      angle,
+      speed: 0,
+      isNpc: true
+    };
+
+    this.cars.set(npcId, car);
+    this.latestInputs.set(npcId, { steer: 0, throttle: 1, brake: 0 });
+    this.npcIds.add(npcId);
+    this.npcStates.set(npcId, { targetIndex: 1 % this.track.centerline.length });
   }
 }
