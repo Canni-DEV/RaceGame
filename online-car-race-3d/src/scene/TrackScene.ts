@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { CarState, TrackData } from '../core/trackTypes'
-import { SAMPLE_TRACK } from '../core/trackSample'
+import { ARCADE_SAMPLE_TRACK, SAMPLE_TRACK } from '../core/trackSample'
 import { createRandom } from '../core/random'
 import { TrackMeshBuilder } from '../render/TrackMeshBuilder'
 import { applyDecorators } from '../render/DecorGenerator'
@@ -17,7 +17,7 @@ export class TrackScene {
     this.scene = scene
     camera.up.set(0, 1, 0)
     this.cameraRig = cameraRig
-    this.track = SAMPLE_TRACK
+    this.track = SAMPLE_TRACK // Swap to SAMPLE_TRACK for a simpler oval
     this.cars = new Map()
 
     this.initializeScene()

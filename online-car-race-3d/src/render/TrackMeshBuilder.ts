@@ -53,8 +53,8 @@ export class TrackMeshBuilder {
       const nextLeft = next * 2
       const nextRight = nextLeft + 1
 
-      indices.push(iLeft, iRight, nextRight)
-      indices.push(iLeft, nextRight, nextLeft)
+      indices.push(iLeft, nextRight, iRight)
+      indices.push(iLeft, nextLeft, nextRight)
     }
 
     const geometry = new THREE.BufferGeometry()
