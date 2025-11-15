@@ -3,6 +3,7 @@ import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
 import { GameStateStore } from '../state/GameStateStore'
 import { TrackScene } from './TrackScene'
+import { ViewerControllerAccess } from './ViewerControllerAccess'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -43,6 +44,7 @@ export class SceneManager {
       this.cameraRig,
       this.gameStateStore,
     )
+    new ViewerControllerAccess(this.container, this.gameStateStore)
 
     this.socketClient = new SocketClient()
     this.socketClient.onRoomInfo((info) => {

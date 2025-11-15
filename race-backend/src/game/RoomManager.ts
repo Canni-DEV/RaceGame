@@ -44,6 +44,7 @@ export class RoomManager {
     } else {
       needsNewPlayer = true;
       playerId = this.generatePlayerId(room);
+      console.log(playerId);
     }
 
     if (needsNewPlayer) {
@@ -191,6 +192,7 @@ export class RoomManager {
     }
 
     const newRoomId = this.generateRoomId();
+    console.log(newRoomId);
     const track = trackRepository.getDefaultTrack();
     const room = new Room(newRoomId, track);
     this.rooms.set(newRoomId, room);
