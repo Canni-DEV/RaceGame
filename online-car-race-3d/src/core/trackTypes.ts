@@ -16,4 +16,14 @@ export interface CarState {
   z: number
   angle: number
   speed: number
+  isNpc?: boolean
 }
+
+export interface RoomState {
+  roomId: string
+  trackId: string
+  serverTime: number
+  cars: CarState[]
+}
+
+export type PlayerRole = 'viewer' | 'controller'

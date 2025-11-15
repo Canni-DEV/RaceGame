@@ -47,7 +47,7 @@ export class RoomManager {
     }
 
     if (needsNewPlayer) {
-      if (room.cars.size >= MAX_PLAYERS_PER_ROOM) {
+      if (room.getHumanPlayerCount() >= MAX_PLAYERS_PER_ROOM) {
         throw new Error("Room is full");
       }
       room.addPlayer(playerId!);

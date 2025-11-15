@@ -4,7 +4,7 @@ import { normalize, rightNormal, sub } from '../core/math2d'
 
 export interface ProceduralDecorator {
   id: string
-  apply(track: TrackData, scene: THREE.Scene, random: () => number): void
+  apply(track: TrackData, root: THREE.Object3D, random: () => number): void
 }
 
 export function createGroundPlane(size: number): THREE.Mesh {
@@ -25,7 +25,7 @@ export function createGroundPlane(size: number): THREE.Mesh {
 class TreesDecorator implements ProceduralDecorator {
   readonly id = 'trees'
 
-  apply(track: TrackData, scene: THREE.Scene, random: () => number): void {
+  apply(track: TrackData, root: THREE.Object3D, random: () => number): void {
     const countPerSegment = 6
     const minDistanceFromTrack = track.width * 0.7
     const maxDistanceFromTrack = track.width * 2.5
@@ -85,23 +85,23 @@ class TreesDecorator implements ProceduralDecorator {
     const group = new THREE.Group()
     group.name = 'decor-trees'
     group.add(mesh)
-    scene.add(group)
+    root.add(group)
   }
 }
 
 export function applyDecorators(
   track: TrackData,
-  scene: THREE.Scene,
+  root: THREE.Object3D,
   random: () => number,
 ): void {
   const groundSize = Math.max(200, track.width * 20)
   const ground = createGroundPlane(groundSize)
   ground.position.y = -0.01
-  scene.add(ground)
+  root.add(ground)
 
   const decorators: ProceduralDecorator[] = [new TreesDecorator()]
 
   for (const decorator of decorators) {
-    decorator.apply(track, scene, random)
+    decorator.apply(track, root, random)
   }
 }
