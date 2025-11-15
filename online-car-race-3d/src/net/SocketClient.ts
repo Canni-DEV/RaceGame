@@ -6,6 +6,7 @@ const SOCKET_SCRIPT_PATH = '/socket.io/socket.io.js'
 type RoomInfoCallback = (info: RoomInfoMessage) => void
 type StateCallback = (state: StateMessage) => void
 type ErrorCallback = (message: string) => void
+type ConnectCallback = () => void
 
 type SocketLike = {
   on(event: string, listener: (...args: unknown[]) => void): SocketLike
@@ -58,15 +59,38 @@ function loadSocketIo(baseUrl: string): Promise<SocketIoFactory> {
   return socketIoLoader
 }
 
+type SocketClientOptions = {
+  role?: string
+  joinPayload?: Record<string, unknown>
+}
+
+function sanitizeJoinPayload(payload: Record<string, unknown> | undefined): Record<string, unknown> {
+  if (!payload) {
+    return {}
+  }
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(payload)) {
+    if (value !== undefined && value !== null) {
+      sanitized[key] = value
+    }
+  }
+  return sanitized
+}
+
 export class SocketClient {
   private socket: SocketLike | null = null
   private readonly url: string
+  private readonly role: string
+  private joinPayload: Record<string, unknown>
   private readonly roomInfoListeners = new Set<RoomInfoCallback>()
   private readonly stateListeners = new Set<StateCallback>()
   private readonly errorListeners = new Set<ErrorCallback>()
+  private readonly connectListeners = new Set<ConnectCallback>()
 
-  constructor(url?: string) {
+  constructor(options?: SocketClientOptions, url?: string) {
     this.url = url ?? DEFAULT_SERVER_URL
+    this.role = options?.role ?? 'viewer'
+    this.joinPayload = sanitizeJoinPayload(options?.joinPayload)
   }
 
   connect(): void {
@@ -122,9 +146,38 @@ export class SocketClient {
     }
   }
 
+  onConnect(callback: ConnectCallback): () => void {
+    this.connectListeners.add(callback)
+    return () => {
+      this.connectListeners.delete(callback)
+    }
+  }
+
+  setJoinPayload(payload: Record<string, unknown>): void {
+    this.joinPayload = sanitizeJoinPayload(payload)
+    if (this.socket?.connected) {
+      this.socket.emit('join_room', { role: this.role, ...this.joinPayload })
+    }
+  }
+
+  emit(event: string, payload: unknown): void {
+    if (!this.socket) {
+      console.warn(`[SocketClient] Cannot emit ${event} - socket not connected`)
+      return
+    }
+    this.socket.emit(event, payload)
+  }
+
+  isConnected(): boolean {
+    return Boolean(this.socket?.connected)
+  }
+
   private registerHandlers(socket: SocketLike): void {
     socket.on('connect', () => {
-      socket.emit('join_room', { role: 'viewer' })
+      socket.emit('join_room', { role: this.role, ...this.joinPayload })
+      for (const listener of this.connectListeners) {
+        listener()
+      }
     })
 
     socket.on('room_info', (info: unknown) => {
