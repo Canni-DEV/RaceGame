@@ -47,7 +47,7 @@ export class RoomManager {
     }
 
     if (needsNewPlayer) {
-      if (room.cars.size >= MAX_PLAYERS_PER_ROOM) {
+      if (room.getHumanPlayerCount() >= MAX_PLAYERS_PER_ROOM) {
         throw new Error("Room is full");
       }
       room.addPlayer(playerId!);
@@ -185,11 +185,25 @@ export class RoomManager {
       return { room: existingRoom, isNewRoom: false };
     }
 
+    const reusableRoom = this.findReusableRoom();
+    if (reusableRoom) {
+      return { room: reusableRoom, isNewRoom: false };
+    }
+
     const newRoomId = this.generateRoomId();
     const track = trackRepository.getDefaultTrack();
     const room = new Room(newRoomId, track);
     this.rooms.set(newRoomId, room);
     return { room, isNewRoom: true };
+  }
+
+  private findReusableRoom(): Room | undefined {
+    for (const room of this.rooms.values()) {
+      if (room.getHumanPlayerCount() < MAX_PLAYERS_PER_ROOM) {
+        return room;
+      }
+    }
+    return undefined;
   }
 
   private generateRoomId(): string {

@@ -25,6 +25,9 @@ declare module 'three' {
     matrix: Matrix4
     userData: Record<string, any>
     add(...objects: Object3D[]): this
+    remove(...objects: Object3D[]): this
+    removeFromParent(): this
+    traverse(callback: (object: Object3D) => void): void
     updateMatrix(): void
     lookAt(target: Vector3): void
   }
@@ -35,6 +38,8 @@ declare module 'three' {
 
   export class Color {
     constructor(hex?: number | string)
+    setHSL(h: number, s: number, l: number): this
+    getHex(): number
   }
 
   export class PerspectiveCamera extends Object3D {
@@ -97,6 +102,7 @@ declare module 'three' {
     setIndex(index: number[] | BufferAttribute): this
     setAttribute(name: string, attribute: BufferAttribute): this
     computeVertexNormals(): void
+    dispose(): void
   }
 
   export class PlaneGeometry extends BufferGeometry {
@@ -115,6 +121,7 @@ declare module 'three' {
 
   export class Material {
     constructor(parameters?: Record<string, unknown>)
+    dispose(): void
   }
 
   export class MeshStandardMaterial extends Material {
@@ -126,12 +133,15 @@ declare module 'three' {
     receiveShadow: boolean
     castShadow: boolean
     name: string
+    geometry: TGeometry
+    material: Material | Material[]
   }
 
   export class InstancedMesh extends Mesh {
     constructor(geometry: BufferGeometry, material: Material, count: number)
     setMatrixAt(index: number, matrix: Matrix4): void
     instanceMatrix: BufferAttribute
+    dispose(): void
   }
 
   export const MathUtils: {

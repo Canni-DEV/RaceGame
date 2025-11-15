@@ -11,7 +11,7 @@ export interface RoomInfoMessage {
   playerId: string;
   role: PlayerRole;
   track: TrackData;
-  players: { playerId: string }[];
+  players: { playerId: string; isNpc?: boolean }[];
 }
 
 export interface InputMessage {
@@ -22,9 +22,7 @@ export interface InputMessage {
   brake: number;
 }
 
-export interface StateMessage {
-  room: RoomState;
-}
+export type StateMessage = RoomState;
 
 export interface ErrorMessage {
   message: string;
