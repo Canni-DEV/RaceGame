@@ -1,19 +1,24 @@
 import * as THREE from 'three'
 import type { CarState, TrackData } from '../core/trackTypes'
 import { createRandom } from '../core/random'
-import { TrackMeshBuilder } from '../render/TrackMeshBuilder'
+import { TrackMeshBuilder, type TrackBuildResult } from '../render/TrackMeshBuilder'
 import { applyDecorators } from '../render/DecorGenerator'
 import { CameraRig } from '../render/CameraRig'
 import type { GameStateStore } from '../state/GameStateStore'
+import { CarModelLoader } from '../render/CarModelLoader'
+import { CarEntity } from '../render/CarEntity'
+import { GuardRailBuilder } from '../render/GuardRailBuilder'
 
 export class TrackScene {
   private readonly scene: THREE.Scene
   private readonly cameraRig: CameraRig
   private readonly store: GameStateStore
-  private readonly carGeometry: THREE.BoxGeometry
-  private readonly cars: Map<string, THREE.Mesh>
-  private readonly carMaterials: Map<string, THREE.MeshStandardMaterial>
+  private readonly carModelLoader: CarModelLoader
+  private readonly guardRailBuilder: GuardRailBuilder
+  private readonly cars: Map<string, CarEntity>
+  private readonly playerColors: Map<string, THREE.Color>
   private trackRoot: THREE.Group | null = null
+  private playerId: string | null = null
 
   constructor(
     scene: THREE.Scene,
@@ -25,21 +30,28 @@ export class TrackScene {
     camera.up.set(0, 1, 0)
     this.cameraRig = cameraRig
     this.store = store
-    this.carGeometry = new THREE.BoxGeometry(4, 1.5, 2)
+    this.carModelLoader = new CarModelLoader()
+    this.guardRailBuilder = new GuardRailBuilder()
     this.cars = new Map()
-    this.carMaterials = new Map()
+    this.playerColors = new Map()
+    void this.carModelLoader.preload()
 
     this.store.onRoomInfo((info) => {
+      this.playerId = info.playerId
       if (info.track) {
         this.rebuildTrack(info.track)
       }
     })
   }
 
-  update(_dt: number): void {
+  update(dt: number): void {
     const now = performance.now()
     const carStates = this.store.getCarsForRender(now)
-    this.updateCars(carStates)
+    this.syncCars(carStates)
+    for (const entity of this.cars.values()) {
+      entity.update(dt)
+    }
+    this.updateCameraFollow()
   }
 
   private rebuildTrack(track: TrackData): void {
@@ -47,17 +59,21 @@ export class TrackScene {
 
     const random = createRandom(track.seed)
     const builder = new TrackMeshBuilder()
-    const trackMesh = builder.build(track)
+    const result = builder.build(track)
 
     const group = new THREE.Group()
     group.name = 'track-root'
-    group.add(trackMesh)
+    group.add(result.mesh)
+    const rails = this.guardRailBuilder.build(result, track.width)
+    if (rails) {
+      group.add(rails)
+    }
 
     applyDecorators(track, group, random)
 
     this.scene.add(group)
     this.trackRoot = group
-    this.focusCamera(track)
+    this.focusCamera(result)
   }
 
   private disposeTrackRoot(): void {
@@ -92,83 +108,64 @@ export class TrackScene {
     this.trackRoot = null
   }
 
-  private updateCars(states: CarState[]): void {
+  private syncCars(states: CarState[]): void {
     const active = new Set<string>()
-
     for (const state of states) {
       active.add(state.playerId)
-      const mesh = this.getOrCreateCarMesh(state)
-      mesh.position.set(state.x, 1, state.z)
-      mesh.rotation.y = state.angle
+      const entity = this.getOrCreateCar(state)
+      entity.setTargetState(state)
     }
 
-    for (const [playerId, mesh] of this.cars.entries()) {
+    for (const [playerId, entity] of this.cars.entries()) {
       if (!active.has(playerId)) {
-        mesh.removeFromParent()
+        entity.dispose()
         this.cars.delete(playerId)
       }
     }
   }
 
-  private getOrCreateCarMesh(state: CarState): THREE.Mesh {
-    let mesh = this.cars.get(state.playerId)
-    if (!mesh) {
-      const material = this.getMaterialForState(state)
-      mesh = new THREE.Mesh(this.carGeometry, material)
-      mesh.castShadow = true
-      mesh.receiveShadow = true
-      mesh.name = state.playerId
-      this.scene.add(mesh)
-      this.cars.set(state.playerId, mesh)
+  private getOrCreateCar(state: CarState): CarEntity {
+    let car = this.cars.get(state.playerId)
+    if (!car) {
+      const color = this.getColorForState(state)
+      car = new CarEntity(state.playerId, this.scene, this.carModelLoader, color)
+      this.cars.set(state.playerId, car)
     }
-    return mesh
+    return car
   }
 
-  private getMaterialForState(state: CarState): THREE.MeshStandardMaterial {
-    let material = this.carMaterials.get(state.playerId)
-    if (!material) {
-      const color = state.isNpc ? 0xffaa33 : this.colorFromId(state.playerId)
-      material = new THREE.MeshStandardMaterial({
-        color,
-        metalness: 0.25,
-        roughness: 0.6,
-      })
-      this.carMaterials.set(state.playerId, material)
+  private getColorForState(state: CarState): THREE.Color {
+    if (state.isNpc) {
+      return new THREE.Color(0xffa133)
     }
-    return material
+    let color = this.playerColors.get(state.playerId)
+    if (!color) {
+      let hash = 0
+      for (let i = 0; i < state.playerId.length; i++) {
+        hash = (hash * 31 + state.playerId.charCodeAt(i)) | 0
+      }
+      const normalized = (hash & 0xffff) / 0xffff
+      color = new THREE.Color()
+      color.setHSL((normalized + 1) % 1, 0.65, 0.5)
+      this.playerColors.set(state.playerId, color)
+    }
+    return color.clone()
   }
 
-  private colorFromId(playerId: string): number {
-    let hash = 0
-    for (let i = 0; i < playerId.length; i++) {
-      hash = (hash * 31 + playerId.charCodeAt(i)) | 0
-    }
-    const normalized = (hash & 0xffff) / 0xffff
-    const color = new THREE.Color()
-    color.setHSL((normalized + 1) % 1, 0.65, 0.55)
-    return color.getHex()
-  }
-
-  private focusCamera(track: TrackData): void {
-    const center = this.computeTrackCenter(track)
+  private focusCamera(track: TrackBuildResult): void {
+    const center = track.bounds.getCenter(new THREE.Vector3())
     this.cameraRig.setTarget(center)
+    this.cameraRig.frameBounds(track.bounds)
   }
 
-  private computeTrackCenter(track: TrackData): THREE.Vector3 {
-    if (track.centerline.length === 0) {
-      return new THREE.Vector3(0, 0, 0)
+  private updateCameraFollow(): void {
+    const followCandidate = this.playerId ? this.cars.get(this.playerId) : null
+    const object = followCandidate?.getObject()
+    if (object) {
+      this.cameraRig.follow(object)
+      return
     }
-
-    const sum = track.centerline.reduce(
-      (acc, point) => {
-        acc.x += point.x
-        acc.z += point.z
-        return acc
-      },
-      { x: 0, z: 0 },
-    )
-
-    const count = track.centerline.length || 1
-    return new THREE.Vector3(sum.x / count, 0, sum.z / count)
+    const first = this.cars.values().next().value
+    this.cameraRig.follow(first?.getObject() ?? null)
   }
 }
