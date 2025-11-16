@@ -1,10 +1,20 @@
 import * as THREE from 'three'
-import type { TrackData } from '../core/trackTypes'
+import type {
+  StartBuildingDecoration,
+  TrackData,
+  TrackDecoration,
+  TreeBeltDecoration,
+} from '../core/trackTypes'
 import { normalize, rightNormal, sub } from '../core/math2d'
 
-export interface ProceduralDecorator {
-  id: string
-  apply(track: TrackData, root: THREE.Object3D, random: () => number): void
+interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
+  readonly type: TInstruction['type']
+  apply(
+    track: TrackData,
+    instruction: TInstruction,
+    root: THREE.Object3D,
+    random: () => number,
+  ): void
 }
 
 export function createGroundPlane(size: number): THREE.Mesh {
@@ -22,13 +32,18 @@ export function createGroundPlane(size: number): THREE.Mesh {
   return mesh
 }
 
-class TreesDecorator implements ProceduralDecorator {
-  readonly id = 'trees'
+class TreesDecorator implements Decorator<TreeBeltDecoration> {
+  readonly type = 'tree-belt'
 
-  apply(track: TrackData, root: THREE.Object3D, random: () => number): void {
-    const countPerSegment = 6
-    const minDistanceFromTrack = track.width * 0.7
-    const maxDistanceFromTrack = track.width * 2.5
+  apply(
+    track: TrackData,
+    instruction: TreeBeltDecoration,
+    root: THREE.Object3D,
+    random: () => number,
+  ): void {
+    const countPerSegment = Math.max(1, Math.round(instruction.density))
+    const minDistanceFromTrack = instruction.minDistance
+    const maxDistanceFromTrack = instruction.maxDistance
 
     const totalInstances = track.centerline.length * countPerSegment
     if (totalInstances === 0) {
@@ -89,6 +104,92 @@ class TreesDecorator implements ProceduralDecorator {
   }
 }
 
+class StartBuildingDecorator implements Decorator<StartBuildingDecoration> {
+  readonly type = 'start-building'
+
+  apply(
+    _track: TrackData,
+    instruction: StartBuildingDecoration,
+    root: THREE.Object3D,
+  ): void {
+    const group = new THREE.Group()
+    group.name = 'decor-start-building'
+    group.position.set(instruction.position.x, 0, instruction.position.z)
+    group.rotation.y = instruction.rotation
+
+    const padGeometry = new THREE.BoxGeometry(
+      instruction.length * 1.15,
+      0.2,
+      instruction.width * 1.8,
+    )
+    const padMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2f312f,
+      roughness: 1,
+      metalness: 0,
+    })
+    const pad = new THREE.Mesh(padGeometry, padMaterial)
+    pad.position.y = -0.1
+    pad.receiveShadow = true
+    group.add(pad)
+
+    const buildingGeometry = new THREE.BoxGeometry(
+      instruction.length,
+      instruction.height,
+      instruction.width,
+    )
+    const buildingMaterial = new THREE.MeshStandardMaterial({
+      color: 0x6f7687,
+      roughness: 0.65,
+      metalness: 0.15,
+    })
+    const building = new THREE.Mesh(buildingGeometry, buildingMaterial)
+    building.position.y = instruction.height / 2
+    building.castShadow = true
+    building.receiveShadow = true
+    group.add(building)
+
+    const roofHeight = instruction.height * 0.2
+    const roofGeometry = new THREE.BoxGeometry(
+      instruction.length * 1.05,
+      roofHeight,
+      instruction.width * 1.05,
+    )
+    const roofMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc2b59b,
+      roughness: 0.4,
+      metalness: 0.05,
+    })
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial)
+    roof.position.y = instruction.height + roofHeight / 2
+    roof.castShadow = true
+    group.add(roof)
+
+    const bannerGeometry = new THREE.PlaneGeometry(
+      instruction.width,
+      instruction.height * 0.5,
+    )
+    const bannerMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      emissive: 0x121212,
+      roughness: 0.3,
+      metalness: 0,
+    })
+    const banner = new THREE.Mesh(bannerGeometry, bannerMaterial)
+    banner.position.set(0, instruction.height * 0.8, instruction.width * 0.55)
+    banner.castShadow = true
+    group.add(banner)
+
+    root.add(group)
+  }
+}
+
+type DecoratorRegistry = Record<TrackDecoration['type'], Decorator>
+
+const decoratorRegistry: DecoratorRegistry = {
+  'tree-belt': new TreesDecorator(),
+  'start-building': new StartBuildingDecorator(),
+}
+
 export function applyDecorators(
   track: TrackData,
   root: THREE.Object3D,
@@ -99,9 +200,9 @@ export function applyDecorators(
   ground.position.y = -0.01
   root.add(ground)
 
-  const decorators: ProceduralDecorator[] = [new TreesDecorator()]
-
-  for (const decorator of decorators) {
-    decorator.apply(track, root, random)
+  const decorations = track.decorations ?? []
+  for (const decoration of decorations) {
+    const decorator = decoratorRegistry[decoration.type]
+    decorator.apply(track, decoration, root, random)
   }
 }
