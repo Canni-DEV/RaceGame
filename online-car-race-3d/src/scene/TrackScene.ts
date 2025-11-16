@@ -19,6 +19,8 @@ export class TrackScene {
   private readonly playerColors: Map<string, THREE.Color>
   private trackRoot: THREE.Group | null = null
   private playerId: string | null = null
+  private cameraMode: 'overview' | 'follow' = 'overview'
+  private requestedFollowId: string | null = null
 
   constructor(
     scene: THREE.Scene,
@@ -35,6 +37,7 @@ export class TrackScene {
     this.cars = new Map()
     this.playerColors = new Map()
     void this.carModelLoader.preload()
+    window.addEventListener('keydown', this.handleKeyDown)
 
     this.store.onRoomInfo((info) => {
       this.playerId = info.playerId
@@ -159,13 +162,49 @@ export class TrackScene {
   }
 
   private updateCameraFollow(): void {
-    const followCandidate = this.playerId ? this.cars.get(this.playerId) : null
-    const object = followCandidate?.getObject()
-    if (object) {
-      this.cameraRig.follow(object)
+    if (this.cameraMode !== 'follow') {
+      this.cameraRig.follow(null)
       return
     }
-    const first = this.cars.values().next().value
-    this.cameraRig.follow(first?.getObject() ?? null)
+
+    const followEntity = this.resolveFollowEntity()
+    this.cameraRig.follow(followEntity?.getObject() ?? null)
+  }
+
+  private resolveFollowEntity(): CarEntity | null {
+    if (this.requestedFollowId) {
+      const requested = this.cars.get(this.requestedFollowId)
+      if (requested) {
+        return requested
+      }
+    }
+
+    if (this.playerId) {
+      const playerCar = this.cars.get(this.playerId)
+      if (playerCar) {
+        this.requestedFollowId = this.playerId
+        return playerCar
+      }
+    }
+
+    const firstEntry = this.cars.entries().next()
+    if (!firstEntry.done) {
+      const [playerId, car] = firstEntry.value
+      this.requestedFollowId = playerId
+      return car
+    }
+    return null
+  }
+
+  private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key.toLowerCase() !== 'f') {
+      return
+    }
+    this.cameraMode = this.cameraMode === 'overview' ? 'follow' : 'overview'
+    if (this.cameraMode === 'overview') {
+      this.cameraRig.follow(null)
+    } else {
+      this.requestedFollowId = this.playerId
+    }
   }
 }
