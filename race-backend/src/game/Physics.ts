@@ -8,6 +8,10 @@ import {
 import { Room, PlayerInput } from "./Room";
 
 const NEUTRAL_INPUT: PlayerInput = { steer: 0, throttle: 0, brake: 0 };
+const TAU = Math.PI * 2;
+function normalizeAngle(angle: number): number {
+  return ((angle + Math.PI) % TAU + TAU) % TAU - Math.PI;
+}
 
 export function updateCarsForRoom(room: Room, dt: number): void {
   for (const [playerId, car] of room.cars.entries()) {
@@ -29,6 +33,7 @@ export function updateCarsForRoom(room: Room, dt: number): void {
     const steerValue = Math.max(-1, Math.min(1, input.steer));
     const speedFactor = car.speed / MAX_SPEED;
     car.angle += steerValue * STEER_SENSITIVITY * speedFactor * dt;
+    car.angle = normalizeAngle(car.angle);
 
     const dx = Math.cos(car.angle) * car.speed * dt;
     const dz = Math.sin(car.angle) * car.speed * dt;

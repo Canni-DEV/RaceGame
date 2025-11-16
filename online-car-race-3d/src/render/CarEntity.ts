@@ -66,7 +66,7 @@ export class CarEntity {
     this.lastServerPosition.copy(this.targetPosition)
     const displacementLengthSq = displacement.lengthSq()
 
-    ANGLE_FORWARD.set(Math.sin(state.angle), 0, Math.cos(state.angle))
+    ANGLE_FORWARD.set(Math.cos(state.angle), 0, Math.sin(state.angle))
     if (ANGLE_FORWARD.lengthSq() < 1e-4) {
       ANGLE_FORWARD.set(0, 0, 1)
     }
