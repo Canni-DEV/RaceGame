@@ -11,6 +11,7 @@ pnpm-lock.yaml
 # Output
 dist/
 build/
+cert/
 
 # Local env
 .env

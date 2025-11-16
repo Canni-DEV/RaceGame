@@ -1,6 +1,6 @@
 import type { ErrorMessage, RoomInfoMessage, StateMessage } from './messages'
 
-const DEFAULT_SERVER_URL = 'http://192.168.0.214:4000'
+const DEFAULT_SERVER_URL = 'https://192.168.0.214:4000'
 const SOCKET_SCRIPT_PATH = '/socket.io/socket.io.js'
 
 type RoomInfoCallback = (info: RoomInfoMessage) => void
