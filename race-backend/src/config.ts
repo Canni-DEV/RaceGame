@@ -1,3 +1,5 @@
+import path from "path";
+
 export const PORT = 4000;
 export const TICK_RATE = 60; // ticks per second
 export const STATE_BROADCAST_RATE = 20; // snapshots per second
@@ -37,7 +39,6 @@ export interface ProceduralTrackSettings {
   treeDensity: number;
   treeMinDistanceFactor: number;
   treeMaxDistanceFactor: number;
-  startBuildingOffset: number;
 }
 
 export const PROCEDURAL_TRACK_SETTINGS: ProceduralTrackSettings = {
@@ -53,6 +54,43 @@ export const PROCEDURAL_TRACK_SETTINGS: ProceduralTrackSettings = {
   ],
   treeDensity: Number(process.env.TRACK_TREE_DENSITY ?? 6),
   treeMinDistanceFactor: Number(process.env.TRACK_TREE_MIN_DIST ?? 0.7),
-  treeMaxDistanceFactor: Number(process.env.TRACK_TREE_MAX_DIST ?? 2.6),
-  startBuildingOffset: Number(process.env.TRACK_BUILDING_OFFSET ?? 12)
+  treeMaxDistanceFactor: Number(process.env.TRACK_TREE_MAX_DIST ?? 2.6)
+};
+
+export interface TrackAssetLibraryConfig {
+  directory: string;
+  route: string;
+  publicUrl: string;
+  size: number;
+  offset: number;
+}
+
+const PROJECT_ROOT = path.resolve(__dirname, "..");
+const DEFAULT_ASSET_DIR = process.env.TRACK_ASSET_DIR
+  ? path.resolve(process.env.TRACK_ASSET_DIR)
+  : path.join(PROJECT_ROOT, "assets");
+
+function normalizeRoute(value: string): string {
+  if (!value || value === "/") {
+    return "/assets";
+  }
+  return value.startsWith("/") ? value : `/${value}`;
+}
+
+function normalizePublicUrl(route: string, override?: string): string {
+  if (override && override.trim().length > 0) {
+    const trimmed = override.trim();
+    return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+  }
+  return route;
+}
+
+const assetRoute = normalizeRoute(process.env.TRACK_ASSET_ROUTE ?? "/assets");
+
+export const TRACK_ASSET_LIBRARY: TrackAssetLibraryConfig = {
+  directory: DEFAULT_ASSET_DIR,
+  route: assetRoute,
+  publicUrl: normalizePublicUrl(assetRoute, process.env.TRACK_ASSET_URL),
+  size: Number(process.env.TRACK_ASSET_SIZE ?? 1),
+  offset: Number(process.env.TRACK_ASSET_OFFSET ?? 12)
 };

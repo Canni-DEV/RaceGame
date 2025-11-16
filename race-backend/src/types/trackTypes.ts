@@ -18,16 +18,15 @@ export interface TreeBeltDecoration {
   maxDistance: number;
 }
 
-export interface StartBuildingDecoration {
-  type: "start-building";
+export interface TrackAssetDecoration {
+  type: "track-asset";
+  assetUrl: string;
   position: Vec2;
   rotation: number;
-  length: number;
-  width: number;
-  height: number;
+  size: number;
 }
 
-export type TrackDecoration = TreeBeltDecoration | StartBuildingDecoration;
+export type TrackDecoration = TreeBeltDecoration | TrackAssetDecoration;
 
 export interface CarState {
   playerId: string;

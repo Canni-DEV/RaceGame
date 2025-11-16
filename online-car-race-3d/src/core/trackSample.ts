@@ -1,11 +1,4 @@
-import { normalize, sub } from './math2d'
-import type {
-  StartBuildingDecoration,
-  TrackData,
-  TrackDecoration,
-  TreeBeltDecoration,
-  Vec2,
-} from './trackTypes'
+import type { TrackData, TrackDecoration, TreeBeltDecoration } from './trackTypes'
 
 export const SAMPLE_TRACK: TrackData = createTrack({
   id: 'sample-oval',
@@ -58,43 +51,16 @@ export const ARCADE_SAMPLE_TRACK: TrackData = createTrack({
 function createTrack(track: Omit<TrackData, 'decorations'>): TrackData {
   return {
     ...track,
-    decorations: buildDecorations(track.centerline, track.width),
+    decorations: buildDecorations(track.width),
   }
 }
 
-function buildDecorations(centerline: Vec2[], width: number): TrackDecoration[] {
+function buildDecorations(width: number): TrackDecoration[] {
   const trees: TreeBeltDecoration = {
     type: 'tree-belt',
     density: 6,
     minDistance: width * 0.7,
     maxDistance: width * 2.5,
   }
-  const building = createStartBuilding(centerline, width)
-  return building ? [trees, building] : [trees]
-}
-
-function createStartBuilding(centerline: Vec2[], width: number): StartBuildingDecoration | null {
-  if (centerline.length < 2) {
-    return null
-  }
-  const start = centerline[0]
-  const next = centerline[1]
-  const direction = normalize(sub(next, start))
-  if (direction.x === 0 && direction.z === 0) {
-    return null
-  }
-  const normal = { x: -direction.z, z: direction.x }
-  const offset = width * 1.6
-  const rotation = Math.atan2(direction.z, direction.x)
-  return {
-    type: 'start-building',
-    position: {
-      x: start.x + normal.x * offset,
-      z: start.z + normal.z * offset,
-    },
-    rotation,
-    length: width * 2.1,
-    width: width * 1.1,
-    height: width * 0.6,
-  }
+  return [trees]
 }

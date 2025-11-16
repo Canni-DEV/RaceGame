@@ -1,12 +1,7 @@
 import { PROCEDURAL_TRACK_SETTINGS, TRACK_GENERATION } from "../config";
-import {
-  StartBuildingDecoration,
-  TrackData,
-  TrackDecoration,
-  TreeBeltDecoration,
-  Vec2
-} from "../types/trackTypes";
+import { TrackData, TrackDecoration, TreeBeltDecoration, Vec2 } from "../types/trackTypes";
 import { ProceduralTrackGenerator } from "./ProceduralTrackGenerator";
+import { planAssetDecorations } from "./TrackAssetPlanner";
 
 const SAMPLE_CENTERLINE: Vec2[] = [
   { x: 0, z: 0 },
@@ -74,13 +69,13 @@ export class TrackRepository {
 }
 
 function cloneDecoration(decoration: TrackDecoration): TrackDecoration {
-  if (decoration.type === "start-building") {
-    return {
-      ...decoration,
-      position: { ...decoration.position }
-    };
+  if (decoration.type === "tree-belt") {
+    return { ...decoration };
   }
-  return { ...decoration };
+  return {
+    ...decoration,
+    position: { ...decoration.position }
+  };
 }
 
 function createDefaultTrack(): TrackData {
@@ -102,44 +97,8 @@ function createDecorations(centerline: Vec2[], width: number): TrackDecoration[]
     minDistance: width * PROCEDURAL_TRACK_SETTINGS.treeMinDistanceFactor,
     maxDistance: width * PROCEDURAL_TRACK_SETTINGS.treeMaxDistanceFactor
   };
-
-  const building = createStartBuilding(centerline, width);
-  return building ? [treeDecoration, building] : [treeDecoration];
-}
-
-function createStartBuilding(centerline: Vec2[], width: number): StartBuildingDecoration | null {
-  if (centerline.length < 2) {
-    return null;
-  }
-  const start = centerline[0];
-  const next = centerline[1];
-  const direction = normalize({ x: next.x - start.x, z: next.z - start.z });
-  if (direction.x === 0 && direction.z === 0) {
-    return null;
-  }
-  const normal = { x: -direction.z, z: direction.x };
-  const offset = width + PROCEDURAL_TRACK_SETTINGS.startBuildingOffset;
-  const rotation = Math.atan2(direction.z, direction.x);
-
-  return {
-    type: "start-building",
-    position: {
-      x: start.x + normal.x * offset,
-      z: start.z + normal.z * offset
-    },
-    rotation,
-    length: width * 2.4,
-    width: width * 1.1,
-    height: width * 0.55
-  };
-}
-
-function normalize(vec: Vec2): Vec2 {
-  const length = Math.hypot(vec.x, vec.z);
-  if (length === 0) {
-    return { x: 0, z: 0 };
-  }
-  return { x: vec.x / length, z: vec.z / length };
+  const assetDecorations = planAssetDecorations(centerline, width);
+  return [treeDecoration, ...assetDecorations];
 }
 
 export const trackRepository = new TrackRepository();

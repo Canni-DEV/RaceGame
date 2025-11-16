@@ -1,10 +1,5 @@
-import {
-  StartBuildingDecoration,
-  TrackData,
-  TrackDecoration,
-  TreeBeltDecoration,
-  Vec2
-} from "../types/trackTypes";
+import { TrackData, TrackDecoration, TreeBeltDecoration, Vec2 } from "../types/trackTypes";
+import { planAssetDecorations } from "./TrackAssetPlanner";
 
 export interface ProceduralTrackConfig {
   minPoints: number;
@@ -17,7 +12,6 @@ export interface ProceduralTrackConfig {
   treeDensity: number;
   treeMinDistanceFactor: number;
   treeMaxDistanceFactor: number;
-  startBuildingOffset: number;
 }
 
 export class ProceduralTrackGenerator {
@@ -62,41 +56,9 @@ export class ProceduralTrackGenerator {
       minDistance: width * this.config.treeMinDistanceFactor,
       maxDistance: width * this.config.treeMaxDistanceFactor
     };
+    const assetDecorations = planAssetDecorations(centerline, width);
 
-    const buildingDecoration = this.createStartBuildingDecoration(centerline, width);
-
-    return buildingDecoration ? [treeDecoration, buildingDecoration] : [treeDecoration];
-  }
-
-  private createStartBuildingDecoration(
-    centerline: Vec2[],
-    width: number
-  ): StartBuildingDecoration | null {
-    if (centerline.length < 2) {
-      return null;
-    }
-
-    const start = centerline[0];
-    const next = centerline[1];
-    const direction = this.normalize({ x: next.x - start.x, z: next.z - start.z });
-    const normal = this.leftNormal(direction);
-    const rotation = Math.atan2(direction.z, direction.x);
-    const offset = width + this.config.startBuildingOffset;
-    const length = width * 2.6;
-    const buildingWidth = width * 1.2;
-    const height = width * 0.6;
-
-    return {
-      type: "start-building",
-      position: {
-        x: start.x + normal.x * offset,
-        z: start.z + normal.z * offset
-      },
-      rotation,
-      length,
-      width: buildingWidth,
-      height
-    };
+    return [treeDecoration, ...assetDecorations];
   }
 
   private smoothPoints(points: Vec2[], passes: number): Vec2[] {
@@ -112,18 +74,6 @@ export class ProceduralTrackGenerator {
       });
     }
     return result;
-  }
-
-  private leftNormal(dir: Vec2): Vec2 {
-    return { x: -dir.z, z: dir.x };
-  }
-
-  private normalize(vec: Vec2): Vec2 {
-    const length = Math.hypot(vec.x, vec.z);
-    if (length === 0) {
-      return { x: 0, z: 0 };
-    }
-    return { x: vec.x / length, z: vec.z / length };
   }
 
   private randomInt(random: () => number, min: number, max: number): number {

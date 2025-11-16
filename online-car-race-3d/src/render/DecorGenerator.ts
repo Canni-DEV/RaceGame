@@ -1,10 +1,7 @@
 import * as THREE from 'three'
-import type {
-  StartBuildingDecoration,
-  TrackData,
-  TrackDecoration,
-  TreeBeltDecoration,
-} from '../core/trackTypes'
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
+import type { TrackAssetDecoration, TrackData, TrackDecoration, TreeBeltDecoration } from '../core/trackTypes'
 import { normalize, rightNormal, sub } from '../core/math2d'
 
 interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
@@ -104,82 +101,66 @@ class TreesDecorator implements Decorator<TreeBeltDecoration> {
   }
 }
 
-class StartBuildingDecorator implements Decorator<StartBuildingDecoration> {
-  readonly type = 'start-building'
+class TrackAssetLoader {
+  private readonly loader = new GLTFLoader()
+  private readonly cache = new Map<string, Promise<THREE.Object3D | null>>()
+
+  async createInstance(assetUrl: string): Promise<THREE.Object3D | null> {
+    const base = await this.loadBase(assetUrl)
+    if (!base) {
+      return null
+    }
+    return SkeletonUtils.clone(base) as THREE.Object3D
+  }
+
+  private loadBase(assetUrl: string): Promise<THREE.Object3D | null> {
+    if (!this.cache.has(assetUrl)) {
+      const promise = this.loader
+        .loadAsync(assetUrl)
+        .then((gltf: GLTF) => this.prepareModel(gltf.scene))
+        .catch((error: unknown) => {
+          console.warn(`[TrackAssetLoader] Failed to load asset "${assetUrl}"`, error)
+          return null
+        })
+      this.cache.set(assetUrl, promise)
+    }
+    return this.cache.get(assetUrl) as Promise<THREE.Object3D | null>
+  }
+
+  private prepareModel(scene: THREE.Object3D): THREE.Object3D {
+    const root = scene.clone()
+    root.traverse((child: THREE.Object3D) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+      }
+    })
+    return root
+  }
+}
+
+const trackAssetLoader = new TrackAssetLoader()
+
+class TrackAssetDecorator implements Decorator<TrackAssetDecoration> {
+  readonly type = 'track-asset'
 
   apply(
     _track: TrackData,
-    instruction: StartBuildingDecoration,
+    instruction: TrackAssetDecoration,
     root: THREE.Object3D,
   ): void {
-    const group = new THREE.Group()
-    group.name = 'decor-start-building'
-    group.position.set(instruction.position.x, 0, instruction.position.z)
-    group.rotation.y = instruction.rotation
-
-    const padGeometry = new THREE.BoxGeometry(
-      instruction.length * 1.15,
-      0.2,
-      instruction.width * 1.8,
-    )
-    const padMaterial = new THREE.MeshStandardMaterial({
-      color: 0x2f312f,
-      roughness: 1,
-      metalness: 0,
+    void trackAssetLoader.createInstance(instruction.assetUrl).then((instance) => {
+      if (!instance) {
+        return
+      }
+      const size = instruction.size > 0 ? instruction.size : 1
+      instance.name = `decor-asset-${instruction.assetUrl}`
+      instance.position.set(instruction.position.x, 0, instruction.position.z)
+      instance.rotation.y = instruction.rotation
+      instance.scale.setScalar(size)
+      root.add(instance)
     })
-    const pad = new THREE.Mesh(padGeometry, padMaterial)
-    pad.position.y = -0.1
-    pad.receiveShadow = true
-    group.add(pad)
-
-    const buildingGeometry = new THREE.BoxGeometry(
-      instruction.length,
-      instruction.height,
-      instruction.width,
-    )
-    const buildingMaterial = new THREE.MeshStandardMaterial({
-      color: 0x6f7687,
-      roughness: 0.65,
-      metalness: 0.15,
-    })
-    const building = new THREE.Mesh(buildingGeometry, buildingMaterial)
-    building.position.y = instruction.height / 2
-    building.castShadow = true
-    building.receiveShadow = true
-    group.add(building)
-
-    const roofHeight = instruction.height * 0.2
-    const roofGeometry = new THREE.BoxGeometry(
-      instruction.length * 1.05,
-      roofHeight,
-      instruction.width * 1.05,
-    )
-    const roofMaterial = new THREE.MeshStandardMaterial({
-      color: 0xc2b59b,
-      roughness: 0.4,
-      metalness: 0.05,
-    })
-    const roof = new THREE.Mesh(roofGeometry, roofMaterial)
-    roof.position.y = instruction.height + roofHeight / 2
-    roof.castShadow = true
-    group.add(roof)
-
-    const bannerGeometry = new THREE.PlaneGeometry(
-      instruction.width,
-      instruction.height * 0.5,
-    )
-    const bannerMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      emissive: 0x121212,
-      roughness: 0.3,
-      metalness: 0,
-    })
-    const banner = new THREE.Mesh(bannerGeometry, bannerMaterial)
-    banner.position.set(0, instruction.height * 0.8, instruction.width * 0.55)
-    banner.castShadow = true
-    group.add(banner)
-
-    root.add(group)
   }
 }
 
@@ -187,7 +168,7 @@ type DecoratorRegistry = Record<TrackDecoration['type'], Decorator>
 
 const decoratorRegistry: DecoratorRegistry = {
   'tree-belt': new TreesDecorator(),
-  'start-building': new StartBuildingDecorator(),
+  'track-asset': new TrackAssetDecorator(),
 }
 
 export function applyDecorators(
