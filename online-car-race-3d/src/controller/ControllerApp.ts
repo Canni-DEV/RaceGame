@@ -4,6 +4,7 @@ import { ControllerSocketClient } from './ControllerSocketClient'
 import { OrientationManager } from './OrientationManager'
 
 const INPUT_SEND_INTERVAL_MS = 100
+const SENSOR_PULSE_TIMEOUT_MS = 2000
 
 function createElement<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -33,12 +34,18 @@ export class ControllerApp {
   private readonly overlayDetails: HTMLElement
   private readonly permissionButton: HTMLButtonElement
   private readonly statusText: HTMLElement
+  private steeringStatus!: HTMLElement
+  private steeringHint!: HTMLElement
+  private calibrateButton!: HTMLButtonElement
 
   private readonly inputStore = new ControllerInputStore()
   private readonly orientationManager = new OrientationManager()
   private readonly socketClient: ControllerSocketClient | null
+  private readonly orientationEventNames = ['deviceorientation', 'deviceorientationabsolute']
 
   private readonly needsPermission: boolean
+  private readonly secureContext: boolean
+  private readonly sensorsSupported: boolean
 
   private permissionGranted: boolean
   private isLandscape = false
@@ -47,8 +54,12 @@ export class ControllerApp {
   private pendingCalibration = true
   private throttlePointerId: number | null = null
   private brakePointerId: number | null = null
+  private manualSteerPointerId: number | null = null
+  private manualSteerActive = false
   private orientationAngle = 0
   private lastRollValue = 0
+  private sensorAvailable = false
+  private sensorPulseTimeoutId: number | null = null
   private readonly sendIntervalId: number
   private readonly removeOrientationListener: () => void
   private readonly hasRoomParameters: boolean
@@ -56,6 +67,9 @@ export class ControllerApp {
   constructor(container: HTMLElement) {
     this.container = container
     this.container.innerHTML = ''
+    this.secureContext = typeof window !== 'undefined' ? window.isSecureContext ?? false : false
+    this.sensorsSupported =
+      typeof window !== 'undefined' && 'DeviceOrientationEvent' in window
 
     this.root = createElement('div', 'controller-root')
     this.container.appendChild(this.root)
@@ -133,7 +147,13 @@ export class ControllerApp {
     this.isLandscape = this.orientationManager.isLandscape()
     this.updateSensorsState()
 
-    window.addEventListener('deviceorientation', this.handleDeviceOrientation, true)
+    for (const eventName of this.orientationEventNames) {
+      window.addEventListener(
+        eventName,
+        this.handleDeviceOrientation as EventListener,
+        true,
+      )
+    }
     window.addEventListener('beforeunload', this.handleBeforeUnload)
 
     this.sendIntervalId = window.setInterval(() => {
@@ -141,6 +161,7 @@ export class ControllerApp {
     }, INPUT_SEND_INTERVAL_MS)
 
     this.updateSteeringVisual()
+    this.updateSensorStatus()
     this.updateOverlay()
   }
 
@@ -265,15 +286,27 @@ export class ControllerApp {
     wheelWrapper.appendChild(this.steeringBar)
     zone.appendChild(wheelWrapper)
 
-    const calibrateButton = createElement('button', 'controller-calibrate-button')
-    calibrateButton.type = 'button'
-    calibrateButton.textContent = 'Calibrar'
-    calibrateButton.addEventListener('click', () => {
+    this.steeringOuter.addEventListener('pointerdown', this.handleManualSteerStart)
+    this.steeringOuter.addEventListener('pointermove', this.handleManualSteerMove)
+    this.steeringOuter.addEventListener('pointerup', this.handleManualSteerEnd)
+    this.steeringOuter.addEventListener('pointercancel', this.handleManualSteerEnd)
+
+    this.calibrateButton = createElement('button', 'controller-calibrate-button')
+    this.calibrateButton.type = 'button'
+    this.calibrateButton.textContent = 'Calibrar'
+    this.calibrateButton.addEventListener('click', () => {
       this.inputStore.calibrate(this.lastRollValue)
       this.pendingCalibration = false
       this.updateSteeringVisual()
     })
-    zone.appendChild(calibrateButton)
+    zone.appendChild(this.calibrateButton)
+
+    this.steeringStatus = createElement('div', 'controller-steering-status')
+    this.steeringHint = createElement('div', 'controller-steering-hint')
+    this.steeringStatus.textContent = 'Sensores inactivos'
+    this.steeringHint.textContent = 'Mantén la barra paralela al piso'
+    zone.appendChild(this.steeringStatus)
+    zone.appendChild(this.steeringHint)
 
     return zone
   }
@@ -285,7 +318,11 @@ export class ControllerApp {
       this.brakeZone.classList.remove('is-active')
       this.inputStore.setThrottleFromY(0)
       this.updateThrottleVisual(0)
+      this.inputStore.resetSteering()
+      this.updateSteeringVisual()
+      this.resetSensorAvailability()
     }
+    this.updateSensorStatus()
   }
 
   private updateOverlay(): void {
@@ -337,10 +374,142 @@ export class ControllerApp {
     const angle = this.inputStore.getSteeringAngle()
     this.steeringOuter.style.transform = `rotate(${angle}deg)`
     this.steeringBar.style.transform = `rotate(${-angle}deg)`
+    const isManual = this.inputStore.isManualSteer()
+    this.steeringOuter.classList.toggle('is-manual', isManual)
+    this.steeringBar.classList.toggle('is-manual', isManual)
+    this.updateSensorStatus()
+  }
+
+  private updateSensorStatus(): void {
+    if (!this.steeringStatus || !this.steeringHint) {
+      return
+    }
+
+    let status = ''
+    let hint = ''
+    let manualAllowed = this.shouldAllowManualSteer()
+
+    if (!this.sensorsSupported) {
+      status = 'Sensores no soportados en este navegador'
+      hint = 'Arrastrá el volante para dirigir manualmente.'
+      manualAllowed = true
+    } else if (!this.secureContext) {
+      status = 'HTTPS requerido para habilitar los sensores'
+      hint = 'Abrí la app con https:// o arrastrá el volante táctil.'
+      manualAllowed = true
+    } else if (!this.sensorsActive) {
+      status = 'Girá el teléfono y permite el acceso a los sensores'
+      hint = 'Mantén el teléfono en orientación horizontal.'
+      manualAllowed = false
+    } else if (this.sensorAvailable) {
+      const angle = this.inputStore.getSteeringAngle().toFixed(0)
+      status = `Sensores activos · ${angle}°`
+      hint = 'Mantén la barra paralela al piso.'
+      manualAllowed = false
+    } else {
+      status = 'Esperando datos de los sensores...'
+      hint = 'Podés arrastrar el volante mientras tanto.'
+      manualAllowed = true
+    }
+
+    this.steeringStatus.textContent = status
+    this.steeringHint.textContent = hint
+    this.steeringHint.classList.toggle('is-warning', manualAllowed)
+    if (this.calibrateButton) {
+      this.calibrateButton.disabled = !this.sensorAvailable
+    }
+  }
+
+  private shouldAllowManualSteer(): boolean {
+    if (!this.sensorsActive) {
+      return true
+    }
+    if (!this.sensorsSupported || !this.secureContext) {
+      return true
+    }
+    return !this.sensorAvailable
+  }
+
+  private applyManualSteer(event: PointerEvent): void {
+    const rect = this.steeringOuter.getBoundingClientRect()
+    if (!rect.width) {
+      return
+    }
+    const ratio = (event.clientX - rect.left) / rect.width
+    const normalized = Math.max(-1, Math.min(1, ratio * 2 - 1))
+    this.inputStore.setManualSteer(normalized)
+    this.updateSteeringVisual()
+  }
+
+  private readonly handleManualSteerStart = (event: PointerEvent): void => {
+    if (!this.shouldAllowManualSteer()) {
+      return
+    }
+    event.preventDefault()
+    this.manualSteerPointerId = event.pointerId
+    this.manualSteerActive = true
+    this.steeringOuter.setPointerCapture(event.pointerId)
+    this.applyManualSteer(event)
+  }
+
+  private readonly handleManualSteerMove = (event: PointerEvent): void => {
+    if (!this.manualSteerActive || this.manualSteerPointerId !== event.pointerId) {
+      return
+    }
+    event.preventDefault()
+    this.applyManualSteer(event)
+  }
+
+  private readonly handleManualSteerEnd = (event: PointerEvent): void => {
+    if (this.manualSteerPointerId !== event.pointerId) {
+      return
+    }
+    event.preventDefault()
+    this.manualSteerActive = false
+    this.manualSteerPointerId = null
+    this.steeringOuter.releasePointerCapture(event.pointerId)
+  }
+
+  private cancelManualSteer(): void {
+    if (this.manualSteerPointerId !== null) {
+      try {
+        this.steeringOuter.releasePointerCapture(this.manualSteerPointerId)
+      } catch (error) {
+        // ignore if capture was already released
+      }
+    }
+    this.manualSteerPointerId = null
+    this.manualSteerActive = false
+  }
+
+  private markSensorPulse(): void {
+    this.sensorAvailable = true
+    if (this.sensorPulseTimeoutId !== null) {
+      window.clearTimeout(this.sensorPulseTimeoutId)
+      this.sensorPulseTimeoutId = null
+    }
+    this.sensorPulseTimeoutId = window.setTimeout(() => {
+      this.sensorAvailable = false
+      this.updateSensorStatus()
+    }, SENSOR_PULSE_TIMEOUT_MS)
+    this.cancelManualSteer()
+    this.updateSensorStatus()
+  }
+
+  private resetSensorAvailability(): void {
+    this.sensorAvailable = false
+    if (this.sensorPulseTimeoutId !== null) {
+      window.clearTimeout(this.sensorPulseTimeoutId)
+      this.sensorPulseTimeoutId = null
+    }
+    this.updateSensorStatus()
   }
 
   private handleDeviceOrientation = (event: DeviceOrientationEvent): void => {
     if (!this.sensorsActive) {
+      return
+    }
+    if (!this.secureContext || !this.sensorsSupported) {
       return
     }
     const roll = this.extractRoll(event)
@@ -352,6 +521,7 @@ export class ControllerApp {
       this.inputStore.updateSteerFromOrientation(roll)
     }
     this.updateSteeringVisual()
+    this.markSensorPulse()
   }
 
   private extractRoll(event: DeviceOrientationEvent): number {
@@ -394,7 +564,16 @@ export class ControllerApp {
     window.clearInterval(this.sendIntervalId)
     this.orientationManager.stop()
     this.removeOrientationListener()
-    window.removeEventListener('deviceorientation', this.handleDeviceOrientation, true)
+    for (const eventName of this.orientationEventNames) {
+      window.removeEventListener(
+        eventName,
+        this.handleDeviceOrientation as EventListener,
+        true,
+      )
+    }
+    if (this.sensorPulseTimeoutId !== null) {
+      window.clearTimeout(this.sensorPulseTimeoutId)
+    }
     window.removeEventListener('beforeunload', this.handleBeforeUnload)
     this.socketClient?.disconnect()
   }

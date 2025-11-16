@@ -13,6 +13,7 @@ export class ControllerInputStore {
   private calibrationAngle = 0
   private steeringAngle = 0
   private lastRawRoll = 0
+  private usingManual = false
 
   setBrake(isPressed: boolean): void {
     this.brake = isPressed ? 1 : 0
@@ -24,6 +25,7 @@ export class ControllerInputStore {
   }
 
   updateSteerFromOrientation(rawRoll: number): void {
+    this.usingManual = false
     this.lastRawRoll = rawRoll
     const delta = rawRoll - this.calibrationAngle
     const clampedAngle = Math.max(-MAX_STEER_ANGLE, Math.min(MAX_STEER_ANGLE, delta))
@@ -34,6 +36,19 @@ export class ControllerInputStore {
   calibrate(rawRoll: number): void {
     this.calibrationAngle = rawRoll
     this.updateSteerFromOrientation(rawRoll)
+  }
+
+  setManualSteer(normalized: number): void {
+    this.usingManual = true
+    const clamped = Math.max(-1, Math.min(1, normalized))
+    this.steer = clamped
+    this.steeringAngle = clamped * MAX_STEER_ANGLE
+  }
+
+  resetSteering(): void {
+    this.usingManual = false
+    this.steer = 0
+    this.steeringAngle = 0
   }
 
   getCurrentInput(): ControllerInput {
@@ -50,5 +65,9 @@ export class ControllerInputStore {
 
   getLastRawRoll(): number {
     return this.lastRawRoll
+  }
+
+  isManualSteer(): boolean {
+    return this.usingManual
   }
 }

@@ -78,7 +78,10 @@
   border-radius: 50%;
   border: 10px solid rgba(248, 250, 252, 0.85);
   box-shadow: inset 0 0 20px rgba(15, 23, 42, 0.6);
-  transition: transform 0.08s ease;
+  transition: transform 0.08s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
 }
 
 .controller-steering__rim {
@@ -108,6 +111,34 @@
   background: linear-gradient(90deg, rgba(129, 140, 248, 0.25) 0%, rgba(59, 130, 246, 0.75) 50%, rgba(129, 140, 248, 0.25) 100%);
   box-shadow: 0 4px 18px rgba(37, 99, 235, 0.25);
   transition: transform 0.08s ease;
+}
+
+.controller-steering__outer.is-manual {
+  border-color: rgba(248, 250, 252, 0.5);
+  box-shadow: inset 0 0 24px rgba(59, 130, 246, 0.25);
+}
+
+.controller-steering__bar.is-manual {
+  background: linear-gradient(90deg, rgba(248, 169, 120, 0.2) 0%, rgba(248, 250, 252, 0.75) 50%, rgba(248, 169, 120, 0.2) 100%);
+}
+
+.controller-steering-status {
+  font-size: 0.9rem;
+  text-align: center;
+  color: rgba(148, 163, 184, 0.9);
+  margin-top: 12px;
+}
+
+.controller-steering-hint {
+  font-size: 0.85rem;
+  text-align: center;
+  color: rgba(203, 213, 225, 0.7);
+  letter-spacing: 0.04em;
+  margin-top: 6px;
+}
+
+.controller-steering-hint.is-warning {
+  color: #facc15;
 }
 
 .controller-throttle-track {
@@ -156,6 +187,11 @@
 
 .controller-calibrate-button:hover {
   background: rgba(51, 65, 85, 0.85);
+}
+
+.controller-calibrate-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .controller-status {
