@@ -3,7 +3,7 @@ import http from "http";
 import https from "https";
 import fs from "fs";
 import path from "path";
-import { PORT } from "./config";
+import { PORT, TRACK_ASSET_LIBRARY } from "./config";
 import { GameLoop } from "./game/GameLoop";
 import { RoomManager } from "./game/RoomManager";
 import { SocketServer } from "./net/SocketServer";
@@ -29,6 +29,14 @@ const app = express();
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
+
+if (fs.existsSync(TRACK_ASSET_LIBRARY.directory)) {
+  app.use(TRACK_ASSET_LIBRARY.route, express.static(TRACK_ASSET_LIBRARY.directory));
+} else {
+  console.warn(
+    `[Server] Asset directory "${TRACK_ASSET_LIBRARY.directory}" does not exist. GLB decorations will be skipped.`
+  );
+}
 
 const httpsOptions = resolveHttpsOptions();
 const server = httpsOptions ? https.createServer(httpsOptions, app) : http.createServer(app);

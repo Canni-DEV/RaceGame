@@ -1,6 +1,6 @@
-import type { TrackData } from './trackTypes'
+import type { TrackData, TrackDecoration, TreeBeltDecoration } from './trackTypes'
 
-export const SAMPLE_TRACK: TrackData = {
+export const SAMPLE_TRACK: TrackData = createTrack({
   id: 'sample-oval',
   seed: 12345,
   width: 12,
@@ -14,9 +14,9 @@ export const SAMPLE_TRACK: TrackData = {
     { x: 0, z: -30 },
     { x: -20, z: -20 },
   ],
-}
+})
 
-export const ARCADE_SAMPLE_TRACK: TrackData = {
+export const ARCADE_SAMPLE_TRACK: TrackData = createTrack({
   id: 'arcade-speedway',
   seed: 98765,
   width: 14,
@@ -46,4 +46,21 @@ export const ARCADE_SAMPLE_TRACK: TrackData = {
     { x: 0, z: -28 },
     { x: -30, z: -20 },
   ],
+})
+
+function createTrack(track: Omit<TrackData, 'decorations'>): TrackData {
+  return {
+    ...track,
+    decorations: buildDecorations(track.width),
+  }
+}
+
+function buildDecorations(width: number): TrackDecoration[] {
+  const trees: TreeBeltDecoration = {
+    type: 'tree-belt',
+    density: 6,
+    minDistance: width * 0.7,
+    maxDistance: width * 2.5,
+  }
+  return [trees]
 }

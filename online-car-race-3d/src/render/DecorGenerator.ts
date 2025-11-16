@@ -1,10 +1,17 @@
 import * as THREE from 'three'
-import type { TrackData } from '../core/trackTypes'
+import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
+import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
+import type { TrackAssetDecoration, TrackData, TrackDecoration, TreeBeltDecoration } from '../core/trackTypes'
 import { normalize, rightNormal, sub } from '../core/math2d'
 
-export interface ProceduralDecorator {
-  id: string
-  apply(track: TrackData, root: THREE.Object3D, random: () => number): void
+interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
+  readonly type: TInstruction['type']
+  apply(
+    track: TrackData,
+    instruction: TInstruction,
+    root: THREE.Object3D,
+    random: () => number,
+  ): void
 }
 
 export function createGroundPlane(size: number): THREE.Mesh {
@@ -22,13 +29,18 @@ export function createGroundPlane(size: number): THREE.Mesh {
   return mesh
 }
 
-class TreesDecorator implements ProceduralDecorator {
-  readonly id = 'trees'
+class TreesDecorator implements Decorator<TreeBeltDecoration> {
+  readonly type = 'tree-belt'
 
-  apply(track: TrackData, root: THREE.Object3D, random: () => number): void {
-    const countPerSegment = 6
-    const minDistanceFromTrack = track.width * 0.7
-    const maxDistanceFromTrack = track.width * 2.5
+  apply(
+    track: TrackData,
+    instruction: TreeBeltDecoration,
+    root: THREE.Object3D,
+    random: () => number,
+  ): void {
+    const countPerSegment = Math.max(1, Math.round(instruction.density))
+    const minDistanceFromTrack = instruction.minDistance
+    const maxDistanceFromTrack = instruction.maxDistance
 
     const totalInstances = track.centerline.length * countPerSegment
     if (totalInstances === 0) {
@@ -89,6 +101,76 @@ class TreesDecorator implements ProceduralDecorator {
   }
 }
 
+class TrackAssetLoader {
+  private readonly loader = new GLTFLoader()
+  private readonly cache = new Map<string, Promise<THREE.Object3D | null>>()
+
+  async createInstance(assetUrl: string): Promise<THREE.Object3D | null> {
+    const base = await this.loadBase(assetUrl)
+    if (!base) {
+      return null
+    }
+    return SkeletonUtils.clone(base) as THREE.Object3D
+  }
+
+  private loadBase(assetUrl: string): Promise<THREE.Object3D | null> {
+    if (!this.cache.has(assetUrl)) {
+      const promise = this.loader
+        .loadAsync(assetUrl)
+        .then((gltf: GLTF) => this.prepareModel(gltf.scene))
+        .catch((error: unknown) => {
+          console.warn(`[TrackAssetLoader] Failed to load asset "${assetUrl}"`, error)
+          return null
+        })
+      this.cache.set(assetUrl, promise)
+    }
+    return this.cache.get(assetUrl) as Promise<THREE.Object3D | null>
+  }
+
+  private prepareModel(scene: THREE.Object3D): THREE.Object3D {
+    const root = scene.clone()
+    root.traverse((child: THREE.Object3D) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        mesh.castShadow = true
+        mesh.receiveShadow = true
+      }
+    })
+    return root
+  }
+}
+
+const trackAssetLoader = new TrackAssetLoader()
+
+class TrackAssetDecorator implements Decorator<TrackAssetDecoration> {
+  readonly type = 'track-asset'
+
+  apply(
+    _track: TrackData,
+    instruction: TrackAssetDecoration,
+    root: THREE.Object3D,
+  ): void {
+    void trackAssetLoader.createInstance(instruction.assetUrl).then((instance) => {
+      if (!instance) {
+        return
+      }
+      const size = instruction.size > 0 ? instruction.size : 1
+      instance.name = `decor-asset-${instruction.assetUrl}`
+      instance.position.set(instruction.position.x, 0, instruction.position.z)
+      instance.rotation.y = instruction.rotation
+      instance.scale.setScalar(size)
+      root.add(instance)
+    })
+  }
+}
+
+type DecoratorRegistry = Record<TrackDecoration['type'], Decorator>
+
+const decoratorRegistry: DecoratorRegistry = {
+  'tree-belt': new TreesDecorator(),
+  'track-asset': new TrackAssetDecorator(),
+}
+
 export function applyDecorators(
   track: TrackData,
   root: THREE.Object3D,
@@ -99,9 +181,9 @@ export function applyDecorators(
   ground.position.y = -0.01
   root.add(ground)
 
-  const decorators: ProceduralDecorator[] = [new TreesDecorator()]
-
-  for (const decorator of decorators) {
-    decorator.apply(track, root, random)
+  const decorations = track.decorations ?? []
+  for (const decoration of decorations) {
+    const decorator = decoratorRegistry[decoration.type]
+    decorator.apply(track, decoration, root, random)
   }
 }

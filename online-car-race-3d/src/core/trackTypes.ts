@@ -8,7 +8,25 @@ export interface TrackData {
   seed: number
   width: number
   centerline: Vec2[]
+  decorations: TrackDecoration[]
 }
+
+export interface TreeBeltDecoration {
+  type: 'tree-belt'
+  density: number
+  minDistance: number
+  maxDistance: number
+}
+
+export interface TrackAssetDecoration {
+  type: 'track-asset'
+  assetUrl: string
+  position: Vec2
+  rotation: number
+  size: number
+}
+
+export type TrackDecoration = TreeBeltDecoration | TrackAssetDecoration
 
 export interface CarState {
   playerId: string
