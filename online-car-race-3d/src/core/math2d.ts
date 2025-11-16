@@ -1,3 +1,4 @@
+import * as THREE from 'three'
 import type { Vec2 } from './trackTypes'
 
 export function sub(a: Vec2, b: Vec2): Vec2 {
@@ -26,4 +27,24 @@ export function lerp(a: Vec2, b: Vec2, t: number): Vec2 {
     x: a.x + (b.x - a.x) * t,
     z: a.z + (b.z - a.z) * t,
   }
+}
+
+export function add(a: Vec2, b: Vec2): Vec2 {
+  return { x: a.x + b.x, z: a.z + b.z }
+}
+
+export function scale(v: Vec2, factor: number): Vec2 {
+  return { x: v.x * factor, z: v.z * factor }
+}
+
+export function dot(a: Vec2, b: Vec2): number {
+  return a.x * b.x + a.z * b.z
+}
+
+export function signedAngle(a: Vec2, b: Vec2): number {
+  const na = normalize(a)
+  const nb = normalize(b)
+  const cross = na.x * nb.z - na.z * nb.x
+  const clampedDot = THREE.MathUtils.clamp(dot(na, nb), -1, 1)
+  return Math.atan2(cross, clampedDot)
 }

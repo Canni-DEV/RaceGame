@@ -6,9 +6,20 @@ declare module 'three' {
     z: number
     set(x: number, y: number, z: number): this
     copy(v: Vector3): this
+    setScalar(value: number): this
+    clone(): Vector3
+    sub(v: Vector3): this
+    add(v: Vector3): this
+    addScaledVector(v: Vector3, scale: number): this
+    subVectors(a: Vector3, b: Vector3): this
+    lerp(v: Vector3, alpha: number): this
+    normalize(): this
+    lengthSq(): number
+    applyQuaternion(q: Quaternion): this
   }
 
   export class Euler {
+    constructor(x?: number, y?: number, z?: number)
     x: number
     y: number
     z: number
@@ -17,10 +28,18 @@ declare module 'three' {
 
   export class Matrix4 {}
 
+  export class Quaternion {
+    set(x: number, y: number, z: number, w: number): this
+    copy(q: Quaternion): this
+    slerp(q: Quaternion, t: number): this
+    setFromEuler(euler: Euler): this
+  }
+
   export class Object3D {
     name: string
     position: Vector3
     rotation: Euler
+    quaternion: Quaternion
     scale: Vector3
     matrix: Matrix4
     userData: Record<string, any>
@@ -29,7 +48,9 @@ declare module 'three' {
     removeFromParent(): this
     traverse(callback: (object: Object3D) => void): void
     updateMatrix(): void
+    updateMatrixWorld(force?: boolean): void
     lookAt(target: Vector3): void
+    clone(): this
   }
 
   export class Scene extends Object3D {
@@ -40,6 +61,8 @@ declare module 'three' {
     constructor(hex?: number | string)
     setHSL(h: number, s: number, l: number): this
     getHex(): number
+    lerp(color: Color, alpha: number): this
+    clone(): Color
   }
 
   export class PerspectiveCamera extends Object3D {
@@ -88,7 +111,9 @@ declare module 'three' {
     }
   }
 
-  export class Group extends Object3D {}
+  export class Group extends Object3D {
+    children: Object3D[]
+  }
 
   export class BufferAttribute {
     needsUpdate: boolean
@@ -102,6 +127,8 @@ declare module 'three' {
     setIndex(index: number[] | BufferAttribute): this
     setAttribute(name: string, attribute: BufferAttribute): this
     computeVertexNormals(): void
+    computeBoundingBox(): void
+    boundingBox?: Box3 | null
     dispose(): void
   }
 
@@ -117,15 +144,45 @@ declare module 'three' {
 
   export class BoxGeometry extends BufferGeometry {
     constructor(width?: number, height?: number, depth?: number)
+    translate(x: number, y: number, z: number): this
+  }
+
+  export class CylinderGeometry extends BufferGeometry {
+    constructor(radiusTop?: number, radiusBottom?: number, height?: number, radialSegments?: number)
+    rotateZ(angle: number): this
+  }
+
+  export class TubeGeometry extends BufferGeometry {
+    constructor(
+      path: Curve<Vector3>,
+      tubularSegments?: number,
+      radius?: number,
+      radialSegments?: number,
+      closed?: boolean,
+    )
+  }
+
+  export class Curve<T> {
+    getPoint(t: number): T
+  }
+
+  export class CatmullRomCurve3 extends Curve<Vector3> {
+    constructor(points?: Vector3[], closed?: boolean, curveType?: string)
   }
 
   export class Material {
     constructor(parameters?: Record<string, unknown>)
+    clone(): this
+    needsUpdate: boolean
     dispose(): void
   }
 
   export class MeshStandardMaterial extends Material {
     constructor(parameters?: Record<string, unknown>)
+    color: Color
+    metalness: number
+    roughness: number
+    clone(): MeshStandardMaterial
   }
 
   export class Mesh<TGeometry extends BufferGeometry = BufferGeometry> extends Object3D {
@@ -135,6 +192,7 @@ declare module 'three' {
     name: string
     geometry: TGeometry
     material: Material | Material[]
+    isMesh: boolean
   }
 
   export class InstancedMesh extends Mesh {
@@ -142,9 +200,42 @@ declare module 'three' {
     setMatrixAt(index: number, matrix: Matrix4): void
     instanceMatrix: BufferAttribute
     dispose(): void
+    isMesh: boolean
   }
 
   export const MathUtils: {
     lerp(a: number, b: number, t: number): number
+    clamp(value: number, min: number, max: number): number
   }
+
+  export class Box3 {
+    min: Vector3
+    max: Vector3
+    setFromObject(object: Object3D): this
+    getCenter(target: Vector3): Vector3
+    getSize(target: Vector3): Vector3
+    clone(): Box3
+  }
+
+  export class Buffer {
+    constructor()
+  }
+}
+
+declare module 'three/examples/jsm/loaders/GLTFLoader.js' {
+  import type { Object3D } from 'three'
+
+  export interface GLTF {
+    scene: Object3D
+  }
+
+  export class GLTFLoader {
+    loadAsync(path: string): Promise<GLTF>
+  }
+}
+
+declare module 'three/examples/jsm/utils/SkeletonUtils.js' {
+  import type { Object3D } from 'three'
+
+  export function clone<T extends Object3D>(source: T): T
 }
