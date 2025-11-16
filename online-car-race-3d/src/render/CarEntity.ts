@@ -3,6 +3,8 @@ import type { CarState } from '../core/trackTypes'
 import { CarModelLoader } from './CarModelLoader'
 
 const TEMP_VECTOR = new THREE.Vector3()
+const ANGLE_FORWARD = new THREE.Vector3()
+const MAX_SPEED_FOR_ALIGNMENT = 45
 
 export class CarEntity {
   readonly id: string
@@ -64,12 +66,26 @@ export class CarEntity {
     this.lastServerPosition.copy(this.targetPosition)
     const displacementLengthSq = displacement.lengthSq()
 
-    if (displacementLengthSq > 0.0001) {
-      this.desiredForward.copy(displacement.normalize())
-    } else {
-      this.desiredForward.set(Math.sin(state.angle), 0, Math.cos(state.angle))
+    ANGLE_FORWARD.set(Math.cos(state.angle), 0, Math.sin(state.angle))
+    if (ANGLE_FORWARD.lengthSq() < 1e-4) {
+      ANGLE_FORWARD.set(0, 0, 1)
     }
 
+    if (displacementLengthSq > 0.0001) {
+      const displacementDir = displacement.normalize()
+      const normalizedSpeed = THREE.MathUtils.clamp(
+        Math.abs(state.speed) / MAX_SPEED_FOR_ALIGNMENT,
+        0,
+        1,
+      )
+      const displacementWeight = 0.35 + normalizedSpeed * 0.5
+      this.desiredForward.copy(ANGLE_FORWARD)
+      this.desiredForward.lerp(displacementDir, displacementWeight)
+    } else {
+      this.desiredForward.copy(ANGLE_FORWARD)
+    }
+
+    this.desiredForward.normalize()
     const yaw = Math.atan2(this.desiredForward.x, this.desiredForward.z)
     this.targetOrientation.setFromEuler(new THREE.Euler(0, yaw, 0))
   }
