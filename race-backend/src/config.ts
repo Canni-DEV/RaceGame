@@ -29,12 +29,17 @@ export const TRACK_GENERATION: TrackGenerationOptions = {
 };
 
 export interface ProceduralTrackSettings {
-  minPoints: number;
-  maxPoints: number;
-  minRadius: number;
-  maxRadius: number;
+  gridWidth: number;
+  gridHeight: number;
+  cellSize: number;
+  targetCoverage: number;
+  minLoopLength: number;
+  maxAttempts: number;
+  directionBias: number;
+  turnBias: number;
   smoothingPasses: number;
-  angleJitter: number;
+  cornerSubdivisions: number;
+  cornerRoundness: number;
   widthRange: [number, number];
   treeDensity: number;
   treeMinDistanceFactor: number;
@@ -42,12 +47,17 @@ export interface ProceduralTrackSettings {
 }
 
 export const PROCEDURAL_TRACK_SETTINGS: ProceduralTrackSettings = {
-  minPoints: Number(process.env.TRACK_MIN_POINTS ?? 12),
-  maxPoints: Number(process.env.TRACK_MAX_POINTS ?? 18),
-  minRadius: Number(process.env.TRACK_MIN_RADIUS ?? 40),
-  maxRadius: Number(process.env.TRACK_MAX_RADIUS ?? 75),
-  smoothingPasses: Number(process.env.TRACK_SMOOTHING_PASSES ?? 2),
-  angleJitter: Number(process.env.TRACK_ANGLE_JITTER ?? 0.8),
+  gridWidth: Number(process.env.TRACK_GRID_WIDTH ?? 12),
+  gridHeight: Number(process.env.TRACK_GRID_HEIGHT ?? 8),
+  cellSize: Number(process.env.TRACK_CELL_SIZE ?? 12),
+  targetCoverage: Number(process.env.TRACK_TARGET_COVERAGE ?? 0.65),
+  minLoopLength: Number(process.env.TRACK_MIN_LOOP_LENGTH ?? 14),
+  maxAttempts: Number(process.env.TRACK_MAX_ATTEMPTS ?? 32),
+  directionBias: Number(process.env.TRACK_DIRECTION_BIAS ?? 1.5),
+  turnBias: Number(process.env.TRACK_TURN_BIAS ?? 1.1),
+  smoothingPasses: Number(process.env.TRACK_SMOOTHING_PASSES ?? 3),
+  cornerSubdivisions: Number(process.env.TRACK_CORNER_SUBDIVISIONS ?? 1),
+  cornerRoundness: Number(process.env.TRACK_CORNER_ROUNDNESS ?? 0.32),
   widthRange: [
     Number(process.env.TRACK_MIN_WIDTH ?? 24),
     Number(process.env.TRACK_MAX_WIDTH ?? 32)
