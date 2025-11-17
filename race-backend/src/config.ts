@@ -42,10 +42,10 @@ export interface ProceduralTrackSettings {
 }
 
 export const PROCEDURAL_TRACK_SETTINGS: ProceduralTrackSettings = {
-  minPoints: Number(process.env.TRACK_MIN_POINTS ?? 12),
-  maxPoints: Number(process.env.TRACK_MAX_POINTS ?? 18),
-  minRadius: Number(process.env.TRACK_MIN_RADIUS ?? 40),
-  maxRadius: Number(process.env.TRACK_MAX_RADIUS ?? 75),
+  minPoints: Number(process.env.TRACK_MIN_POINTS ?? 60),
+  maxPoints: Number(process.env.TRACK_MAX_POINTS ?? 200),
+  minRadius: Number(process.env.TRACK_MIN_RADIUS ?? 100),
+  maxRadius: Number(process.env.TRACK_MAX_RADIUS ?? 300),
   smoothingPasses: Number(process.env.TRACK_SMOOTHING_PASSES ?? 2),
   angleJitter: Number(process.env.TRACK_ANGLE_JITTER ?? 0.8),
   widthRange: [

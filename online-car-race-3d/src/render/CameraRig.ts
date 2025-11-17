@@ -9,6 +9,7 @@ export class CameraRig {
   private orbitRadius = 85
   private height = 60
   private azimuth = Math.PI / 4
+  private topDownHeight = 400
   private followTarget: THREE.Object3D | null = null
   private followDistance = 26
   private followHeight = 14
@@ -55,9 +56,9 @@ export class CameraRig {
     } else {
       this.smoothedTarget.lerp(this.manualTarget, targetLerp)
       this.desiredPosition.set(
-        this.smoothedTarget.x + Math.cos(this.azimuth) * this.orbitRadius,
-        this.smoothedTarget.y + this.height,
-        this.smoothedTarget.z + Math.sin(this.azimuth) * this.orbitRadius,
+        this.smoothedTarget.x,
+        this.smoothedTarget.y + this.topDownHeight,
+        this.smoothedTarget.z,
       )
     }
 
@@ -69,9 +70,9 @@ export class CameraRig {
 
   private configureCamera(): void {
     this.currentPosition.set(
-      this.manualTarget.x + Math.cos(this.azimuth) * this.orbitRadius,
-      this.manualTarget.y + this.height,
-      this.manualTarget.z + Math.sin(this.azimuth) * this.orbitRadius,
+      this.manualTarget.x,
+      this.manualTarget.y + this.topDownHeight,
+      this.manualTarget.z,
     )
     this.camera.position.copy(this.currentPosition)
     this.camera.lookAt(this.manualTarget)
