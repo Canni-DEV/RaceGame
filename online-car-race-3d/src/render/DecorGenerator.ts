@@ -3,6 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import type { TrackAssetDecoration, TrackData, TrackDecoration, TreeBeltDecoration } from '../core/trackTypes'
 import { normalize, rightNormal, sub } from '../core/math2d'
+import { resolveServerAssetUrl } from '../config'
 
 interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
   readonly type: TInstruction['type']
@@ -150,7 +151,8 @@ class TrackAssetDecorator implements Decorator<TrackAssetDecoration> {
     instruction: TrackAssetDecoration,
     root: THREE.Object3D,
   ): void {
-    void trackAssetLoader.createInstance(instruction.assetUrl).then((instance) => {
+    const assetUrl = resolveServerAssetUrl(instruction.assetUrl)
+    void trackAssetLoader.createInstance(assetUrl).then((instance) => {
       if (!instance) {
         return
       }
@@ -176,7 +178,7 @@ export function applyDecorators(
   root: THREE.Object3D,
   random: () => number,
 ): void {
-  const groundSize = Math.max(200, track.width * 200)
+  const groundSize = Math.max(200, track.width * 100)
   const ground = createGroundPlane(groundSize)
   ground.position.y = -0.01
   root.add(ground)

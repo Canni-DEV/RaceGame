@@ -24,7 +24,20 @@ function resolveHttpsOptions(): https.ServerOptions | null {
   return null;
 }
 
+const ALLOWED_ORIGIN = process.env.CORS_ORIGIN ?? "*";
+
 const app = express();
+
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
+  res.header("Access-Control-Allow-Methods", "GET,OPTIONS");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") {
+    res.sendStatus(204);
+    return;
+  }
+  next();
+});
 
 app.get("/health", (_req, res) => {
   res.json({ status: "ok" });

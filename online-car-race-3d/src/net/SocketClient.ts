@@ -1,6 +1,6 @@
 import type { ErrorMessage, RoomInfoMessage, StateMessage } from './messages'
+import { SERVER_URL } from '../config'
 
-const DEFAULT_SERVER_URL = 'https://192.168.0.214:4000'
 const SOCKET_SCRIPT_PATH = '/socket.io/socket.io.js'
 
 type RoomInfoCallback = (info: RoomInfoMessage) => void
@@ -88,7 +88,7 @@ export class SocketClient {
   private readonly connectListeners = new Set<ConnectCallback>()
 
   constructor(options?: SocketClientOptions, url?: string) {
-    this.url = url ?? DEFAULT_SERVER_URL
+    this.url = url ?? SERVER_URL
     this.role = options?.role ?? 'viewer'
     this.joinPayload = sanitizeJoinPayload(options?.joinPayload)
   }

@@ -1,16 +1,17 @@
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { resolvePublicAssetUrl } from '../config'
 
-const DEFAULT_MODEL_PATH = '/models/car.glb'
+const DEFAULT_MODEL_PATH = 'models/car.glb'
 const TARGET_LENGTH = 4.6
 
 const getConfiguredModelPath = (): string => {
   const candidate = import.meta.env?.VITE_CAR_MODEL_URL
   if (typeof candidate === 'string' && candidate.trim().length > 0) {
-    return candidate.trim()
+    return resolvePublicAssetUrl(candidate.trim())
   }
-  return DEFAULT_MODEL_PATH
+  return resolvePublicAssetUrl(DEFAULT_MODEL_PATH)
 }
 
 export class CarModelLoader {
