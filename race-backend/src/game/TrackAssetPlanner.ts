@@ -1,25 +1,18 @@
-import fs from "fs";
-import path from "path";
 import { TRACK_ASSET_LIBRARY } from "../config";
 import { TrackAssetDecoration, Vec2 } from "../types/trackTypes";
-
-interface AssetDescriptor {
-  fileName: string;
-  nodeIndex: number;
-  side: 1 | -1;
-}
+import { AssetDescriptor, loadAssetDescriptors } from "./TrackAssetManifestReader";
 
 export function planAssetDecorations(centerline: Vec2[], width: number): TrackAssetDecoration[] {
   if (centerline.length === 0) {
     return [];
   }
 
-  const files = readAssetFiles(TRACK_ASSET_LIBRARY.directory);
+  const files = loadAssetDescriptors(TRACK_ASSET_LIBRARY);
   if (files.length === 0) {
     return [];
   }
 
-  const offsetDistance = Math.max(0, width) + TRACK_ASSET_LIBRARY.offset;
+  const baseOffset = Math.max(0, width);
   const baseUrl = sanitizeBaseUrl(TRACK_ASSET_LIBRARY.publicUrl);
   const decorations: TrackAssetDecoration[] = [];
 
@@ -32,63 +25,25 @@ export function planAssetDecorations(centerline: Vec2[], width: number): TrackAs
     }
     const normal = leftNormal(direction);
     const sideMultiplier = descriptor.side;
+    const offsetDistance = baseOffset + TRACK_ASSET_LIBRARY.offset;
     const position = {
       x: anchor.x + normal.x * offsetDistance * sideMultiplier,
       z: anchor.z + normal.z * offsetDistance * sideMultiplier
     };
     const rotation = Math.atan2(direction.z, direction.x);
     const assetUrl = buildAssetUrl(baseUrl, descriptor.fileName);
+    const decorationSize = descriptor.size ?? TRACK_ASSET_LIBRARY.size;
 
     decorations.push({
       type: "track-asset",
       assetUrl,
       position,
       rotation,
-      size: TRACK_ASSET_LIBRARY.size
+      size: decorationSize
     });
   }
 
   return decorations;
-}
-
-function readAssetFiles(directory: string): AssetDescriptor[] {
-  try {
-    if (!fs.existsSync(directory)) {
-      return [];
-    }
-    const entries = fs.readdirSync(directory).filter((file) => file.toLowerCase().endsWith(".glb"));
-    entries.sort((a, b) => a.localeCompare(b));
-    const descriptors: AssetDescriptor[] = [];
-    for (const file of entries) {
-      const placement = parsePlacement(file);
-      if (placement) {
-        descriptors.push({ fileName: file, ...placement });
-      }
-    }
-    return descriptors;
-  } catch (error) {
-    console.warn(`[TrackAssetPlanner] Unable to read asset directory "${directory}"`, error);
-    return [];
-  }
-}
-
-function parsePlacement(fileName: string): Omit<AssetDescriptor, "fileName"> | null {
-  const name = path.parse(fileName).name;
-  const digitsMatch = name.match(/(\d+)$/);
-  if (!digitsMatch) {
-    return null;
-  }
-  const indexPart = digitsMatch[1];
-  const prefix = name.slice(0, name.length - indexPart.length);
-  const nodeNumber = Number.parseInt(indexPart, 10);
-  if (!Number.isFinite(nodeNumber) || nodeNumber <= 0) {
-    return null;
-  }
-  const isOppositeSide = prefix.endsWith("-");
-  return {
-    nodeIndex: nodeNumber - 1,
-    side: isOppositeSide ? -1 : 1
-  };
 }
 
 function resolveDirection(points: Vec2[], index: number): Vec2 | null {

@@ -73,6 +73,7 @@ export interface TrackAssetLibraryConfig {
   publicUrl: string;
   size: number;
   offset: number;
+  manifestPath?: string;
 }
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -95,12 +96,27 @@ function normalizePublicUrl(route: string, override?: string): string {
   return route;
 }
 
+function normalizeManifestPath(directory: string, override?: string): string | undefined {
+  if (!override) {
+    return undefined;
+  }
+
+  const trimmed = override.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return path.isAbsolute(trimmed) ? trimmed : path.join(directory, trimmed);
+}
+
 const assetRoute = normalizeRoute(process.env.TRACK_ASSET_ROUTE ?? "/assets");
+const manifestPath = normalizeManifestPath(DEFAULT_ASSET_DIR, process.env.TRACK_ASSET_MANIFEST);
 
 export const TRACK_ASSET_LIBRARY: TrackAssetLibraryConfig = {
   directory: DEFAULT_ASSET_DIR,
   route: assetRoute,
   publicUrl: normalizePublicUrl(assetRoute, process.env.TRACK_ASSET_URL),
   size: Number(process.env.TRACK_ASSET_SIZE ?? 1),
-  offset: Number(process.env.TRACK_ASSET_OFFSET ?? 12)
+  offset: Number(process.env.TRACK_ASSET_OFFSET ?? 12),
+  manifestPath
 };

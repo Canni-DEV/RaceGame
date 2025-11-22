@@ -1,0 +1,13 @@
+# Ejemplo de manifiesto completo para colocar assets a lo largo de la pista.
+# Campos aceptados por entrada:
+#   file / fileName : nombre del .glb ubicado en este mismo directorio
+#   node / nodeIndex: indice de nodo en la línea central (comienza en 1)
+#   side            : right / left / + / - / opposite (default: right)
+#   scale / size    : factor de escala (default: TRACK_ASSET_SIZE)
+
+assets:
+  - file: grandStand-1.glb
+    # Coloca la grada en el nodo 5, lado derecho.
+    node: 20
+    side: opposite
+    scale: 20
