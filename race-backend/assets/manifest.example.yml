@@ -16,25 +16,52 @@
 assets:
   # Árboles procedurales distribuidos de forma pseudo-aleatoria en ambos lados
   - mesh: procedural-tree
-    density: 8
-    minSpacing: 6
+    density: 60
+    minSpacing: 1
     minDistance: 0.8   # factores respecto al ancho de pista
-    maxDistance: 2.4
+    maxDistance: 2.5
     segment: any
     side: both
 
   # Carteles espaciados en rectas cada pocos segmentos
-  - file: billboard.glb
+  - file: lightPost_exclusive.glb
     mesh: gltf
-    density: 3
+    density: 20
     minSpacing: 25
     offset: 14
     side: both
     segment: straight
     alignToTrack: true
+    scale: 20
+
+  - file: treeLarge.glb
+    density: 60
+    minSpacing: 10
+    offset: 14
+    side: both
+    alignToTrack: true
+    scale: 10
+    zone: outer
+
+  - file: treeSmall.glb
+    density: 60
+    minSpacing: 3
+    offset: 14
+    side: both
+    alignToTrack: true
+    scale: 10
+    zone: outer
 
   # Asset único anclado a un nodo concreto
   - file: pitsOffice.glb
     node: 1
     side: left
     scale: 18
+
+  - file: grandStand-1.glb
+    node: 10
+    side: left
+    scale: 20
+    offset: 40
+
+
