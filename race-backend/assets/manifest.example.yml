@@ -28,8 +28,8 @@ assets:
     mesh: gltf
     density: 20
     minSpacing: 25
-    offset: 14
-    side: both
+    offset: 5
+    side: left
     segment: straight
     alignToTrack: true
     scale: 20
@@ -44,25 +44,12 @@ assets:
     zone: outer
 
   - file: treeSmall.glb
-    density: 60
-    minSpacing: 3
+    density: 250
+    minSpacing: 2
     offset: 14
     side: both
-    alignToTrack: true
-    scale: 10
-    zone: outer
-
-  # Asset único anclado a un nodo concreto
-  - file: pitsOffice.glb
-    node: 1
-    side: left
-    scale: 20
-    offset: 40
-
-  - file: grandStand-1.glb
-    node: 10
-    side: left
-    scale: 20
-    offset: 40
+    zone: any
+    minSize: 5
+    maxSize: 20
 
 
