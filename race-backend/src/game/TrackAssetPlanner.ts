@@ -182,16 +182,18 @@ function buildInstance(
 
 function resolveOffset(descriptor: AssetDescriptor, width: number, random: () => number): number {
   const baseEdge = width * 0.5;
-  const userOffset = Math.max(0, descriptor.offset ?? TRACK_ASSET_LIBRARY.offset);
+  const libraryOffset = Math.max(0, TRACK_ASSET_LIBRARY.offset);
+  const userOffset = Math.max(0, descriptor.offset ?? 0);
+  const effectiveOffset = baseEdge + libraryOffset + userOffset;
 
   if (descriptor.mesh === "procedural-tree") {
     const min = (descriptor.minDistance ?? PROCEDURAL_TRACK_SETTINGS.treeMinDistanceFactor) * width;
     const max = (descriptor.maxDistance ?? PROCEDURAL_TRACK_SETTINGS.treeMaxDistanceFactor) * width;
     const distance = randomRange(min, max, random);
-    return Math.max(baseEdge + userOffset, distance);
+    return Math.max(effectiveOffset, distance);
   }
 
-  return baseEdge + userOffset;
+  return effectiveOffset;
 }
 
 function resolveSpacing(descriptor: AssetDescriptor, width: number): number {
