@@ -2,6 +2,10 @@ import * as THREE from 'three'
 import type { TrackData, Vec2 } from '../core/trackTypes'
 import { add, normalize, rightNormal, scale, signedAngle, sub } from '../core/math2d'
 
+export const TRACK_SURFACE_HEIGHT = 0.1
+const TRACK_THICKNESS = 0.08
+const TRACK_BASE_HEIGHT = TRACK_SURFACE_HEIGHT - TRACK_THICKNESS
+
 export interface TrackBuildResult {
   mesh: THREE.Mesh
   centerline: Vec2[]
@@ -123,22 +127,46 @@ export class TrackMeshBuilder {
       const right = rightEdge[i]
       const v = distances[i] / totalDistance
 
-      positions.push(left.x, 0, left.z)
-      positions.push(right.x, 0, right.z)
+      positions.push(left.x, TRACK_SURFACE_HEIGHT, left.z)
+      positions.push(right.x, TRACK_SURFACE_HEIGHT, right.z)
+      positions.push(left.x, TRACK_BASE_HEIGHT, left.z)
+      positions.push(right.x, TRACK_BASE_HEIGHT, right.z)
 
+      uvs.push(0, v)
+      uvs.push(1, v)
       uvs.push(0, v)
       uvs.push(1, v)
     }
 
     for (let i = 0; i < total; i++) {
       const next = (i + 1) % total
-      const iLeft = i * 2
-      const iRight = iLeft + 1
-      const nextLeft = next * 2
-      const nextRight = nextLeft + 1
+      const base = i * 4
+      const nextBase = next * 4
 
-      indices.push(iLeft, nextRight, iRight)
-      indices.push(iLeft, nextLeft, nextRight)
+      const topLeft = base
+      const topRight = base + 1
+      const bottomLeft = base + 2
+      const bottomRight = base + 3
+      const nextTopLeft = nextBase
+      const nextTopRight = nextBase + 1
+      const nextBottomLeft = nextBase + 2
+      const nextBottomRight = nextBase + 3
+
+      // Top surface
+      indices.push(topLeft, nextTopRight, topRight)
+      indices.push(topLeft, nextTopLeft, nextTopRight)
+
+      // Bottom surface (flip winding)
+      indices.push(bottomLeft, bottomRight, nextBottomRight)
+      indices.push(bottomLeft, nextBottomRight, nextBottomLeft)
+
+      // Left side
+      indices.push(topLeft, bottomLeft, nextBottomLeft)
+      indices.push(topLeft, nextBottomLeft, nextTopLeft)
+
+      // Right side
+      indices.push(topRight, nextTopRight, nextBottomRight)
+      indices.push(topRight, nextBottomRight, bottomRight)
     }
 
     const geometry = new THREE.BufferGeometry()

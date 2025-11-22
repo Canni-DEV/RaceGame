@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import type { Vec2 } from '../core/trackTypes'
-import type { TrackBuildResult } from './TrackMeshBuilder'
+import { TRACK_SURFACE_HEIGHT, type TrackBuildResult } from './TrackMeshBuilder'
 
 interface GuardRailOptions {
   curvatureThreshold: number
@@ -9,7 +9,7 @@ interface GuardRailOptions {
 }
 
 const DEFAULT_OPTIONS: GuardRailOptions = {
-  curvatureThreshold: 0.08,
+  curvatureThreshold: 0.01,
   height: 1.1,
   radius: 0.35,
 }
@@ -64,7 +64,7 @@ export class GuardRailBuilder {
       const edge = edgePoints[i]
       const point = new THREE.Vector3(
         edge.x + outwardNormal.x * trackWidth * 0.05,
-        this.options.height,
+        this.options.height + TRACK_SURFACE_HEIGHT,
         edge.z + outwardNormal.z * trackWidth * 0.05,
       )
       current.push(point)
