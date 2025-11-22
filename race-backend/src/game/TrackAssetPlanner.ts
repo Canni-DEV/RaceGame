@@ -12,7 +12,7 @@ export function planAssetDecorations(centerline: Vec2[], width: number): TrackAs
     return [];
   }
 
-  const offsetDistance = Math.max(0, width) + TRACK_ASSET_LIBRARY.offset;
+  const baseOffset = Math.max(0, width);
   const baseUrl = sanitizeBaseUrl(TRACK_ASSET_LIBRARY.publicUrl);
   const decorations: TrackAssetDecoration[] = [];
 
@@ -25,19 +25,21 @@ export function planAssetDecorations(centerline: Vec2[], width: number): TrackAs
     }
     const normal = leftNormal(direction);
     const sideMultiplier = descriptor.side;
+    const offsetDistance = baseOffset + TRACK_ASSET_LIBRARY.offset;
     const position = {
       x: anchor.x + normal.x * offsetDistance * sideMultiplier,
       z: anchor.z + normal.z * offsetDistance * sideMultiplier
     };
     const rotation = Math.atan2(direction.z, direction.x);
     const assetUrl = buildAssetUrl(baseUrl, descriptor.fileName);
+    const decorationSize = descriptor.size ?? TRACK_ASSET_LIBRARY.size;
 
     decorations.push({
       type: "track-asset",
       assetUrl,
       position,
       rotation,
-      size: TRACK_ASSET_LIBRARY.size
+      size: decorationSize
     });
   }
 

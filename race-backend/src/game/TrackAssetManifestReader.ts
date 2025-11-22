@@ -6,6 +6,7 @@ export interface AssetDescriptor {
   fileName: string;
   nodeIndex: number;
   side: 1 | -1;
+  size?: number;
 }
 
 interface ManifestEntry {
@@ -14,6 +15,8 @@ interface ManifestEntry {
   node?: unknown;
   nodeIndex?: unknown;
   side?: unknown;
+  size?: unknown;
+  scale?: unknown;
 }
 
 export function loadAssetDescriptors(library: TrackAssetLibraryConfig): AssetDescriptor[] {
@@ -44,6 +47,9 @@ function resolveManifestPath(directory: string, override?: string): string | nul
     candidates.push(path.join(directory, "manifest.yml"));
     candidates.push(path.join(directory, "manifest.yaml"));
     candidates.push(path.join(directory, "manifest.json"));
+    candidates.push(path.join(directory, "manifest.example.yml"));
+    candidates.push(path.join(directory, "manifest.example.yaml"));
+    candidates.push(path.join(directory, "manifest.example.json"));
   }
 
   for (const candidate of candidates) {
@@ -128,11 +134,13 @@ function normalizeEntry(entry: unknown, index: number): AssetDescriptor | null {
   }
 
   const side = normalizeSide(manifestEntry.side);
+  const size = normalizePositiveNumber(manifestEntry.scale ?? manifestEntry.size);
 
   return {
     fileName,
     nodeIndex: nodeNumber - 1,
-    side
+    side,
+    ...(size !== null ? { size } : {})
   };
 }
 
@@ -152,14 +160,12 @@ function normalizeFileName(value: unknown): string | null {
 }
 
 function normalizeNodeNumber(value: unknown): number | null {
-  if (typeof value !== "number" || !Number.isFinite(value)) {
+  const numberValue = parseFloatValue(value);
+  if (numberValue === null) {
     return null;
   }
-  const rounded = Math.round(value);
-  if (rounded <= 0) {
-    return null;
-  }
-  return rounded;
+  const rounded = Math.round(numberValue);
+  return rounded > 0 ? rounded : null;
 }
 
 function normalizeSide(value: unknown): 1 | -1 {
@@ -333,9 +339,27 @@ function parseScalar(value: string): unknown {
   if (value === "false") {
     return false;
   }
-  const numberValue = Number(value);
-  if (!Number.isNaN(numberValue)) {
+  const numberValue = parseFloatValue(value);
+  if (numberValue !== null) {
     return numberValue;
   }
   return value;
+}
+
+function parseFloatValue(value: unknown): number | null {
+  const numberValue =
+    typeof value === "number"
+      ? value
+      : typeof value === "string"
+        ? Number.parseFloat(value)
+        : Number.NaN;
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function normalizePositiveNumber(value: unknown): number | null {
+  const numberValue = parseFloatValue(value);
+  if (numberValue === null) {
+    return null;
+  }
+  return numberValue > 0 ? numberValue : null;
 }
