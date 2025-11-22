@@ -171,7 +171,7 @@ function buildInstance(
   const rotation = descriptor.mesh === "gltf"
     ? Math.atan2(segment.direction.z, segment.direction.x) + (descriptor.alignToTrack === false ? random() * Math.PI * 2 : 0)
     : random() * Math.PI * 2;
-  const scale = descriptor.size ?? TRACK_ASSET_LIBRARY.size;
+  const scale = resolveScale(descriptor, random);
 
   if (!Number.isFinite(position.x) || !Number.isFinite(position.z)) {
     return null;
@@ -181,14 +181,17 @@ function buildInstance(
 }
 
 function resolveOffset(descriptor: AssetDescriptor, width: number, random: () => number): number {
+  const baseEdge = width * 0.5;
+  const userOffset = Math.max(0, descriptor.offset ?? TRACK_ASSET_LIBRARY.offset);
+
   if (descriptor.mesh === "procedural-tree") {
     const min = (descriptor.minDistance ?? PROCEDURAL_TRACK_SETTINGS.treeMinDistanceFactor) * width;
     const max = (descriptor.maxDistance ?? PROCEDURAL_TRACK_SETTINGS.treeMaxDistanceFactor) * width;
-    return randomRange(min, max, random);
+    const distance = randomRange(min, max, random);
+    return Math.max(baseEdge + userOffset, distance);
   }
 
-  const base = width * 0.5 + (descriptor.offset ?? TRACK_ASSET_LIBRARY.offset);
-  return base;
+  return baseEdge + userOffset;
 }
 
 function resolveSpacing(descriptor: AssetDescriptor, width: number): number {
@@ -218,6 +221,17 @@ function resolveSide(descriptor: AssetDescriptor, segment: SegmentInfo, random: 
   }
 
   return random() > 0.5 ? 1 : -1;
+}
+
+function resolveScale(descriptor: AssetDescriptor, random: () => number): number {
+  const minSize = descriptor.minSize ?? descriptor.size ?? TRACK_ASSET_LIBRARY.size;
+  const maxSize = descriptor.maxSize ?? descriptor.size ?? minSize;
+  const safeMin = Math.max(0.01, minSize);
+  const safeMax = Math.max(safeMin, maxSize);
+  if (Math.abs(safeMax - safeMin) < 1e-6) {
+    return safeMin;
+  }
+  return randomRange(safeMin, safeMax, random);
 }
 
 function canPlace(position: Vec2, descriptor: AssetDescriptor, occupied: Vec2[]): boolean {

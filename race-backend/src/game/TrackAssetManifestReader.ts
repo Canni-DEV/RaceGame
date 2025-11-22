@@ -10,6 +10,8 @@ export interface AssetDescriptor {
   nodeIndex?: number;
   side: 1 | -1 | 0;
   size?: number;
+  minSize?: number;
+  maxSize?: number;
   offset?: number;
   density?: number;
   every?: number;
@@ -32,6 +34,8 @@ interface ManifestEntry {
   side?: unknown;
   size?: unknown;
   scale?: unknown;
+  minSize?: unknown;
+  maxSize?: unknown;
   offset?: unknown;
   density?: unknown;
   frequency?: unknown;
@@ -164,7 +168,15 @@ function normalizeEntry(entry: unknown, index: number): AssetDescriptor | null {
   }
 
   const side = normalizeSide(manifestEntry.side);
-  const size = normalizePositiveNumber(manifestEntry.scale ?? manifestEntry.size);
+  const explicitMinSize = normalizePositiveNumber(
+    manifestEntry.minSize ?? (manifestEntry as Record<string, unknown>).minsize
+  );
+  const explicitMaxSize = normalizePositiveNumber(
+    manifestEntry.maxSize ?? (manifestEntry as Record<string, unknown>).maxsize
+  );
+  const uniformSize = normalizePositiveNumber(manifestEntry.scale ?? manifestEntry.size);
+  const minSize = explicitMinSize ?? uniformSize;
+  const maxSize = explicitMaxSize ?? uniformSize ?? explicitMinSize ?? null;
   const density = normalizePositiveNumber(manifestEntry.density ?? manifestEntry.frequency);
   const every = normalizePositiveInteger(manifestEntry.every);
   const minSpacing = normalizePositiveNumber(manifestEntry.minSpacing ?? manifestEntry.spacing);
@@ -181,7 +193,9 @@ function normalizeEntry(entry: unknown, index: number): AssetDescriptor | null {
     ...(fileName ? { fileName } : {}),
     ...(nodeNumber !== null ? { nodeIndex: nodeNumber - 1 } : {}),
     side,
-    ...(size !== null ? { size } : {}),
+    ...(uniformSize !== null ? { size: uniformSize } : {}),
+    ...(minSize !== null ? { minSize } : {}),
+    ...(maxSize !== null ? { maxSize } : {}),
     ...(density !== null ? { density } : {}),
     ...(every !== null ? { every } : {}),
     ...(minSpacing !== null ? { minSpacing } : {}),
