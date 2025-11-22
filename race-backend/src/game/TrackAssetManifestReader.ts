@@ -1,22 +1,50 @@
 import fs from "fs";
 import path from "path";
 import { TrackAssetLibraryConfig } from "../config";
+import { InstanceMeshKind } from "../types/trackTypes";
 
 export interface AssetDescriptor {
-  fileName: string;
-  nodeIndex: number;
-  side: 1 | -1;
+  id: string;
+  mesh: InstanceMeshKind;
+  fileName?: string;
+  nodeIndex?: number;
+  side: 1 | -1 | 0;
   size?: number;
+  offset?: number;
+  density?: number;
+  every?: number;
+  minSpacing?: number;
+  maxInstances?: number;
+  segment?: "any" | "straight" | "curve";
+  zone?: "any" | "outer";
+  minDistance?: number;
+  maxDistance?: number;
+  seedOffset?: number;
+  alignToTrack?: boolean;
 }
 
 interface ManifestEntry {
   file?: unknown;
   fileName?: unknown;
+  mesh?: unknown;
   node?: unknown;
   nodeIndex?: unknown;
   side?: unknown;
   size?: unknown;
   scale?: unknown;
+  offset?: unknown;
+  density?: unknown;
+  frequency?: unknown;
+  every?: unknown;
+  minSpacing?: unknown;
+  spacing?: unknown;
+  max?: unknown;
+  segment?: unknown;
+  zone?: unknown;
+  minDistance?: unknown;
+  maxDistance?: unknown;
+  seed?: unknown;
+  alignToTrack?: unknown;
 }
 
 export function loadAssetDescriptors(library: TrackAssetLibraryConfig): AssetDescriptor[] {
@@ -82,29 +110,22 @@ function readManifest(manifestPath: string, assetDirectory: string): AssetDescri
     }
 
     const descriptors: AssetDescriptor[] = [];
-    const seenFiles = new Set<string>();
     entries.forEach((entry: unknown, index: number) => {
       const descriptor = normalizeEntry(entry, index);
       if (!descriptor) {
         return;
       }
-      if (seenFiles.has(descriptor.fileName)) {
-        console.warn(
-          `[TrackAssetManifest] Se ignoró la entrada ${index + 1} porque el archivo "${descriptor.fileName}" está duplicado.`
-        );
-        return;
-      }
-
-      const assetPath = path.join(assetDirectory, descriptor.fileName);
-      if (!fs.existsSync(assetPath)) {
-        console.warn(
-          `[TrackAssetManifest] Se ignoró la entrada ${index + 1} porque el archivo "${descriptor.fileName}" no existe en "${assetDirectory}".`
-        );
-        return;
+      if (descriptor.fileName) {
+        const assetPath = path.join(assetDirectory, descriptor.fileName);
+        if (!fs.existsSync(assetPath)) {
+          console.warn(
+            `[TrackAssetManifest] Se ignoró la entrada ${index + 1} porque el archivo "${descriptor.fileName}" no existe en "${assetDirectory}".`
+          );
+          return;
+        }
       }
 
       descriptors.push(descriptor);
-      seenFiles.add(descriptor.fileName);
     });
 
     return descriptors;
@@ -122,25 +143,56 @@ function normalizeEntry(entry: unknown, index: number): AssetDescriptor | null {
 
   const manifestEntry = entry as ManifestEntry;
   const fileName = normalizeFileName(manifestEntry.file ?? manifestEntry.fileName);
-  if (!fileName) {
-    console.warn(`[TrackAssetManifest] La entrada ${index + 1} no tiene un nombre de archivo válido.`);
+  const mesh = normalizeMesh(manifestEntry.mesh, fileName);
+  if (!mesh) {
+    console.warn(
+      `[TrackAssetManifest] La entrada ${index + 1} no tiene un recurso válido (defina "file" o "mesh").`
+    );
+    return null;
+  }
+
+  if (mesh === "gltf" && !fileName) {
+    console.warn(`[TrackAssetManifest] La entrada ${index + 1} requiere un archivo .glb.`);
     return null;
   }
 
   const nodeNumber = normalizeNodeNumber(manifestEntry.node ?? manifestEntry.nodeIndex);
-  if (nodeNumber === null) {
+  const nodeProvided = manifestEntry.node !== undefined || manifestEntry.nodeIndex !== undefined;
+  if (nodeProvided && nodeNumber === null) {
     console.warn(`[TrackAssetManifest] La entrada ${index + 1} tiene un índice de nodo inválido.`);
     return null;
   }
 
   const side = normalizeSide(manifestEntry.side);
   const size = normalizePositiveNumber(manifestEntry.scale ?? manifestEntry.size);
+  const density = normalizePositiveNumber(manifestEntry.density ?? manifestEntry.frequency);
+  const every = normalizePositiveInteger(manifestEntry.every);
+  const minSpacing = normalizePositiveNumber(manifestEntry.minSpacing ?? manifestEntry.spacing);
+  const maxInstances = normalizePositiveInteger(manifestEntry.max);
+  const offset = normalizePositiveNumber(manifestEntry.offset);
+  const minDistance = normalizePositiveNumber(manifestEntry.minDistance);
+  const maxDistance = normalizePositiveNumber(manifestEntry.maxDistance);
+  const seedOffset = normalizeNumber(manifestEntry.seed);
+  const alignToTrack = normalizeBoolean(manifestEntry.alignToTrack);
 
   return {
-    fileName,
-    nodeIndex: nodeNumber - 1,
+    id: fileName ?? `entry-${index + 1}`,
+    mesh,
+    ...(fileName ? { fileName } : {}),
+    ...(nodeNumber !== null ? { nodeIndex: nodeNumber - 1 } : {}),
     side,
-    ...(size !== null ? { size } : {})
+    ...(size !== null ? { size } : {}),
+    ...(density !== null ? { density } : {}),
+    ...(every !== null ? { every } : {}),
+    ...(minSpacing !== null ? { minSpacing } : {}),
+    ...(maxInstances !== null ? { maxInstances } : {}),
+    ...(offset !== null ? { offset } : {}),
+    ...(minDistance !== null ? { minDistance } : {}),
+    ...(maxDistance !== null ? { maxDistance } : {}),
+    ...(seedOffset !== null ? { seedOffset } : {}),
+    ...(alignToTrack !== null ? { alignToTrack } : {}),
+    segment: normalizeSegment(manifestEntry.segment),
+    zone: normalizeZone(manifestEntry.zone)
   };
 }
 
@@ -159,7 +211,26 @@ function normalizeFileName(value: unknown): string | null {
   return base;
 }
 
+function normalizeMesh(value: unknown, fileName: string | null): InstanceMeshKind | null {
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "tree" || normalized === "procedural-tree" || normalized === "foliage") {
+      return "procedural-tree";
+    }
+    if (normalized === "gltf" || normalized === "asset" || normalized === "mesh") {
+      return "gltf";
+    }
+  }
+  if (fileName) {
+    return "gltf";
+  }
+  return null;
+}
+
 function normalizeNodeNumber(value: unknown): number | null {
+  if (value === undefined) {
+    return null;
+  }
   const numberValue = parseFloatValue(value);
   if (numberValue === null) {
     return null;
@@ -168,9 +239,12 @@ function normalizeNodeNumber(value: unknown): number | null {
   return rounded > 0 ? rounded : null;
 }
 
-function normalizeSide(value: unknown): 1 | -1 {
+function normalizeSide(value: unknown): 1 | -1 | 0 {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
+    if (normalized === "both" || normalized === "any" || normalized === "0") {
+      return 0;
+    }
     if (normalized === "left" || normalized === "-" || normalized === "opposite") {
       return -1;
     }
@@ -184,6 +258,31 @@ function normalizeSide(value: unknown): 1 | -1 {
   return 1;
 }
 
+function normalizeSegment(value: unknown): "any" | "straight" | "curve" {
+  if (typeof value !== "string") {
+    return "any";
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("straight")) {
+    return "straight";
+  }
+  if (normalized.startsWith("curve") || normalized === "turn") {
+    return "curve";
+  }
+  return "any";
+}
+
+function normalizeZone(value: unknown): "any" | "outer" {
+  if (typeof value !== "string") {
+    return "any";
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("outer") || normalized === "outside") {
+    return "outer";
+  }
+  return "any";
+}
+
 function readFromDirectory(directory: string): AssetDescriptor[] {
   try {
     if (!fs.existsSync(directory)) {
@@ -195,7 +294,7 @@ function readFromDirectory(directory: string): AssetDescriptor[] {
     for (const file of entries) {
       const placement = parsePlacement(file);
       if (placement) {
-        descriptors.push({ fileName: file, ...placement });
+        descriptors.push({ fileName: file, id: file, mesh: "gltf", ...placement });
       }
     }
     return descriptors;
@@ -205,7 +304,7 @@ function readFromDirectory(directory: string): AssetDescriptor[] {
   }
 }
 
-function parsePlacement(fileName: string): Omit<AssetDescriptor, "fileName"> | null {
+function parsePlacement(fileName: string): Omit<AssetDescriptor, "fileName" | "mesh" | "id"> | null {
   const name = path.parse(fileName).name;
   const digitsMatch = name.match(/(\d+)$/);
   if (!digitsMatch) {
@@ -362,4 +461,34 @@ function normalizePositiveNumber(value: unknown): number | null {
     return null;
   }
   return numberValue > 0 ? numberValue : null;
+}
+
+function normalizePositiveInteger(value: unknown): number | null {
+  const numberValue = normalizePositiveNumber(value);
+  if (numberValue === null) {
+    return null;
+  }
+  const rounded = Math.round(numberValue);
+  return rounded > 0 ? rounded : null;
+}
+
+function normalizeNumber(value: unknown): number | null {
+  const numberValue = parseFloatValue(value);
+  return numberValue !== null ? numberValue : null;
+}
+
+function normalizeBoolean(value: unknown): boolean | null {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true") {
+      return true;
+    }
+    if (normalized === "false") {
+      return false;
+    }
+  }
+  return null;
 }

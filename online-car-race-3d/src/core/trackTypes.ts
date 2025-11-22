@@ -11,22 +11,22 @@ export interface TrackData {
   decorations: TrackDecoration[]
 }
 
-export interface TreeBeltDecoration {
-  type: 'tree-belt'
-  density: number
-  minDistance: number
-  maxDistance: number
-}
-
-export interface TrackAssetDecoration {
-  type: 'track-asset'
-  assetUrl: string
+export interface TrackObjectInstance {
   position: Vec2
   rotation: number
-  size: number
+  scale: number
 }
 
-export type TrackDecoration = TreeBeltDecoration | TrackAssetDecoration
+export type InstanceMeshKind = 'gltf' | 'procedural-tree'
+
+export interface InstancedDecoration {
+  type: 'instanced-decoration'
+  mesh: InstanceMeshKind
+  assetUrl?: string
+  instances: TrackObjectInstance[]
+}
+
+export type TrackDecoration = InstancedDecoration
 
 export interface CarState {
   playerId: string

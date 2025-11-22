@@ -1,17 +1,67 @@
 # Ejemplo de manifiesto completo para colocar assets a lo largo de la pista.
-# Campos aceptados por entrada:
-#   file / fileName : nombre del .glb ubicado en este mismo directorio
-#   node / nodeIndex: indice de nodo en la línea central (comienza en 1)
-#   side            : right / left / + / - / opposite (default: right)
-#   scale / size    : factor de escala (default: TRACK_ASSET_SIZE)
+# Nuevos campos aceptados por entrada:
+#   mesh             : "gltf" (default si hay file) o "procedural-tree"
+#   file / fileName  : nombre del .glb ubicado en este mismo directorio
+#   node / nodeIndex : indice de nodo en la línea central (comienza en 1)
+#   density          : instancias por kilómetro (si no hay node)
+#   every            : coloca en cada N segmentos (si no hay node)
+#   minSpacing       : separación mínima entre instancias
+#   minDistance/maxDistance : rango de distancia al centro (para árboles usa factores del ancho)
+#   segment          : any / straight / curve
+#   zone             : any / outer
+#   side             : right / left / both / + / - / opposite (default: right)
+#   scale / size     : factor de escala (default: TRACK_ASSET_SIZE)
+#   alignToTrack     : alinear la rotación con la pista (true por defecto)
 
 assets:
-  - file: grandStand-1.glb
-    node: 20
-    side: opposite
+  # Árboles procedurales distribuidos de forma pseudo-aleatoria en ambos lados
+  - mesh: procedural-tree
+    density: 60
+    minSpacing: 1
+    minDistance: 0.8   # factores respecto al ancho de pista
+    maxDistance: 2.5
+    segment: any
+    side: both
+
+  # Carteles espaciados en rectas cada pocos segmentos
+  - file: lightPost_exclusive.glb
+    mesh: gltf
+    density: 20
+    minSpacing: 25
+    offset: 14
+    side: both
+    segment: straight
+    alignToTrack: true
     scale: 20
-    
+
+  - file: treeLarge.glb
+    density: 60
+    minSpacing: 10
+    offset: 14
+    side: both
+    alignToTrack: true
+    scale: 10
+    zone: outer
+
+  - file: treeSmall.glb
+    density: 60
+    minSpacing: 3
+    offset: 14
+    side: both
+    alignToTrack: true
+    scale: 10
+    zone: outer
+
+  # Asset único anclado a un nodo concreto
   - file: pitsOffice.glb
     node: 1
     side: left
+    scale: 18
+
+  - file: grandStand-1.glb
+    node: 10
+    side: left
     scale: 20
+    offset: 40
+
+

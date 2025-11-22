@@ -1,4 +1,4 @@
-import { TrackData, TrackDecoration, TreeBeltDecoration, Vec2 } from "../types/trackTypes";
+import { TrackData, TrackDecoration, Vec2 } from "../types/trackTypes";
 import { planAssetDecorations } from "./TrackAssetPlanner";
 
 interface GridCell {
@@ -39,7 +39,7 @@ export class ProceduralTrackGenerator {
     const rounded = this.roundCorners(basePoints, this.config.cornerSubdivisions, this.config.cornerRoundness);
     const smoothed = this.smoothPoints(rounded, this.config.smoothingPasses);
     const width = this.lerp(this.config.widthRange[0], this.config.widthRange[1], random());
-    const decorations = this.createDecorations(smoothed, width);
+    const decorations = this.createDecorations(smoothed, width, seed);
 
     return {
       id: `procedural-${seed}`,
@@ -210,16 +210,9 @@ export class ProceduralTrackGenerator {
     return current;
   }
 
-  private createDecorations(centerline: Vec2[], width: number): TrackDecoration[] {
-    const treeDecoration: TreeBeltDecoration = {
-      type: "tree-belt",
-      density: this.config.treeDensity,
-      minDistance: width * this.config.treeMinDistanceFactor,
-      maxDistance: width * this.config.treeMaxDistanceFactor
-    };
-    const assetDecorations = planAssetDecorations(centerline, width);
-
-    return [treeDecoration, ...assetDecorations];
+  private createDecorations(centerline: Vec2[], width: number, seed: number): TrackDecoration[] {
+    const decorations = planAssetDecorations(centerline, width, seed);
+    return decorations;
   }
 
   private smoothPoints(points: Vec2[], passes: number): Vec2[] {
