@@ -32,7 +32,7 @@ export class CameraRig {
     const maxHorizontal = Math.max(size.x, size.z)
     this.orbitRadius = Math.max(maxHorizontal * 0.5, 60)
     this.height = Math.max(size.y + 35, 200)
-    this.followDistance = Math.max(maxHorizontal * 0.2, 24)
+    this.followDistance = Math.max(maxHorizontal * 0.15, 24)
     this.followHeight = Math.max(size.y + 10, 12)
     this.setTarget(bounds.getCenter(new THREE.Vector3()))
   }

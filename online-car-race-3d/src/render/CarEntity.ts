@@ -36,17 +36,7 @@ export class CarEntity {
     }
     const object = await this.loader.createInstance(this.color)
     if (this.disposed) {
-      object.traverse((child: THREE.Object3D) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh
-          mesh.geometry.dispose()
-          if (Array.isArray(mesh.material)) {
-            mesh.material.forEach((material) => material.dispose())
-          } else {
-            mesh.material.dispose()
-          }
-        }
-      })
+      // Recursos compartidos a través del loader; no se eliminan aquí.
       return
     }
     object.position.copy(this.currentPosition)
@@ -115,17 +105,6 @@ export class CarEntity {
     this.disposed = true
     if (this.object) {
       this.object.removeFromParent()
-      this.object.traverse((child: THREE.Object3D) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh
-          mesh.geometry.dispose()
-          if (Array.isArray(mesh.material)) {
-            mesh.material.forEach((material) => material.dispose())
-          } else {
-            mesh.material.dispose()
-          }
-        }
-      })
       this.object = null
     }
   }

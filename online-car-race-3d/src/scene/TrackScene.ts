@@ -86,6 +86,16 @@ export class TrackScene {
 
     this.scene.remove(this.trackRoot)
     this.trackRoot.traverse((object) => {
+      // Los assets decorativos comparten geometría/material vía la caché del loader;
+      // si algún ancestro está marcado, omitimos la liberación de recursos.
+      let current: THREE.Object3D | null = object
+      while (current) {
+        if (current.userData?.isTrackAsset) {
+          return
+        }
+        current = current.parent
+      }
+
       if (object instanceof THREE.InstancedMesh) {
         object.geometry.dispose()
         if (Array.isArray(object.material)) {

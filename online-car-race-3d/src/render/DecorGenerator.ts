@@ -157,6 +157,7 @@ class TrackAssetDecorator implements Decorator<TrackAssetDecoration> {
         return
       }
       const size = instruction.size > 0 ? instruction.size : 1
+      instance.userData.isTrackAsset = true
       instance.name = `decor-asset-${instruction.assetUrl}`
       instance.position.set(instruction.position.x, 0, instruction.position.z)
       instance.rotation.y = instruction.rotation

@@ -42,6 +42,7 @@ declare module 'three' {
     quaternion: Quaternion
     scale: Vector3
     matrix: Matrix4
+    parent: Object3D | null
     userData: Record<string, any>
     add(...objects: Object3D[]): this
     remove(...objects: Object3D[]): this

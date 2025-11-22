@@ -7,7 +7,11 @@
 
 assets:
   - file: grandStand-1.glb
-    # Coloca la grada en el nodo 5, lado derecho.
     node: 20
     side: opposite
+    scale: 20
+    
+  - file: pitsOffice.glb
+    node: 1
+    side: left
     scale: 20
