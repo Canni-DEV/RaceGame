@@ -49,14 +49,14 @@ export interface ProceduralTrackSettings {
 export const PROCEDURAL_TRACK_SETTINGS: ProceduralTrackSettings = {
   gridWidth: Number(process.env.TRACK_GRID_WIDTH ?? 12),
   gridHeight: Number(process.env.TRACK_GRID_HEIGHT ?? 8),
-  cellSize: Number(process.env.TRACK_CELL_SIZE ?? 12),
+  cellSize: Number(process.env.TRACK_CELL_SIZE ?? 100),
   targetCoverage: Number(process.env.TRACK_TARGET_COVERAGE ?? 0.65),
-  minLoopLength: Number(process.env.TRACK_MIN_LOOP_LENGTH ?? 14),
+  minLoopLength: Number(process.env.TRACK_MIN_LOOP_LENGTH ?? 16),
   maxAttempts: Number(process.env.TRACK_MAX_ATTEMPTS ?? 32),
   directionBias: Number(process.env.TRACK_DIRECTION_BIAS ?? 1.5),
   turnBias: Number(process.env.TRACK_TURN_BIAS ?? 1.1),
   smoothingPasses: Number(process.env.TRACK_SMOOTHING_PASSES ?? 3),
-  cornerSubdivisions: Number(process.env.TRACK_CORNER_SUBDIVISIONS ?? 1),
+  cornerSubdivisions: Number(process.env.TRACK_CORNER_SUBDIVISIONS ?? 2),
   cornerRoundness: Number(process.env.TRACK_CORNER_ROUNDNESS ?? 0.32),
   widthRange: [
     Number(process.env.TRACK_MIN_WIDTH ?? 24),

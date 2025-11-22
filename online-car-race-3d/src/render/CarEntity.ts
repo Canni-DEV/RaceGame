@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { CarState } from '../core/trackTypes'
 import { CarModelLoader } from './CarModelLoader'
+import { TRACK_SURFACE_HEIGHT } from './TrackMeshBuilder'
 
 const TEMP_VECTOR = new THREE.Vector3()
 const ANGLE_FORWARD = new THREE.Vector3()
@@ -12,12 +13,12 @@ export class CarEntity {
   private readonly loader: CarModelLoader
   private readonly color: THREE.Color
   private object: THREE.Object3D | null = null
-  private readonly currentPosition = new THREE.Vector3()
-  private readonly targetPosition = new THREE.Vector3()
+  private readonly currentPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
+  private readonly targetPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
   private readonly orientation = new THREE.Quaternion()
   private readonly targetOrientation = new THREE.Quaternion()
   private readonly desiredForward = new THREE.Vector3(0, 0, 1)
-  private readonly lastServerPosition = new THREE.Vector3()
+  private readonly lastServerPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
   private hasReceivedState = false
   private disposed = false
 
@@ -55,7 +56,7 @@ export class CarEntity {
   }
 
   setTargetState(state: CarState): void {
-    this.targetPosition.set(state.x, 0, state.z)
+    this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT, state.z)
     if (!this.hasReceivedState) {
       this.currentPosition.copy(this.targetPosition)
       this.lastServerPosition.copy(this.targetPosition)
