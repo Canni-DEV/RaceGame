@@ -1,0 +1,7 @@
+# Ejemplo de manifiesto para colocar un edificio al inicio de la pista
+assets:
+  - file: start-building.glb
+    # El primer nodo de la línea central se indica con 1
+    node: 1
+    # "right" ubica el asset en el lado derecho de la pista, "left" en el izquierdo
+    side: right
