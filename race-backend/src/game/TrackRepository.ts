@@ -1,5 +1,5 @@
 import { PROCEDURAL_TRACK_SETTINGS, TRACK_GENERATION } from "../config";
-import { TrackData, TrackDecoration, TreeBeltDecoration, Vec2 } from "../types/trackTypes";
+import { TrackData, TrackDecoration, Vec2 } from "../types/trackTypes";
 import { ProceduralTrackGenerator } from "./ProceduralTrackGenerator";
 import { planAssetDecorations } from "./TrackAssetPlanner";
 
@@ -69,13 +69,17 @@ export class TrackRepository {
 }
 
 function cloneDecoration(decoration: TrackDecoration): TrackDecoration {
-  if (decoration.type === "tree-belt") {
-    return { ...decoration };
+  if (decoration.type === "instanced-decoration") {
+    return {
+      ...decoration,
+      instances: decoration.instances.map((instance) => ({
+        position: { ...instance.position },
+        rotation: instance.rotation,
+        scale: instance.scale
+      }))
+    };
   }
-  return {
-    ...decoration,
-    position: { ...decoration.position }
-  };
+  return { ...decoration };
 }
 
 function createDefaultTrack(): TrackData {
@@ -91,14 +95,7 @@ function createDefaultTrack(): TrackData {
 }
 
 function createDecorations(centerline: Vec2[], width: number): TrackDecoration[] {
-  const treeDecoration: TreeBeltDecoration = {
-    type: "tree-belt",
-    density: PROCEDURAL_TRACK_SETTINGS.treeDensity,
-    minDistance: width * PROCEDURAL_TRACK_SETTINGS.treeMinDistanceFactor,
-    maxDistance: width * PROCEDURAL_TRACK_SETTINGS.treeMaxDistanceFactor
-  };
-  const assetDecorations = planAssetDecorations(centerline, width);
-  return [treeDecoration, ...assetDecorations];
+  return planAssetDecorations(centerline, width, 1337);
 }
 
 export const trackRepository = new TrackRepository();
