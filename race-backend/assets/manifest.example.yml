@@ -56,7 +56,8 @@ assets:
   - file: pitsOffice.glb
     node: 1
     side: left
-    scale: 18
+    scale: 20
+    offset: 40
 
   - file: grandStand-1.glb
     node: 10

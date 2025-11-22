@@ -85,8 +85,8 @@ function planInstances(
     const targetIndex = clamp(descriptor.nodeIndex, 0, centerline.length - 1);
     const segment = segments[targetIndex % segments.length];
     const anchor = centerline[targetIndex];
-    const instance = buildInstance(descriptor, anchor, segment.direction, width, random);
-    if (instance && canPlace(instance.position, descriptor, occupied)) {
+    const instance = buildInstance(descriptor, anchor, segment, width, random);
+    if (instance && isOutsideTrack(instance.position, segments, width) && canPlace(instance.position, descriptor, occupied)) {
       instances.push(instance);
       occupied.push(instance.position);
     }
@@ -107,8 +107,8 @@ function planInstances(
         x: segment.start.x + segment.direction.x * distanceAlong,
         z: segment.start.z + segment.direction.z * distanceAlong
       };
-      const instance = buildInstance(descriptor, anchor, segment.direction, width, random);
-      if (instance && canPlace(instance.position, descriptor, occupied)) {
+      const instance = buildInstance(descriptor, anchor, segment, width, random);
+      if (instance && isOutsideTrack(instance.position, segments, width) && canPlace(instance.position, descriptor, occupied)) {
         instances.push(instance);
         occupied.push(instance.position);
       }
@@ -157,19 +157,19 @@ function segmentMatches(descriptor: AssetDescriptor, segment: SegmentInfo, index
 function buildInstance(
   descriptor: AssetDescriptor,
   anchor: Vec2,
-  direction: Vec2,
+  segment: SegmentInfo,
   width: number,
   random: () => number
 ): TrackObjectInstance | null {
-  const side = descriptor.side === 0 ? (random() > 0.5 ? 1 : -1) : descriptor.side;
-  const normal = leftNormal(direction);
+  const side = resolveSide(descriptor, segment, random);
+  const normal = leftNormal(segment.direction);
   const offset = resolveOffset(descriptor, width, random);
   const position = {
     x: anchor.x + normal.x * offset * side,
     z: anchor.z + normal.z * offset * side
   };
   const rotation = descriptor.mesh === "gltf"
-    ? Math.atan2(direction.z, direction.x) + (descriptor.alignToTrack === false ? random() * Math.PI * 2 : 0)
+    ? Math.atan2(segment.direction.z, segment.direction.x) + (descriptor.alignToTrack === false ? random() * Math.PI * 2 : 0)
     : random() * Math.PI * 2;
   const scale = descriptor.size ?? TRACK_ASSET_LIBRARY.size;
 
@@ -205,6 +205,21 @@ function spacingWithJitter(spacing: number, random: () => number): number {
   return spacing * jitter;
 }
 
+function resolveSide(descriptor: AssetDescriptor, segment: SegmentInfo, random: () => number): 1 | -1 {
+  if (descriptor.side !== 0) {
+    return descriptor.side;
+  }
+
+  if (descriptor.zone === "outer") {
+    const curvature = segment.curvature;
+    if (Math.abs(curvature) > 0.05) {
+      return curvature > 0 ? -1 : 1;
+    }
+  }
+
+  return random() > 0.5 ? 1 : -1;
+}
+
 function canPlace(position: Vec2, descriptor: AssetDescriptor, occupied: Vec2[]): boolean {
   const minSpacing = descriptor.minSpacing ?? 0;
   if (minSpacing <= 0 || occupied.length === 0) {
@@ -212,6 +227,39 @@ function canPlace(position: Vec2, descriptor: AssetDescriptor, occupied: Vec2[])
   }
   const minDistanceSq = minSpacing * minSpacing;
   return occupied.every((item) => squaredDistance(item, position) > minDistanceSq);
+}
+
+function isOutsideTrack(position: Vec2, segments: SegmentInfo[], width: number): boolean {
+  if (segments.length === 0) {
+    return true;
+  }
+  const halfWidth = width * 0.5;
+  const clearance = halfWidth + 0.25;
+  const minDistanceSq = minimumDistanceToSegmentsSq(position, segments);
+  return minDistanceSq >= clearance * clearance;
+}
+
+function minimumDistanceToSegmentsSq(point: Vec2, segments: SegmentInfo[]): number {
+  let best = Number.POSITIVE_INFINITY;
+  for (const segment of segments) {
+    const candidate = distanceToSegmentSq(point, segment);
+    if (candidate < best) {
+      best = candidate;
+    }
+  }
+  return best;
+}
+
+function distanceToSegmentSq(point: Vec2, segment: SegmentInfo): number {
+  const dx = point.x - segment.start.x;
+  const dz = point.z - segment.start.z;
+  const projection = dx * segment.direction.x + dz * segment.direction.z;
+  const clamped = clamp(projection, 0, segment.length);
+  const closestX = segment.start.x + segment.direction.x * clamped;
+  const closestZ = segment.start.z + segment.direction.z * clamped;
+  const offsetX = point.x - closestX;
+  const offsetZ = point.z - closestZ;
+  return offsetX * offsetX + offsetZ * offsetZ;
 }
 
 function buildAssetUrl(base: string, fileName: string): string {
