@@ -38,14 +38,14 @@ export interface EngineSoundConfig {
 const DEFAULT_CONFIG: EngineSoundConfig = {
   idleRpm: 900,
   maxRpm: 8200,
-  maxSpeed: 75,
-  minVolume: 0.05,
-  maxVolume: 0.28,
-  refDistance: 20,
+  maxSpeed: 50,
+  minVolume: 0.01,
+  maxVolume: 0.20,
+  refDistance: 5,
   rolloff: 1.6,
   maxDistance: 180,
   baseFreqIdle: 70,      // Frecuencia base (Hz) al ralentí
-  baseFreqMax: 260,      // Frecuencia base (Hz) al RPM máximo
+  baseFreqMax: 200,      // Frecuencia base (Hz) al RPM máximo
   minFilterFrequency: 900,   // Filtro bajo a ralentí (sonido más "muffler")
   maxFilterFrequency: 4800,  // Filtro más abierto a altas RPM (sonido más brillante)
   useNoise: true,
