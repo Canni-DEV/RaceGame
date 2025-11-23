@@ -37,7 +37,7 @@ assets:
   - file: treeLarge.glb
     density: 60
     minSpacing: 10
-    offset: 14
+    offset: 30
     side: both
     alignToTrack: true
     scale: 10
@@ -46,10 +46,19 @@ assets:
   - file: treeSmall.glb
     density: 250
     minSpacing: 2
-    offset: 14
+    offset: 30
     side: both
     zone: any
     minSize: 5
     maxSize: 20
+
+  - file: tent.glb
+    density: 100
+    minSpacing: 10
+    offset: 10
+    side: both
+    zone: curve
+    minSize: 5
+    maxSize: 8
 
 
