@@ -162,13 +162,25 @@ export class SceneManager {
   }
 
   private readonly handleGlobalKeyDown = (event: KeyboardEvent): void => {
-    const key = event.key.toLowerCase()
-    if (key === 'c') {
+    const target = event.target as HTMLElement | null
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+      return
+    }
+
+    const key = event.key?.toLowerCase()
+    const code = event.code?.toLowerCase()
+    const matchesKey = (expected: string): boolean => {
+      return key === expected || code === `key${expected}`
+    }
+
+    if (matchesKey('c')) {
       this.controllerAccess.toggleVisibility()
       event.preventDefault()
-    } else if (key === 'p') {
+      event.stopPropagation()
+    } else if (matchesKey('p')) {
       this.playerListOverlay.toggleVisibility()
       event.preventDefault()
+      event.stopPropagation()
     }
   }
 }
