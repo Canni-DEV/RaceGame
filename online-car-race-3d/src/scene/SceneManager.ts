@@ -178,7 +178,7 @@ export class SceneManager {
     }
 
     if (matchesKey('s')) {
-      this.audioManager.enable()
+      this.audioManager.toggle()
       event.preventDefault()
       event.stopPropagation()
     } else if (matchesKey('c')) {

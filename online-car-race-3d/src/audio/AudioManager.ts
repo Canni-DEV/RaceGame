@@ -4,7 +4,6 @@ import { EngineSound } from './EngineSound'
 export class AudioManager {
   private readonly listener: THREE.AudioListener
   private readonly unlockHandler: () => void
-  private readonly keydownHandler: (event: KeyboardEvent) => void
   private readonly engineSounds: Set<EngineSound> = new Set()
   private readonly stateChangeHandler: () => void
   private contextRunning = false
@@ -15,20 +14,18 @@ export class AudioManager {
     camera.add(this.listener)
 
     this.stateChangeHandler = () => {
-      if (!this.isContextRunning()) {
+      this.contextRunning = this.isContextRunning()
+      if (!this.contextRunning) {
         return
       }
-      this.contextRunning = true
       this.startPendingSounds()
       this.playDebugChime()
-      this.teardownUnlockListeners()
     }
     this.listener.context.addEventListener('statechange', this.stateChangeHandler)
     if (this.isContextRunning()) {
       this.contextRunning = true
       this.startPendingSounds()
       this.playDebugChime()
-      this.teardownUnlockListeners()
     }
 
     this.unlockHandler = () => {
@@ -46,18 +43,20 @@ export class AudioManager {
           // Algunos navegadores rechazan el resume si no detectan gesto; el estado change listener reintentará.
         })
     }
-
-    this.keydownHandler = (event: KeyboardEvent) => {
-      const key = event.key?.toLowerCase()
-      if (key === 's') {
-        this.unlockHandler()
-      }
-    }
-
-    document.addEventListener('keydown', this.keydownHandler)
   }
 
-  enable(): void {
+  toggle(): void {
+    if (this.isContextRunning()) {
+      void this.listener.context
+        .suspend()
+        .then(() => {
+          this.contextRunning = false
+        })
+        .catch(() => {
+          // Ignorado: algunos navegadores no permiten suspender en ciertos estados.
+        })
+      return
+    }
     this.unlockHandler()
   }
 
@@ -71,7 +70,6 @@ export class AudioManager {
   }
 
   dispose(): void {
-    document.removeEventListener('keydown', this.keydownHandler)
     this.listener.context.removeEventListener('statechange', this.stateChangeHandler)
   }
 
@@ -86,10 +84,6 @@ export class AudioManager {
     for (const sound of this.engineSounds) {
       this.startSoundIfReady(sound)
     }
-  }
-
-  private teardownUnlockListeners(): void {
-    document.removeEventListener('keydown', this.keydownHandler)
   }
 
   private isContextRunning(): boolean {
