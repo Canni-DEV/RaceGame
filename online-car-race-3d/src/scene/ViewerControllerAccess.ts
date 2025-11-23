@@ -10,6 +10,8 @@ export class ViewerControllerAccess {
   private readonly statusText: HTMLElement
   private readonly linkElement: HTMLAnchorElement
   private readonly serverParam: string | null
+  private isReady = false
+  private userHidden = false
 
   constructor(container: HTMLElement, store: GameStateStore) {
     this.serverParam = this.resolveServerParam()
@@ -47,18 +49,28 @@ export class ViewerControllerAccess {
     })
   }
 
+  toggleVisibility(): void {
+    if (!this.isReady) {
+      return
+    }
+    this.userHidden = !this.userHidden
+    this.updateVisibility()
+  }
+
   private handleRoomInfo(info: RoomInfoSnapshot): void {
     if (!info.roomId || !info.playerId) {
-      this.root.hidden = true
+      this.isReady = false
+      this.updateVisibility()
       return
     }
 
+    this.isReady = true
     const controllerUrl = this.buildControllerUrl(info.roomId, info.playerId)
     this.statusText.textContent = `Room ${info.roomId} · Player ${info.playerId}`
     this.linkElement.href = controllerUrl
     this.linkElement.textContent = controllerUrl
     this.renderQrCode(controllerUrl)
-    this.root.hidden = false
+    this.updateVisibility()
   }
 
   private resolveServerParam(): string | null {
@@ -109,5 +121,9 @@ export class ViewerControllerAccess {
         }
       }
     }
+  }
+
+  private updateVisibility(): void {
+    this.root.hidden = !this.isReady || this.userHidden
   }
 }
