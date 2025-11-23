@@ -14,6 +14,7 @@ declare module 'three' {
     subVectors(a: Vector3, b: Vector3): this
     lerp(v: Vector3, alpha: number): this
     normalize(): this
+    length(): number
     lengthSq(): number
     distanceTo(v: Vector3): number
     applyQuaternion(q: Quaternion): this
@@ -78,7 +79,10 @@ declare module 'three' {
 
   export class PerspectiveCamera extends Object3D {
     constructor(fov?: number, aspect?: number, near?: number, far?: number)
+    fov: number
     aspect: number
+    near: number
+    far: number
     up: Vector3
     lookAt(target: Vector3): void
     updateProjectionMatrix(): void
@@ -254,6 +258,7 @@ declare module 'three' {
     lerp(a: number, b: number, t: number): number
     clamp(value: number, min: number, max: number): number
     mapLinear(x: number, a1: number, a2: number, b1: number, b2: number): number
+    degToRad(degrees: number): number
   }
 
   export class Box3 {

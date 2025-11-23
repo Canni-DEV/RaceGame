@@ -31,7 +31,16 @@ export class CameraRig {
     const size = bounds.getSize(new THREE.Vector3())
     const maxHorizontal = Math.max(size.x, size.z)
     this.orbitRadius = Math.max(maxHorizontal * 0.5, 60)
-    this.height = Math.max(size.y + 35, 200)
+    const halfSpan = maxHorizontal * 0.6
+    const halfFov = THREE.MathUtils.degToRad(this.camera.fov * 0.5)
+    const neededHeight = halfSpan / Math.tan(halfFov)
+    const verticalPadding = Math.max(size.y * 0.5, 40)
+    this.height = Math.max(neededHeight + verticalPadding, 200)
+    const distanceToTarget = Math.hypot(this.height, this.orbitRadius)
+    const boundsDiagonal = size.length()
+    this.camera.near = Math.max(0.5, distanceToTarget * 0.01)
+    this.camera.far = distanceToTarget + boundsDiagonal * 0.75
+    this.camera.updateProjectionMatrix()
     this.followDistance = Math.max(maxHorizontal * 0.05, 24)
     this.followHeight = Math.max(size.y + 10, 10)
     this.setTarget(bounds.getCenter(new THREE.Vector3()))
