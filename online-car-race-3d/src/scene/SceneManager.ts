@@ -6,6 +6,7 @@ import { TrackScene } from './TrackScene'
 import { ViewerControllerAccess } from './ViewerControllerAccess'
 import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
+import { AudioManager } from '../audio/AudioManager'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -19,6 +20,7 @@ export class SceneManager {
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
   private readonly playerListOverlay: PlayerListOverlay
+  private readonly audioManager: AudioManager
   private keyLight: THREE.DirectionalLight | null = null
 
   constructor(container: HTMLElement) {
@@ -42,6 +44,7 @@ export class SceneManager {
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000)
 
     this.cameraRig = new CameraRig(this.camera)
+    this.audioManager = new AudioManager(this.camera)
 
     this.setupLights()
 
@@ -53,6 +56,7 @@ export class SceneManager {
       this.cameraRig,
       this.gameStateStore,
       this.keyLight,
+      this.audioManager,
     )
     this.controllerAccess = new ViewerControllerAccess(
       this.container,
@@ -173,7 +177,11 @@ export class SceneManager {
       return key === expected || code === `key${expected}`
     }
 
-    if (matchesKey('c')) {
+    if (matchesKey('s')) {
+      this.audioManager.toggle()
+      event.preventDefault()
+      event.stopPropagation()
+    } else if (matchesKey('c')) {
       this.controllerAccess.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()

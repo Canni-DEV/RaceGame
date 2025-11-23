@@ -8,6 +8,7 @@ import type { GameStateStore } from '../state/GameStateStore'
 import { CarModelLoader } from '../render/CarModelLoader'
 import { CarEntity } from '../render/CarEntity'
 import { GuardRailBuilder } from '../render/GuardRailBuilder'
+import type { AudioManager } from '../audio/AudioManager'
 
 export class TrackScene {
   private readonly scene: THREE.Scene
@@ -19,6 +20,7 @@ export class TrackScene {
   private readonly mainLightDistance: number
   private readonly cars: Map<string, CarEntity>
   private readonly playerColors: Map<string, THREE.Color>
+  private readonly audioManager: AudioManager | null
   private trackRoot: THREE.Group | null = null
   private playerId: string | null = null
   private cameraMode: 'overview' | 'follow' = 'overview'
@@ -30,6 +32,7 @@ export class TrackScene {
     cameraRig: CameraRig,
     store: GameStateStore,
     mainLight: THREE.DirectionalLight | null,
+    audioManager: AudioManager | null,
   ) {
     this.scene = scene
     camera.up.set(0, 1, 0)
@@ -43,6 +46,7 @@ export class TrackScene {
     this.guardRailBuilder = new GuardRailBuilder()
     this.cars = new Map()
     this.playerColors = new Map()
+    this.audioManager = audioManager
     void this.carModelLoader.preload()
     window.addEventListener('keydown', this.handleKeyDown)
 
@@ -149,7 +153,13 @@ export class TrackScene {
     let car = this.cars.get(state.playerId)
     if (!car) {
       const color = this.getColorForState(state)
-      car = new CarEntity(state.playerId, this.scene, this.carModelLoader, color)
+      car = new CarEntity(
+        state.playerId,
+        this.scene,
+        this.carModelLoader,
+        color,
+        this.audioManager,
+      )
       this.cars.set(state.playerId, car)
     }
     return car

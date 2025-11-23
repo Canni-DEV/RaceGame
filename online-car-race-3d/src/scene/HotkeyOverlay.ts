@@ -5,6 +5,8 @@ export class HotkeyOverlay {
     this.root = document.createElement('div')
     this.root.className = 'hotkey-overlay'
 
+    this.root.appendChild(this.createEntry('S', 'Activar sonido'))
+    this.root.appendChild(this.createDot())
     this.root.appendChild(this.createEntry('C', 'Panel QR'))
     this.root.appendChild(this.createDot())
     this.root.appendChild(this.createEntry('F', 'Vista player/panorámica'))
