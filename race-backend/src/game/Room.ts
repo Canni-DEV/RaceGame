@@ -40,6 +40,22 @@ export class Room {
     return playerId;
   }
 
+  hasViewerForPlayer(playerId: string): boolean {
+    for (const viewerPlayerId of this.viewerPlayers.values()) {
+      if (viewerPlayerId === playerId) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  isPlayerIdTaken(playerId: string): boolean {
+    if (this.cars.has(playerId)) {
+      return true;
+    }
+    return this.hasViewerForPlayer(playerId);
+  }
+
   addPlayer(playerId: string): CarState {
     const spawnIndex = this.cars.size % this.track.centerline.length;
     const spawnPoint = this.track.centerline[spawnIndex];
