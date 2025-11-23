@@ -161,7 +161,7 @@ export class Room {
       return;
     }
 
-    const npcId = "npc_1";
+    const npcId = "Garburator";
     const spawnPoint = this.track.centerline[0];
     const nextPoint = this.track.centerline[1 % this.track.centerline.length];
     const angle = Math.atan2(nextPoint.z - spawnPoint.z, nextPoint.x - spawnPoint.x);
