@@ -165,8 +165,10 @@ export class SceneManager {
     const key = event.key.toLowerCase()
     if (key === 'c') {
       this.controllerAccess.toggleVisibility()
+      event.preventDefault()
     } else if (key === 'p') {
       this.playerListOverlay.toggleVisibility()
+      event.preventDefault()
     }
   }
 }

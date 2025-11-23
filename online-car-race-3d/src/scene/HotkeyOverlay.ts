@@ -5,24 +5,16 @@ export class HotkeyOverlay {
     this.root = document.createElement('div')
     this.root.className = 'hotkey-overlay'
 
-    const title = document.createElement('div')
-    title.className = 'hotkey-overlay__title'
-    title.textContent = 'Atajos rápidos'
-    this.root.appendChild(title)
-
-    const list = document.createElement('div')
-    list.className = 'hotkey-overlay__list'
-
-    list.appendChild(this.createEntry('C', 'Mostrar/ocultar panel QR'))
-    list.appendChild(this.createEntry('F', 'Vista player / panorámica'))
-    list.appendChild(this.createEntry('P', 'Mostrar/ocultar lista de players'))
-
-    this.root.appendChild(list)
+    this.root.appendChild(this.createEntry('C', 'Panel QR'))
+    this.root.appendChild(this.createDot())
+    this.root.appendChild(this.createEntry('F', 'Vista player/panorámica'))
+    this.root.appendChild(this.createDot())
+    this.root.appendChild(this.createEntry('P', 'Lista de players'))
     container.appendChild(this.root)
   }
 
   private createEntry(key: string, description: string): HTMLElement {
-    const item = document.createElement('div')
+    const item = document.createElement('span')
     item.className = 'hotkey-overlay__item'
 
     const keyBadge = document.createElement('span')
@@ -36,5 +28,12 @@ export class HotkeyOverlay {
     item.appendChild(keyBadge)
     item.appendChild(text)
     return item
+  }
+
+  private createDot(): HTMLElement {
+    const dot = document.createElement('span')
+    dot.className = 'hotkey-overlay__separator'
+    dot.textContent = '·'
+    return dot
   }
 }
