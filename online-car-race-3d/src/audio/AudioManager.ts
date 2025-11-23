@@ -4,6 +4,7 @@ import { EngineSound } from './EngineSound'
 export class AudioManager {
   private readonly listener: THREE.AudioListener
   private readonly unlockHandler: () => void
+  private readonly keydownHandler: (event: KeyboardEvent) => void
   private contextUnlocked = false
 
   constructor(camera: THREE.Camera) {
@@ -16,22 +17,34 @@ export class AudioManager {
       }
       void this.listener.context.resume().then(() => {
         this.contextUnlocked = this.listener.context.state === 'running'
+        if (this.contextUnlocked) {
+          document.removeEventListener('pointerdown', this.unlockHandler)
+          document.removeEventListener('keydown', this.keydownHandler)
+        }
       })
     }
 
+    this.keydownHandler = (event: KeyboardEvent) => {
+      const key = event.key?.toLowerCase()
+      if (key === 's') {
+        this.unlockHandler()
+      }
+    }
+
     document.addEventListener('pointerdown', this.unlockHandler, { passive: true })
-    document.addEventListener('keydown', this.unlockHandler, { passive: true })
+    document.addEventListener('keydown', this.keydownHandler)
+  }
+
+  enable(): void {
+    this.unlockHandler()
   }
 
   createEngineSound(): EngineSound {
-    // Ensure the context is resumed as soon as possible; browsers still require
-    // a user gesture, so we rely on the unlock handler to do the heavy lifting.
-    void this.listener.context.resume()
     return new EngineSound(this.listener)
   }
 
   dispose(): void {
     document.removeEventListener('pointerdown', this.unlockHandler)
-    document.removeEventListener('keydown', this.unlockHandler)
+    document.removeEventListener('keydown', this.keydownHandler)
   }
 }

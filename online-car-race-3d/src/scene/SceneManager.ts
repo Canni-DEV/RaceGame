@@ -177,7 +177,11 @@ export class SceneManager {
       return key === expected || code === `key${expected}`
     }
 
-    if (matchesKey('c')) {
+    if (matchesKey('s')) {
+      this.audioManager.enable()
+      event.preventDefault()
+      event.stopPropagation()
+    } else if (matchesKey('c')) {
       this.controllerAccess.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()
