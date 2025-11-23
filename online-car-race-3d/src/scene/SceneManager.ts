@@ -15,6 +15,7 @@ export class SceneManager {
   private readonly trackScene: TrackScene
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
+  private keyLight: THREE.DirectionalLight | null = null
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -23,11 +24,15 @@ export class SceneManager {
     this.renderer.setSize(container.clientWidth, container.clientHeight)
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.renderer.outputColorSpace = THREE.SRGBColorSpace
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 1.2
+    this.renderer.physicallyCorrectLights = true
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
 
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color(0x0a0c0f)
+    this.setupEnvironment()
 
     const aspect = container.clientWidth / container.clientHeight
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000)
@@ -43,6 +48,7 @@ export class SceneManager {
       this.camera,
       this.cameraRig,
       this.gameStateStore,
+      this.keyLight,
     )
     new ViewerControllerAccess(this.container, this.gameStateStore)
 
@@ -63,21 +69,67 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0xffffff, 0.25)
-    this.scene.add(ambient)
+    const hemisphere = new THREE.HemisphereLight(0x6fa5ff, 0x7a552d, 0.35)
+    this.scene.add(hemisphere)
 
-    const directional = new THREE.DirectionalLight(0xf0f0ff, 0.9)
-    directional.position.set(60, 80, 40)
-    directional.castShadow = true
-    directional.shadow.mapSize.width = 2048
-    directional.shadow.mapSize.height = 2048
-    directional.shadow.camera.near = 10
-    directional.shadow.camera.far = 200
-    directional.shadow.camera.left = -100
-    directional.shadow.camera.right = 100
-    directional.shadow.camera.top = 100
-    directional.shadow.camera.bottom = -100
-    this.scene.add(directional)
+    const keyLight = new THREE.DirectionalLight(0xffe2b3, 1.15)
+    keyLight.position.set(60, 120, 80)
+    keyLight.castShadow = true
+    keyLight.shadow.mapSize.width = 4096
+    keyLight.shadow.mapSize.height = 4096
+    keyLight.shadow.bias = -0.00035
+    keyLight.shadow.normalBias = 0.015
+    keyLight.shadow.camera.near = 1
+    keyLight.shadow.camera.far = 600
+    keyLight.shadow.camera.left = -150
+    keyLight.shadow.camera.right = 150
+    keyLight.shadow.camera.top = 150
+    keyLight.shadow.camera.bottom = -150
+    this.scene.add(keyLight)
+    this.scene.add(keyLight.target)
+
+    const fillLight = new THREE.DirectionalLight(0xd5e3ff, 0.35)
+    fillLight.position.set(-140, 80, 40)
+    fillLight.castShadow = false
+    this.scene.add(fillLight)
+    this.scene.add(fillLight.target)
+
+    const rimLight = new THREE.DirectionalLight(0x9ecbff, 0.5)
+    rimLight.position.set(100, 50, -160)
+    rimLight.castShadow = false
+    this.scene.add(rimLight)
+    this.scene.add(rimLight.target)
+
+    this.keyLight = keyLight
+  }
+
+  private setupEnvironment(): void {
+    const width = 1024
+    const height = 512
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) {
+      return
+    }
+
+    const gradient = context.createLinearGradient(0, 0, 0, height)
+    gradient.addColorStop(0, '#182c47')
+    gradient.addColorStop(1, '#0f0c17')
+    context.fillStyle = gradient
+    context.fillRect(0, 0, width, height)
+
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.colorSpace = THREE.SRGBColorSpace
+    texture.mapping = THREE.EquirectangularReflectionMapping
+
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer)
+    const envMap = pmremGenerator.fromEquirectangular(texture).texture
+    pmremGenerator.dispose()
+
+    this.scene.background = texture
+    this.scene.environment = envMap
   }
 
   private readonly handleResize = (): void => {

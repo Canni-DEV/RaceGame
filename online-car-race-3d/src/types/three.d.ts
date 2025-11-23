@@ -15,6 +15,7 @@ declare module 'three' {
     lerp(v: Vector3, alpha: number): this
     normalize(): this
     lengthSq(): number
+    distanceTo(v: Vector3): number
     applyQuaternion(q: Quaternion): this
   }
 
@@ -54,8 +55,15 @@ declare module 'three' {
     clone(): this
   }
 
+  export class Texture {
+    colorSpace: number
+    mapping: number
+    dispose(): void
+  }
+
   export class Scene extends Object3D {
-    background: Color | null
+    background: Color | Texture | null
+    environment: Texture | null
   }
 
   export class Color {
@@ -81,12 +89,17 @@ declare module 'three' {
     right: number
     top: number
     bottom: number
+    updateProjectionMatrix(): void
   }
 
   export class WebGLRenderer {
     constructor(params?: { antialias?: boolean })
     domElement: HTMLCanvasElement
     shadowMap: { enabled: boolean; type: number }
+    outputColorSpace: number
+    toneMapping: number
+    toneMappingExposure: number
+    physicallyCorrectLights: boolean
     setPixelRatio(ratio: number): void
     setSize(width: number, height: number): void
     render(scene: Scene, camera: PerspectiveCamera): void
@@ -106,10 +119,17 @@ declare module 'three' {
   export class DirectionalLight extends Object3D {
     constructor(color?: number | string, intensity?: number)
     castShadow: boolean
+    target: Object3D
     shadow: {
-      mapSize: { width: number; height: number }
+      mapSize: { width: number; height: number; set?: (width: number, height: number) => void }
       camera: OrthographicCamera
+      bias?: number
+      normalBias?: number
     }
+  }
+
+  export class HemisphereLight extends Object3D {
+    constructor(skyColor?: number | string, groundColor?: number | string, intensity?: number)
   }
 
   export class Group extends Object3D {
@@ -204,6 +224,16 @@ declare module 'three' {
     isMesh: boolean
   }
 
+  export class CanvasTexture extends Texture {
+    constructor(canvas: HTMLCanvasElement)
+  }
+
+  export class PMREMGenerator {
+    constructor(renderer: WebGLRenderer)
+    fromEquirectangular(texture: Texture): { texture: Texture }
+    dispose(): void
+  }
+
   export const MathUtils: {
     lerp(a: number, b: number, t: number): number
     clamp(value: number, min: number, max: number): number
@@ -221,6 +251,10 @@ declare module 'three' {
   export class Buffer {
     constructor()
   }
+
+  export const EquirectangularReflectionMapping: number
+  export const SRGBColorSpace: number
+  export const ACESFilmicToneMapping: number
 }
 
 declare module 'three/examples/jsm/loaders/GLTFLoader.js' {
