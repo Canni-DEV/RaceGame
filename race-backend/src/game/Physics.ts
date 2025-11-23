@@ -3,6 +3,7 @@ import {
   BRAKE_DECELERATION,
   FRICTION,
   MAX_SPEED,
+  OFF_TRACK_SPEED_MULTIPLIER,
   STEER_SENSITIVITY
 } from "../config";
 import { Room, PlayerInput } from "./Room";
@@ -28,7 +29,9 @@ export function updateCarsForRoom(room: Room, dt: number): void {
       car.speed = Math.min(0, car.speed + FRICTION * dt);
     }
 
-    car.speed = Math.min(MAX_SPEED, Math.max(0, car.speed));
+    const trackSpeedMultiplier = room.isOnTrack(car) ? 1 : OFF_TRACK_SPEED_MULTIPLIER;
+    const maxSpeed = MAX_SPEED * trackSpeedMultiplier;
+    car.speed = Math.min(maxSpeed, Math.max(0, car.speed));
 
     const steerValue = Math.max(-1, Math.min(1, input.steer));
     const speedFactor = car.speed / MAX_SPEED;

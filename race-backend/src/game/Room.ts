@@ -1,6 +1,7 @@
 import { CarState, RoomState, TrackData } from "../types/trackTypes";
 import { updateCarsForRoom } from "./Physics";
 import { NpcControllerState, updateNpcControllers } from "./NpcController";
+import { TrackGeometry } from "./TrackGeometry";
 
 export interface PlayerInput {
   steer: number;
@@ -20,8 +21,10 @@ export class Room {
   private playerToController: Map<string, string> = new Map();
   private npcIds: Set<string> = new Set();
   private npcStates: Map<string, NpcControllerState> = new Map();
+  private readonly trackGeometry: TrackGeometry;
 
   constructor(public readonly roomId: string, public readonly track: TrackData) {
+    this.trackGeometry = new TrackGeometry(track);
     this.initializeNpc();
   }
 
@@ -147,6 +150,10 @@ export class Room {
 
   getHumanPlayerCount(): number {
     return Math.max(0, this.cars.size - this.npcIds.size);
+  }
+
+  isOnTrack(position: { x: number; z: number }): boolean {
+    return this.trackGeometry.isPointOnTrack(position);
   }
 
   private initializeNpc(): void {

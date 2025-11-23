@@ -11,6 +11,12 @@ export const ACCELERATION = 50; // units per second^2
 export const BRAKE_DECELERATION = 50; // units per second^2
 export const FRICTION = 10; // passive deceleration per second
 export const STEER_SENSITIVITY = 2.5; // radians per second at full steer and 1 unit of normalized speed
+export const OFF_TRACK_SPEED_PENALTY = clamp(
+  Number(process.env.OFF_TRACK_SPEED_PENALTY ?? 0.5),
+  0,
+  0.95
+);
+export const OFF_TRACK_SPEED_MULTIPLIER = 1 - OFF_TRACK_SPEED_PENALTY;
 
 export const DEFAULT_ROOM_PREFIX = "room";
 
@@ -120,3 +126,10 @@ export const TRACK_ASSET_LIBRARY: TrackAssetLibraryConfig = {
   offset: Number(process.env.TRACK_ASSET_OFFSET ?? 12),
   manifestPath
 };
+
+function clamp(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+}
