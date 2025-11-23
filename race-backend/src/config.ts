@@ -6,7 +6,7 @@ export const STATE_BROADCAST_RATE = 20; // snapshots per second
 export const MAX_PLAYERS_PER_ROOM = 8;
 
 // Physics configuration
-export const MAX_SPEED = 60; // units per second
+export const MAX_SPEED = 65; // units per second
 export const ACCELERATION = 50; // units per second^2
 export const BRAKE_DECELERATION = 50; // units per second^2
 export const FRICTION = 10; // passive deceleration per second
@@ -29,8 +29,8 @@ export interface TrackGenerationOptions {
 }
 
 export const TRACK_GENERATION: TrackGenerationOptions = {
-  mode: (process.env.TRACK_MODE as TrackGenerationMode) ?? "daily",
-  seedOverride: process.env.TRACK_SEED ? Number(process.env.TRACK_SEED) : undefined,
+  mode: (process.env.TRACK_MODE as TrackGenerationMode) ?? "seed", //set en daily
+  seedOverride: process.env.TRACK_SEED ? Number(process.env.TRACK_SEED) : 54, //set en undefined
   debugTrackId: "sample-track"
 };
 
