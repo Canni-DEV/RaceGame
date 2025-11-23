@@ -178,6 +178,11 @@ export class Room {
     this.cars.set(npcId, car);
     this.latestInputs.set(npcId, { steer: 0, throttle: 1, brake: 0 });
     this.npcIds.add(npcId);
-    this.npcStates.set(npcId, { targetIndex: 1 % this.track.centerline.length });
+    this.npcStates.set(npcId, {
+      targetIndex: 1 % this.track.centerline.length,
+      mistakeCooldown: 0,
+      mistakeDuration: 0,
+      mistakeDirection: 1
+    });
   }
 }
