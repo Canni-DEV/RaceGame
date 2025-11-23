@@ -4,6 +4,8 @@ import { SocketClient } from '../net/SocketClient'
 import { GameStateStore } from '../state/GameStateStore'
 import { TrackScene } from './TrackScene'
 import { ViewerControllerAccess } from './ViewerControllerAccess'
+import { PlayerListOverlay } from './PlayerListOverlay'
+import { HotkeyOverlay } from './HotkeyOverlay'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -15,6 +17,8 @@ export class SceneManager {
   private readonly trackScene: TrackScene
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
+  private readonly controllerAccess: ViewerControllerAccess
+  private readonly playerListOverlay: PlayerListOverlay
   private keyLight: THREE.DirectionalLight | null = null
 
   constructor(container: HTMLElement) {
@@ -50,7 +54,15 @@ export class SceneManager {
       this.gameStateStore,
       this.keyLight,
     )
-    new ViewerControllerAccess(this.container, this.gameStateStore)
+    this.controllerAccess = new ViewerControllerAccess(
+      this.container,
+      this.gameStateStore,
+    )
+    this.playerListOverlay = new PlayerListOverlay(
+      this.container,
+      this.gameStateStore,
+    )
+    new HotkeyOverlay(this.container)
 
     this.socketClient = new SocketClient()
     this.socketClient.onRoomInfo((info) => {
@@ -65,6 +77,7 @@ export class SceneManager {
     this.socketClient.connect()
 
     window.addEventListener('resize', this.handleResize)
+    window.addEventListener('keydown', this.handleGlobalKeyDown)
     this.animate()
   }
 
@@ -146,5 +159,28 @@ export class SceneManager {
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
     this.renderer.render(this.scene, this.camera)
+  }
+
+  private readonly handleGlobalKeyDown = (event: KeyboardEvent): void => {
+    const target = event.target as HTMLElement | null
+    if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+      return
+    }
+
+    const key = event.key?.toLowerCase()
+    const code = event.code?.toLowerCase()
+    const matchesKey = (expected: string): boolean => {
+      return key === expected || code === `key${expected}`
+    }
+
+    if (matchesKey('c')) {
+      this.controllerAccess.toggleVisibility()
+      event.preventDefault()
+      event.stopPropagation()
+    } else if (matchesKey('p')) {
+      this.playerListOverlay.toggleVisibility()
+      event.preventDefault()
+      event.stopPropagation()
+    }
   }
 }
