@@ -46,7 +46,7 @@ export class CarEntity {
   }
 
   setTargetState(state: CarState): void {
-    this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT, state.z)
+    this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT + 0.47, state.z)
     if (!this.hasReceivedState) {
       this.currentPosition.copy(this.targetPosition)
       this.lastServerPosition.copy(this.targetPosition)

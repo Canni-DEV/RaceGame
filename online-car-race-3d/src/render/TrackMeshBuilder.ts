@@ -2,8 +2,8 @@ import * as THREE from 'three'
 import type { TrackData, Vec2 } from '../core/trackTypes'
 import { add, normalize, rightNormal, scale, signedAngle, sub } from '../core/math2d'
 
-export const TRACK_SURFACE_HEIGHT = 0.1
-const TRACK_THICKNESS = 0.08
+export const TRACK_SURFACE_HEIGHT = 0.15
+const TRACK_THICKNESS = 0.1
 const TRACK_BASE_HEIGHT = TRACK_SURFACE_HEIGHT - TRACK_THICKNESS
 
 export interface TrackBuildResult {
