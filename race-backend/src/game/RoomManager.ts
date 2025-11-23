@@ -12,12 +12,13 @@ interface ViewerJoinResult {
   room: Room;
   playerId: string;
   trackCreated: boolean;
-  isNewPlayer: boolean;
+  playerCreated: boolean;
 }
 
 interface ControllerJoinResult {
   room: Room;
   playerId: string;
+  playerCreated: boolean;
 }
 
 interface DisconnectResult {
@@ -36,23 +37,13 @@ export class RoomManager {
     const { room, isNewRoom } = this.resolveRoom(payload.roomId);
 
     let playerId = payload.playerId;
-    let isNewPlayer = false;
-    let needsNewPlayer = false;
+    let playerCreated = false;
 
-    if (playerId) {
-      needsNewPlayer = !room.cars.has(playerId);
-    } else {
-      needsNewPlayer = true;
+    if (!playerId) {
       playerId = this.generatePlayerId(room);
       console.log(playerId);
-    }
-
-    if (needsNewPlayer) {
-      if (room.getHumanPlayerCount() >= MAX_PLAYERS_PER_ROOM) {
-        throw new Error("Room is full");
-      }
-      room.addPlayer(playerId!);
-      isNewPlayer = true;
+    } else if (room.isPlayerIdTaken(playerId)) {
+      throw new Error("Player already assigned");
     }
 
     if (!playerId) {
@@ -69,7 +60,7 @@ export class RoomManager {
       room,
       playerId,
       trackCreated: isNewRoom,
-      isNewPlayer
+      playerCreated
     };
   }
 
@@ -86,8 +77,18 @@ export class RoomManager {
       throw new Error("Room not found");
     }
 
+    if (!room.hasViewerForPlayer(payload.playerId)) {
+      throw new Error("Viewer session not found for player");
+    }
+
+    let playerCreated = false;
+
     if (!room.cars.has(payload.playerId)) {
-      throw new Error("Player not present in room");
+      if (room.getHumanPlayerCount() >= MAX_PLAYERS_PER_ROOM) {
+        throw new Error("Room is full");
+      }
+      room.addPlayer(payload.playerId);
+      playerCreated = true;
     }
 
     const existingController = room.getControllerSocket(payload.playerId);
@@ -106,7 +107,8 @@ export class RoomManager {
 
     return {
       room,
-      playerId: payload.playerId
+      playerId: payload.playerId,
+      playerCreated
     };
   }
 
@@ -216,7 +218,7 @@ export class RoomManager {
     let playerId = "";
     do {
       playerId = `player-${randomBytes(2).toString("hex")}`;
-    } while (room.cars.has(playerId));
+    } while (room.isPlayerIdTaken(playerId));
     return playerId;
   }
 
