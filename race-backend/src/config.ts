@@ -12,7 +12,7 @@ export const BRAKE_DECELERATION = 50; // units per second^2
 export const FRICTION = 10; // passive deceleration per second
 export const STEER_SENSITIVITY = 2.5; // radians per second at full steer and 1 unit of normalized speed
 export const OFF_TRACK_SPEED_PENALTY = clamp(
-  Number(process.env.OFF_TRACK_SPEED_PENALTY ?? 0.1),
+  Number(process.env.OFF_TRACK_SPEED_PENALTY ?? 0.5),
   0,
   0.95
 );
