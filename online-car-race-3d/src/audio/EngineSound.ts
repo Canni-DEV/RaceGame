@@ -261,9 +261,17 @@ export class EngineSound {
     // Actualizar la frecuencia de corte del filtro suavemente
     this.filter.frequency.setTargetAtTime(filterFrequency, this.context.currentTime, 0.12)
 
-    // Si se proporciona posición, sincronizarla (para sonido 3D posicional)
+    // Si se proporciona posición, sincronizarla sin romper la relación padre-hijo.
+    // Cuando el audio es hijo de un vehículo, lo anclamos al origen local para
+    // que siga la malla; si no tiene padre, usamos la posición absoluta.
     if (position) {
-      this.audio.position.copy(position)
+      if (this.audio.parent) {
+        this.audio.position.set(0, 0, 0)
+      } else {
+        this.audio.position.copy(position)
+      }
+    } else if (this.audio.parent) {
+      this.audio.position.set(0, 0, 0)
     }
   }
 
