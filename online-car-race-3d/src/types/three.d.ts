@@ -29,6 +29,8 @@ declare module 'three' {
 
   export class Matrix4 {}
 
+  export class Camera extends Object3D {}
+
   export class Quaternion {
     set(x: number, y: number, z: number, w: number): this
     copy(q: Quaternion): this
@@ -82,6 +84,11 @@ declare module 'three' {
     updateProjectionMatrix(): void
   }
 
+  export class AudioListener extends Object3D {
+    constructor()
+    context: AudioContext
+  }
+
   export class OrthographicCamera extends Object3D {
     near: number
     far: number
@@ -110,6 +117,15 @@ declare module 'three' {
   export class Clock {
     constructor()
     getDelta(): number
+  }
+
+  export class PositionalAudio extends Object3D {
+    constructor(listener: AudioListener)
+    context: AudioContext
+    getOutput(): AudioNode
+    setRefDistance(value: number): this
+    setRolloffFactor(value: number): this
+    setDistanceModel(value: 'linear' | 'inverse' | 'exponential'): this
   }
 
   export class AmbientLight extends Object3D {
@@ -237,6 +253,7 @@ declare module 'three' {
   export const MathUtils: {
     lerp(a: number, b: number, t: number): number
     clamp(value: number, min: number, max: number): number
+    mapLinear(x: number, a1: number, a2: number, b1: number, b2: number): number
   }
 
   export class Box3 {
