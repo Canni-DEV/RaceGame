@@ -2,6 +2,8 @@ import * as THREE from 'three'
 import type { CarState } from '../core/trackTypes'
 import { CarModelLoader } from './CarModelLoader'
 import { TRACK_SURFACE_HEIGHT } from './TrackMeshBuilder'
+import type { AudioManager } from '../audio/AudioManager'
+import type { EngineSound } from '../audio/EngineSound'
 
 const TEMP_VECTOR = new THREE.Vector3()
 const ANGLE_FORWARD = new THREE.Vector3()
@@ -13,6 +15,7 @@ export class CarEntity {
   private readonly loader: CarModelLoader
   private readonly color: THREE.Color
   private object: THREE.Object3D | null = null
+  private readonly engineSound: EngineSound | null
   private readonly currentPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
   private readonly targetPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
   private readonly orientation = new THREE.Quaternion()
@@ -22,11 +25,18 @@ export class CarEntity {
   private hasReceivedState = false
   private disposed = false
 
-  constructor(id: string, scene: THREE.Scene, loader: CarModelLoader, color: THREE.Color) {
+  constructor(
+    id: string,
+    scene: THREE.Scene,
+    loader: CarModelLoader,
+    color: THREE.Color,
+    audioManager: AudioManager | null,
+  ) {
     this.id = id
     this.scene = scene
     this.loader = loader
     this.color = color
+    this.engineSound = audioManager ? audioManager.createEngineSound() : null
     void this.spawn()
   }
 
@@ -43,6 +53,10 @@ export class CarEntity {
     object.quaternion.copy(this.orientation)
     this.scene.add(object)
     this.object = object
+
+    if (this.engineSound) {
+      this.engineSound.attachTo(object)
+    }
   }
 
   setTargetState(state: CarState): void {
@@ -79,6 +93,8 @@ export class CarEntity {
     this.desiredForward.normalize()
     const yaw = Math.atan2(this.desiredForward.x, this.desiredForward.z)
     this.targetOrientation.setFromEuler(new THREE.Euler(0, yaw, 0))
+
+    this.engineSound?.setTargetSpeed(state.speed)
   }
 
   update(dt: number): void {
@@ -95,6 +111,8 @@ export class CarEntity {
       this.object.position.copy(this.currentPosition)
       this.object.quaternion.copy(this.orientation)
     }
+
+    this.engineSound?.update(dt, this.currentPosition)
   }
 
   getObject(): THREE.Object3D | null {
@@ -107,5 +125,7 @@ export class CarEntity {
       this.object.removeFromParent()
       this.object = null
     }
+
+    this.engineSound?.dispose()
   }
 }
