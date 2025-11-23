@@ -120,9 +120,15 @@ export class EngineSound {
     // Fijamos frecuencia inicial del filtro según RPM de ralentí
     this.filter.frequency.value = this.config.minFilterFrequency
 
-    // Conectar sumador de capas -> filtro -> salida 3D posicional
-    this.mixGain.connect(this.filter)
-    this.filter.connect(this.audio.getOutput())
+    // Conectar el generador procedural al flujo de audio 3D de Three.js
+    // mixGain -> filtro pasa bajos -> PositionalAudio (panner del listener)
+    const positionalAudio = this.audio as THREE.PositionalAudio & {
+      setNodeSource: (node: AudioNode) => void
+      setFilters: (filters: AudioNode[]) => void
+    }
+
+    positionalAudio.setNodeSource(this.mixGain)
+    positionalAudio.setFilters([this.filter])
 
     // Preparar capa de ruido blanco (si está habilitada)
     if (this.config.useNoise) {
@@ -261,9 +267,17 @@ export class EngineSound {
     // Actualizar la frecuencia de corte del filtro suavemente
     this.filter.frequency.setTargetAtTime(filterFrequency, this.context.currentTime, 0.12)
 
-    // Si se proporciona posición, sincronizarla (para sonido 3D posicional)
+    // Si se proporciona posición, sincronizarla sin romper la relación padre-hijo.
+    // Cuando el audio es hijo de un vehículo, lo anclamos al origen local para
+    // que siga la malla; si no tiene padre, usamos la posición absoluta.
     if (position) {
-      this.audio.position.copy(position)
+      if (this.audio.parent) {
+        this.audio.position.set(0, 0, 0)
+      } else {
+        this.audio.position.copy(position)
+      }
+    } else if (this.audio.parent) {
+      this.audio.position.set(0, 0, 0)
     }
   }
 
