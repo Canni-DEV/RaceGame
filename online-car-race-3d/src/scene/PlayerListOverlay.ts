@@ -49,9 +49,15 @@ export class PlayerListOverlay {
 
   private handleState(state: RoomState): void {
     this.playerSpeeds.clear()
+    const playersInRace: PlayerSummary[] = []
+
     for (const car of state.cars) {
       this.playerSpeeds.set(car.playerId, Math.abs(car.speed))
+      playersInRace.push({ playerId: car.playerId, isNpc: car.isNpc })
     }
+
+    this.players = playersInRace
+    this.isReady = this.players.length > 0
     this.render()
   }
 
