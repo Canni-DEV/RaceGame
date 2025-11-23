@@ -15,6 +15,8 @@ export class TrackScene {
   private readonly store: GameStateStore
   private readonly carModelLoader: CarModelLoader
   private readonly guardRailBuilder: GuardRailBuilder
+  private readonly mainLight: THREE.DirectionalLight | null
+  private readonly mainLightDistance: number
   private readonly cars: Map<string, CarEntity>
   private readonly playerColors: Map<string, THREE.Color>
   private trackRoot: THREE.Group | null = null
@@ -27,11 +29,16 @@ export class TrackScene {
     camera: THREE.PerspectiveCamera,
     cameraRig: CameraRig,
     store: GameStateStore,
+    mainLight: THREE.DirectionalLight | null,
   ) {
     this.scene = scene
     camera.up.set(0, 1, 0)
     this.cameraRig = cameraRig
     this.store = store
+    this.mainLight = mainLight
+    this.mainLightDistance = mainLight
+      ? mainLight.position.distanceTo(mainLight.target.position)
+      : 0
     this.carModelLoader = new CarModelLoader()
     this.guardRailBuilder = new GuardRailBuilder()
     this.cars = new Map()
@@ -77,6 +84,7 @@ export class TrackScene {
     this.scene.add(group)
     this.trackRoot = group
     this.focusCamera(result)
+    this.updateLighting(result)
   }
 
   private disposeTrackRoot(): void {
@@ -169,6 +177,37 @@ export class TrackScene {
     const center = track.bounds.getCenter(new THREE.Vector3())
     this.cameraRig.setTarget(center)
     this.cameraRig.frameBounds(track.bounds)
+  }
+
+  private updateLighting(track: TrackBuildResult): void {
+    if (!this.mainLight) {
+      return
+    }
+
+    const center = track.bounds.getCenter(new THREE.Vector3())
+    const size = track.bounds.getSize(new THREE.Vector3())
+    const margin = 40
+    const halfSpan = Math.max(size.x, size.z) / 2 + margin
+    const height = size.y + margin
+
+    const direction = this.mainLight.position
+      .clone()
+      .sub(this.mainLight.target.position)
+      .normalize()
+
+    const distance = Math.max(this.mainLightDistance, halfSpan + height)
+    this.mainLight.position.copy(center).addScaledVector(direction, distance)
+    this.mainLight.target.position.copy(center)
+    this.mainLight.target.updateMatrixWorld()
+
+    const shadowCamera = this.mainLight.shadow.camera as THREE.OrthographicCamera
+    shadowCamera.left = -halfSpan
+    shadowCamera.right = halfSpan
+    shadowCamera.top = halfSpan
+    shadowCamera.bottom = -halfSpan
+    shadowCamera.near = 1
+    shadowCamera.far = distance + halfSpan + height
+    shadowCamera.updateProjectionMatrix()
   }
 
   private updateCameraFollow(): void {
