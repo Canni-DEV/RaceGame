@@ -13,10 +13,10 @@ export class CameraRig {
   private minClearance = 8
   private orbitSpeed = 0.15
   private verticalAngle = Math.atan2(this.baseHeight, this.baseOrbitRadius)
-  private maxVerticalAngle = Math.PI * 0.45
+  private maxVerticalAngle = Math.PI * 0.38
   private zoomFactor = 1
-  private minZoom = 0.65
-  private maxZoom = 1.85
+  private minZoom = 0.5
+  private maxZoom = 1.5
   private groundLevel = 0
   private azimuth = Math.PI / 4
   private autoOrbitEnabled = false
