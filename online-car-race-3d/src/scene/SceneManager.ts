@@ -209,6 +209,10 @@ export class SceneManager {
       this.playerListOverlay.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()
+    } else if (matchesKey('r')) {
+      this.cameraRig.toggleAutoOrbit()
+      event.preventDefault()
+      event.stopPropagation()
     }
   }
 

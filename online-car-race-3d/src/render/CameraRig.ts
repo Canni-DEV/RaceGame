@@ -19,6 +19,7 @@ export class CameraRig {
   private maxZoom = 1.85
   private groundLevel = 0
   private azimuth = Math.PI / 4
+  private autoOrbitEnabled = true
   private manualOrbitActive = false
   private followTarget: THREE.Object3D | null = null
   private followDistance = 26
@@ -47,6 +48,10 @@ export class CameraRig {
 
   endManualOrbit(): void {
     this.manualOrbitActive = false
+  }
+
+  toggleAutoOrbit(): void {
+    this.autoOrbitEnabled = !this.autoOrbitEnabled
   }
 
   adjustOrbit(deltaAzimuth: number, deltaAngle: number): void {
@@ -128,7 +133,7 @@ export class CameraRig {
       this.desiredPosition.y = this.smoothedTarget.y + this.followHeight
     } else {
       this.smoothedTarget.lerp(this.manualTarget, targetLerp)
-      if (!this.manualOrbitActive) {
+      if (!this.manualOrbitActive && this.autoOrbitEnabled) {
         this.azimuth = this.wrapAngle(this.azimuth + dt * this.orbitSpeed)
       }
       const radius = this.getCurrentRadius()
