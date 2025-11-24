@@ -15,8 +15,10 @@ function resolveHttpsConfig() {
   return undefined
 }
 
+const basePath = process.env.VITE_BASE ?? '/'
+
 export default defineConfig({
-  base: '/RaceGame/online-car-race-3d/',
+  base: basePath,
   server: {
     host: '0.0.0.0',
     port: 5173,

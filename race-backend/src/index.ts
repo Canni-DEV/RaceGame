@@ -8,6 +8,9 @@ import { GameLoop } from "./game/GameLoop";
 import { RoomManager } from "./game/RoomManager";
 import { SocketServer } from "./net/SocketServer";
 
+const PROJECT_ROOT = path.resolve(__dirname, "..");
+const PUBLIC_DIR = path.join(PROJECT_ROOT, "public");
+
 function resolveHttpsOptions(): https.ServerOptions | null {
   const rootDir = path.resolve(__dirname, "..", "..");
   const certDir = path.join(rootDir, "cert");
@@ -43,6 +46,10 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+if (fs.existsSync(PUBLIC_DIR)) {
+  app.use(express.static(PUBLIC_DIR));
+}
+
 if (fs.existsSync(TRACK_ASSET_LIBRARY.directory)) {
   app.use(TRACK_ASSET_LIBRARY.route, express.static(TRACK_ASSET_LIBRARY.directory));
 } else {
@@ -58,6 +65,24 @@ const socketServer = new SocketServer(server, roomManager);
 const gameLoop = new GameLoop(roomManager, (roomId, state) => {
   socketServer.broadcastState(roomId, state);
 });
+
+if (fs.existsSync(PUBLIC_DIR)) {
+  const indexPath = path.join(PUBLIC_DIR, "index.html");
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/socket.io/")) {
+      return next();
+    }
+    if (req.method !== "GET") {
+      return next();
+    }
+    if (!fs.existsSync(indexPath)) {
+      return next();
+    }
+    res.sendFile(indexPath);
+  });
+} else {
+  console.warn(`[Server] Frontend build directory "${PUBLIC_DIR}" not found. Static client will not be served.`);
+}
 
 gameLoop.start();
 

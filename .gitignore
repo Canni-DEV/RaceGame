@@ -11,6 +11,7 @@ pnpm-lock.yaml
 # Output
 dist/
 build/
+race-backend/public/
 cert/
 
 # Local env
