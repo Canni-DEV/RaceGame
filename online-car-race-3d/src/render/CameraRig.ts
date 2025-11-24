@@ -6,9 +6,20 @@ export class CameraRig {
   private readonly smoothedTarget: THREE.Vector3
   private readonly desiredPosition: THREE.Vector3
   private readonly currentPosition: THREE.Vector3
-  private orbitRadius = 85
-  private height = 60
+  private baseOrbitRadius = 85
+  private baseHeight = 60
+  private minOrbitRadius = 40
+  private maxOrbitRadius = 200
+  private minClearance = 8
+  private orbitSpeed = 0.15
+  private verticalAngle = Math.atan2(this.baseHeight, this.baseOrbitRadius)
+  private maxVerticalAngle = Math.PI * 0.45
+  private zoomFactor = 1
+  private minZoom = 0.65
+  private maxZoom = 1.85
+  private groundLevel = 0
   private azimuth = Math.PI / 4
+  private manualOrbitActive = false
   private followTarget: THREE.Object3D | null = null
   private followDistance = 26
   private followHeight = 14
@@ -27,16 +38,58 @@ export class CameraRig {
     this.manualTarget.copy(target)
   }
 
+  beginManualOrbit(): void {
+    if (this.followTarget) {
+      return
+    }
+    this.manualOrbitActive = true
+  }
+
+  endManualOrbit(): void {
+    this.manualOrbitActive = false
+  }
+
+  adjustOrbit(deltaAzimuth: number, deltaAngle: number): void {
+    if (this.followTarget) {
+      return
+    }
+    this.azimuth = this.wrapAngle(this.azimuth + deltaAzimuth)
+
+    const radius = this.getCurrentRadius()
+    const minAngle = this.getMinVerticalAngle(radius)
+    this.verticalAngle = THREE.MathUtils.clamp(
+      this.verticalAngle + deltaAngle,
+      minAngle,
+      this.maxVerticalAngle,
+    )
+  }
+
+  adjustZoom(delta: number): void {
+    if (this.followTarget) {
+      return
+    }
+    this.zoomFactor = THREE.MathUtils.clamp(
+      this.zoomFactor * delta,
+      this.minZoom,
+      this.maxZoom,
+    )
+  }
+
   frameBounds(bounds: THREE.Box3): void {
     const size = bounds.getSize(new THREE.Vector3())
     const maxHorizontal = Math.max(size.x, size.z)
-    this.orbitRadius = Math.max(maxHorizontal * 0.5, 60)
+    this.baseOrbitRadius = Math.max(maxHorizontal * 0.5, 60)
+    this.minOrbitRadius = Math.max(this.baseOrbitRadius * 0.55, 35)
+    this.maxOrbitRadius = this.baseOrbitRadius * 2.5
     const halfSpan = maxHorizontal * 0.6
     const halfFov = THREE.MathUtils.degToRad(this.camera.fov * 0.5)
     const neededHeight = halfSpan / Math.tan(halfFov)
     const verticalPadding = Math.max(size.y * 0.5, 40)
-    this.height = Math.max(neededHeight + verticalPadding, 200)
-    const distanceToTarget = Math.hypot(this.height, this.orbitRadius)
+    this.baseHeight = Math.max(neededHeight + verticalPadding, 200)
+    this.zoomFactor = 1
+    this.verticalAngle = Math.atan2(this.baseHeight, this.baseOrbitRadius)
+    this.groundLevel = bounds.min.y
+    const distanceToTarget = Math.hypot(this.baseHeight, this.baseOrbitRadius)
     const boundsDiagonal = size.length()
     this.camera.near = Math.max(0.5, distanceToTarget * 0.01)
     this.camera.far = distanceToTarget + boundsDiagonal * 0.75
@@ -44,10 +97,22 @@ export class CameraRig {
     this.followDistance = Math.max(maxHorizontal * 0.05, 24)
     this.followHeight = Math.max(size.y + 10, 10)
     this.setTarget(bounds.getCenter(new THREE.Vector3()))
+    const radius = this.getCurrentRadius()
+    const minAngle = this.getMinVerticalAngle(radius)
+    this.verticalAngle = THREE.MathUtils.clamp(
+      this.verticalAngle,
+      minAngle,
+      this.maxVerticalAngle,
+    )
+    this.smoothedTarget.copy(this.manualTarget)
   }
 
   follow(object: THREE.Object3D | null): void {
     this.followTarget = object
+  }
+
+  isFollowing(): boolean {
+    return this.followTarget !== null
   }
 
   update(_dt: number): void {
@@ -63,10 +128,21 @@ export class CameraRig {
       this.desiredPosition.y = this.smoothedTarget.y + this.followHeight
     } else {
       this.smoothedTarget.lerp(this.manualTarget, targetLerp)
+      if (!this.manualOrbitActive) {
+        this.azimuth = this.wrapAngle(this.azimuth + dt * this.orbitSpeed)
+      }
+      const radius = this.getCurrentRadius()
+      const minAngle = this.getMinVerticalAngle(radius)
+      this.verticalAngle = THREE.MathUtils.clamp(
+        this.verticalAngle,
+        minAngle,
+        this.maxVerticalAngle,
+      )
+      const height = Math.tan(this.verticalAngle) * radius
       this.desiredPosition.set(
-        this.smoothedTarget.x + Math.cos(this.azimuth) * this.orbitRadius,
-        this.smoothedTarget.y + this.height,
-        this.smoothedTarget.z + Math.sin(this.azimuth) * this.orbitRadius,
+        this.smoothedTarget.x + Math.cos(this.azimuth) * radius,
+        this.smoothedTarget.y + height,
+        this.smoothedTarget.z + Math.sin(this.azimuth) * radius,
       )
     }
 
@@ -77,12 +153,29 @@ export class CameraRig {
   }
 
   private configureCamera(): void {
+    const radius = this.getCurrentRadius()
+    const height = Math.tan(this.verticalAngle) * radius
     this.currentPosition.set(
-      this.manualTarget.x + Math.cos(this.azimuth) * this.orbitRadius,
-      this.manualTarget.y + this.height,
-      this.manualTarget.z + Math.sin(this.azimuth) * this.orbitRadius,
+      this.manualTarget.x + Math.cos(this.azimuth) * radius,
+      this.manualTarget.y + height,
+      this.manualTarget.z + Math.sin(this.azimuth) * radius,
     )
     this.camera.position.copy(this.currentPosition)
     this.camera.lookAt(this.manualTarget)
+  }
+
+  private getCurrentRadius(): number {
+    const radius = this.baseOrbitRadius * this.zoomFactor
+    return THREE.MathUtils.clamp(radius, this.minOrbitRadius, this.maxOrbitRadius)
+  }
+
+  private getMinVerticalAngle(radius: number): number {
+    const relativeMinHeight = Math.max(this.groundLevel + this.minClearance - this.smoothedTarget.y, 0)
+    return Math.atan2(relativeMinHeight, radius)
+  }
+
+  private wrapAngle(value: number): number {
+    const fullTurn = Math.PI * 2
+    return ((value % fullTurn) + fullTurn) % fullTurn
   }
 }
