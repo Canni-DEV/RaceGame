@@ -19,7 +19,7 @@ export class CameraRig {
   private maxZoom = 1.85
   private groundLevel = 0
   private azimuth = Math.PI / 4
-  private autoOrbitEnabled = true
+  private autoOrbitEnabled = false
   private manualOrbitActive = false
   private followTarget: THREE.Object3D | null = null
   private followDistance = 26
