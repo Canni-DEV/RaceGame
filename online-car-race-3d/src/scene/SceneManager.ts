@@ -22,6 +22,12 @@ export class SceneManager {
   private readonly playerListOverlay: PlayerListOverlay
   private readonly audioManager: AudioManager
   private keyLight: THREE.DirectionalLight | null = null
+  private isOrbitDragging = false
+  private orbitPointerId: number | null = null
+  private lastPointerPosition: { x: number; y: number } | null = null
+  private readonly orbitRotateSpeed = 0.005
+  private readonly orbitTiltSpeed = 0.0035
+  private readonly zoomStep = 0.08
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -85,6 +91,13 @@ export class SceneManager {
 
     window.addEventListener('resize', this.handleResize)
     window.addEventListener('keydown', this.handleGlobalKeyDown)
+    this.renderer.domElement.addEventListener('contextmenu', this.preventContextMenu)
+    this.renderer.domElement.addEventListener('pointerdown', this.handlePointerDown)
+    this.renderer.domElement.addEventListener('pointermove', this.handlePointerMove)
+    this.renderer.domElement.addEventListener('pointerup', this.handlePointerUp)
+    this.renderer.domElement.addEventListener('pointerleave', this.handlePointerUp)
+    this.renderer.domElement.addEventListener('pointercancel', this.handlePointerUp)
+    this.renderer.domElement.addEventListener('wheel', this.handleWheel, { passive: false })
     this.animate()
   }
 
@@ -168,6 +181,10 @@ export class SceneManager {
     this.renderer.render(this.scene, this.camera)
   }
 
+  private readonly preventContextMenu = (event: Event): void => {
+    event.preventDefault()
+  }
+
   private readonly handleGlobalKeyDown = (event: KeyboardEvent): void => {
     const target = event.target as HTMLElement | null
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
@@ -192,6 +209,54 @@ export class SceneManager {
       this.playerListOverlay.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()
+    } else if (matchesKey('r')) {
+      this.cameraRig.toggleAutoOrbit()
+      event.preventDefault()
+      event.stopPropagation()
     }
+  }
+
+  private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (event.button !== 2 || this.cameraRig.isFollowing()) {
+      return
+    }
+    this.isOrbitDragging = true
+    this.orbitPointerId = event.pointerId
+    this.lastPointerPosition = { x: event.clientX, y: event.clientY }
+    this.renderer.domElement.setPointerCapture(event.pointerId)
+    this.cameraRig.beginManualOrbit()
+  }
+
+  private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (!this.isOrbitDragging || this.orbitPointerId !== event.pointerId || !this.lastPointerPosition) {
+      return
+    }
+    const deltaX = event.clientX - this.lastPointerPosition.x
+    const deltaY = event.clientY - this.lastPointerPosition.y
+    this.lastPointerPosition = { x: event.clientX, y: event.clientY }
+
+    const deltaAzimuth = -deltaX * this.orbitRotateSpeed
+    const deltaAngle = -deltaY * this.orbitTiltSpeed
+    this.cameraRig.adjustOrbit(deltaAzimuth, deltaAngle)
+  }
+
+  private readonly handlePointerUp = (event: PointerEvent): void => {
+    if (this.orbitPointerId !== event.pointerId) {
+      return
+    }
+    this.renderer.domElement.releasePointerCapture(event.pointerId)
+    this.isOrbitDragging = false
+    this.orbitPointerId = null
+    this.lastPointerPosition = null
+    this.cameraRig.endManualOrbit()
+  }
+
+  private readonly handleWheel = (event: WheelEvent): void => {
+    if (this.cameraRig.isFollowing()) {
+      return
+    }
+    event.preventDefault()
+    const factor = 1 + Math.sign(event.deltaY) * this.zoomStep
+    this.cameraRig.adjustZoom(factor)
   }
 }
