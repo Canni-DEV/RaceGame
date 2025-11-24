@@ -1,6 +1,13 @@
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:|^\/\//
 
-const DEFAULT_SERVER_URL = 'https://192.168.0.214:4000'
+function resolveDefaultServerUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin
+  }
+  return 'https://localhost:4000'
+}
+
+const DEFAULT_SERVER_URL = resolveDefaultServerUrl()
 const RAW_BASE_URL = import.meta.env?.BASE_URL ?? '/'
 
 function normalizeBasePath(base: string): string {

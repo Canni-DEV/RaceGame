@@ -29,8 +29,8 @@ export interface TrackGenerationOptions {
 }
 
 export const TRACK_GENERATION: TrackGenerationOptions = {
-  mode: (process.env.TRACK_MODE as TrackGenerationMode) ?? "seed", //set en daily
-  seedOverride: process.env.TRACK_SEED ? Number(process.env.TRACK_SEED) : 54, //set en undefined
+  mode: (process.env.TRACK_MODE as TrackGenerationMode) ?? "daily", //set en daily
+  seedOverride: process.env.TRACK_SEED ? Number(process.env.TRACK_SEED) : undefined, //set en undefined
   debugTrackId: "sample-track"
 };
 
@@ -58,7 +58,7 @@ export const PROCEDURAL_TRACK_SETTINGS: ProceduralTrackSettings = {
   cellSize: Number(process.env.TRACK_CELL_SIZE ?? 100),
   targetCoverage: Number(process.env.TRACK_TARGET_COVERAGE ?? 0.65),
   minLoopLength: Number(process.env.TRACK_MIN_LOOP_LENGTH ?? 16),
-  maxAttempts: Number(process.env.TRACK_MAX_ATTEMPTS ?? 128),
+  maxAttempts: Number(process.env.TRACK_MAX_ATTEMPTS ?? 256),
   directionBias: Number(process.env.TRACK_DIRECTION_BIAS ?? 1.5),
   turnBias: Number(process.env.TRACK_TURN_BIAS ?? 1.1),
   smoothingPasses: Number(process.env.TRACK_SMOOTHING_PASSES ?? 3),
