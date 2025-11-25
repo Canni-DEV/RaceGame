@@ -96,8 +96,9 @@ export class CameraRig {
     this.groundLevel = bounds.min.y
     const distanceToTarget = Math.hypot(this.baseHeight, this.baseOrbitRadius)
     const boundsDiagonal = size.length()
+    const farPadding = Math.max(boundsDiagonal * 1.5, distanceToTarget * 40, 3000)
     this.camera.near = Math.max(0.5, distanceToTarget * 0.01)
-    this.camera.far = distanceToTarget + boundsDiagonal * 0.75
+    this.camera.far = distanceToTarget + farPadding
     this.camera.updateProjectionMatrix()
     this.followDistance = Math.max(maxHorizontal * 0.05, 24)
     this.followHeight = Math.max(size.y + 10, 10)

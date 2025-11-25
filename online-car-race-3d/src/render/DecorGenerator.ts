@@ -2,7 +2,7 @@ import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
-import { resolveServerAssetUrl } from '../config'
+import { resolvePublicAssetUrl, resolveServerAssetUrl } from '../config'
 
 interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
   readonly type: TInstruction['type']
@@ -14,20 +14,18 @@ interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
   ): void
 }
 
-export function createGroundPlane(size: number): THREE.Mesh {
-  const geometry = new THREE.PlaneGeometry(size, size)
-  geometry.rotateX(-Math.PI / 2)
+const BAR_SCENE_MODEL_PATH = 'models/BarScene.glb'
 
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x1a2b1f,
-    roughness: 1,
-    metalness: 0,
-  })
-
-  const mesh = new THREE.Mesh(geometry, material)
-  mesh.receiveShadow = true
-  return mesh
+// Ajusta estas transformaciones para alinear el track con la mesa de la escena.
+export const BAR_SCENE_TRANSFORM = {
+  scale: 200,
+  positionOffset: new THREE.Vector3(-900, -466, -1000),
+  rotationY: 0,
 }
+
+const barSceneUrl = resolvePublicAssetUrl(BAR_SCENE_MODEL_PATH)
+const barSceneLoader = new GLTFLoader()
+let barSceneBase: Promise<THREE.Object3D | null> | null = null
 
 class TrackAssetLoader {
   private readonly loader = new GLTFLoader()
@@ -69,6 +67,67 @@ class TrackAssetLoader {
 }
 
 const trackAssetLoader = new TrackAssetLoader()
+
+async function loadBarScene(): Promise<THREE.Object3D | null> {
+  if (!barSceneBase) {
+    barSceneBase = barSceneLoader
+      .loadAsync(barSceneUrl)
+      .then((gltf: GLTF) => prepareBarScene(gltf.scene))
+      .catch((error: unknown) => {
+        console.warn(`[DecorGenerator] Failed to load bar scene from "${barSceneUrl}"`, error)
+        return null
+      })
+  }
+  return barSceneBase
+}
+
+function prepareBarScene(scene: THREE.Object3D): THREE.Object3D {
+  const root = scene.clone()
+  root.traverse((child: THREE.Object3D) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh
+      mesh.castShadow = true
+      mesh.receiveShadow = true
+    }
+  })
+  return root
+}
+
+function computeTrackCenter(track: TrackData): THREE.Vector3 {
+  if (!track.centerline.length) {
+    return new THREE.Vector3()
+  }
+  let minX = track.centerline[0]!.x
+  let maxX = minX
+  let minZ = track.centerline[0]!.z
+  let maxZ = minZ
+
+  for (let i = 1; i < track.centerline.length; i++) {
+    const point = track.centerline[i]!
+    minX = Math.min(minX, point.x)
+    maxX = Math.max(maxX, point.x)
+    minZ = Math.min(minZ, point.z)
+    maxZ = Math.max(maxZ, point.z)
+  }
+
+  return new THREE.Vector3((minX + maxX) / 2, 0, (minZ + maxZ) / 2)
+}
+
+function addBarSceneEnvironment(track: TrackData, root: THREE.Object3D): void {
+  const trackCenter = computeTrackCenter(track)
+  void loadBarScene().then((base) => {
+    if (!base) {
+      return
+    }
+    const instance = SkeletonUtils.clone(base) as THREE.Object3D
+    instance.name = 'bar-scene-environment'
+    instance.userData.isTrackAsset = true
+    instance.position.copy(trackCenter).add(BAR_SCENE_TRANSFORM.positionOffset)
+    instance.rotation.y = BAR_SCENE_TRANSFORM.rotationY
+    instance.scale.setScalar(BAR_SCENE_TRANSFORM.scale)
+    root.add(instance)
+  })
+}
 
 class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
   readonly type = 'instanced-decoration'
@@ -156,10 +215,7 @@ export function applyDecorators(
   root: THREE.Object3D,
   random: () => number,
 ): void {
-  const groundSize = Math.max(200, track.width * 100)
-  const ground = createGroundPlane(groundSize)
-  ground.position.y = -0.01
-  root.add(ground)
+  addBarSceneEnvironment(track, root)
 
   const decorations = track.decorations ?? []
   for (const decoration of decorations) {
