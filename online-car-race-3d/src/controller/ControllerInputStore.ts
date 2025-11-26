@@ -1,9 +1,16 @@
 const MAX_STEER_ANGLE = 45
 
+export type ControllerActions = {
+  turbo?: boolean
+  reset?: boolean
+  shoot?: boolean
+}
+
 export type ControllerInput = {
   steer: number
   throttle: number
   brake: number
+  actions?: ControllerActions
 }
 
 export class ControllerInputStore {
@@ -14,6 +21,7 @@ export class ControllerInputStore {
   private steeringAngle = 0
   private lastRawRoll = 0
   private usingManual = false
+  private pendingActions: ControllerActions = {}
 
   setBrake(isPressed: boolean): void {
     this.brake = isPressed ? 1 : 0
@@ -45,6 +53,27 @@ export class ControllerInputStore {
     this.steeringAngle = clamped * MAX_STEER_ANGLE
   }
 
+  triggerTurbo(): void {
+    this.pendingActions.turbo = true
+  }
+
+  triggerReset(): void {
+    this.pendingActions.reset = true
+  }
+
+  triggerShoot(): void {
+    this.pendingActions.shoot = true
+  }
+
+  private consumeActions(): ControllerActions | undefined {
+    const actions = { ...this.pendingActions }
+    this.pendingActions = {}
+    if (!actions.turbo && !actions.reset && !actions.shoot) {
+      return undefined
+    }
+    return actions
+  }
+
   resetSteering(): void {
     this.usingManual = false
     this.steer = 0
@@ -56,6 +85,7 @@ export class ControllerInputStore {
       steer: this.steer,
       throttle: this.throttle,
       brake: this.brake,
+      actions: this.consumeActions(),
     }
   }
 

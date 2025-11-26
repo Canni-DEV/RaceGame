@@ -11,6 +11,23 @@ export const ACCELERATION = 50; // units per second^2
 export const BRAKE_DECELERATION = 50; // units per second^2
 export const FRICTION = 10; // passive deceleration per second
 export const STEER_SENSITIVITY = 2.5; // radians per second at full steer and 1 unit of normalized speed
+export const TURBO_MAX_CHARGES = clamp(Number(process.env.TURBO_MAX_CHARGES ?? 3), 0, 99);
+export const TURBO_DURATION = clamp(Number(process.env.TURBO_DURATION ?? 2), 0.1, 30);
+export const TURBO_RECHARGE_SECONDS = clamp(
+  Number(process.env.TURBO_RECHARGE_SECONDS ?? 60),
+  1,
+  3600,
+);
+export const TURBO_ACCELERATION_MULTIPLIER = clamp(
+  Number(process.env.TURBO_ACCELERATION_MULTIPLIER ?? 2.4),
+  1,
+  25,
+);
+export const TURBO_MAX_SPEED_MULTIPLIER = clamp(
+  Number(process.env.TURBO_MAX_SPEED_MULTIPLIER ?? 1.25),
+  1,
+  10,
+);
 export const OFF_TRACK_SPEED_PENALTY = clamp(
   Number(process.env.OFF_TRACK_SPEED_PENALTY ?? 0.5),
   0,

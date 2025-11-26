@@ -102,7 +102,8 @@ export class SocketServer {
       this.roomManager.handleInput(payload.roomId, payload.playerId, {
         steer: payload.steer,
         throttle: payload.throttle,
-        brake: payload.brake
+        brake: payload.brake,
+        actions: payload.actions
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
