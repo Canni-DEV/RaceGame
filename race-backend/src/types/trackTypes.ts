@@ -39,6 +39,18 @@ export interface CarState {
   turboCharges?: number;
   turboRecharge?: number;
   turboDurationLeft?: number;
+  missileCharges?: number;
+  missileRecharge?: number;
+}
+
+export interface MissileState {
+  id: string;
+  ownerId: string;
+  x: number;
+  z: number;
+  angle: number;
+  speed: number;
+  targetId?: string;
 }
 
 export interface RoomState {
@@ -46,6 +58,7 @@ export interface RoomState {
   trackId: string;
   serverTime: number;
   cars: CarState[];
+  missiles: MissileState[];
 }
 
 export type PlayerRole = "viewer" | "controller";

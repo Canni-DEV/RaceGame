@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { CarState, TrackData } from '../core/trackTypes'
+import type { CarState, MissileState, TrackData } from '../core/trackTypes'
 import { createRandom } from '../core/random'
 import { TrackMeshBuilder, type TrackBuildResult } from '../render/TrackMeshBuilder'
 import { applyDecorators } from '../render/DecorGenerator'
@@ -9,6 +9,7 @@ import { CarModelLoader } from '../render/CarModelLoader'
 import { CarEntity } from '../render/CarEntity'
 import { GuardRailBuilder } from '../render/GuardRailBuilder'
 import type { AudioManager } from '../audio/AudioManager'
+import { MissileEntity } from '../render/MissileEntity'
 
 export class TrackScene {
   private readonly scene: THREE.Scene
@@ -19,6 +20,7 @@ export class TrackScene {
   private readonly mainLight: THREE.DirectionalLight | null
   private readonly mainLightDistance: number
   private readonly cars: Map<string, CarEntity>
+  private readonly missiles: Map<string, MissileEntity>
   private readonly playerColors: Map<string, THREE.Color>
   private readonly audioManager: AudioManager | null
   private trackRoot: THREE.Group | null = null
@@ -45,6 +47,7 @@ export class TrackScene {
     this.carModelLoader = new CarModelLoader()
     this.guardRailBuilder = new GuardRailBuilder()
     this.cars = new Map()
+    this.missiles = new Map()
     this.playerColors = new Map()
     this.audioManager = audioManager
     void this.carModelLoader.preload()
@@ -61,9 +64,18 @@ export class TrackScene {
   update(dt: number): void {
     const now = performance.now()
     const carStates = this.store.getCarsForRender(now)
+    const missileStates = this.store.getMissilesForRender(now)
+    const ownerNpcMap = new Map<string, boolean>()
+    for (const state of carStates) {
+      ownerNpcMap.set(state.playerId, Boolean(state.isNpc))
+    }
     this.syncCars(carStates)
+    this.syncMissiles(missileStates, ownerNpcMap)
     for (const entity of this.cars.values()) {
       entity.update(dt)
+    }
+    for (const missile of this.missiles.values()) {
+      missile.update(dt)
     }
     this.updateCameraFollow()
   }
@@ -149,6 +161,23 @@ export class TrackScene {
     }
   }
 
+  private syncMissiles(states: MissileState[], ownerNpcMap: Map<string, boolean>): void {
+    const active = new Set<string>()
+    for (const state of states) {
+      active.add(state.id)
+      const ownerIsNpc = ownerNpcMap.get(state.ownerId)
+      const entity = this.getOrCreateMissile(state, ownerIsNpc)
+      entity.setTargetState(state)
+    }
+
+    for (const [missileId, entity] of this.missiles.entries()) {
+      if (!active.has(missileId)) {
+        entity.dispose()
+        this.missiles.delete(missileId)
+      }
+    }
+  }
+
   private getOrCreateCar(state: CarState): CarEntity {
     let car = this.cars.get(state.playerId)
     if (!car) {
@@ -165,21 +194,42 @@ export class TrackScene {
     return car
   }
 
-  private getColorForState(state: CarState): THREE.Color {
-    if (state.isNpc) {
-      return new THREE.Color(0xffa133)
+  private getOrCreateMissile(state: MissileState, ownerIsNpc?: boolean): MissileEntity {
+    let missile = this.missiles.get(state.id)
+    if (!missile) {
+      const color = this.getColorForPlayer(state.ownerId, ownerIsNpc)
+      missile = new MissileEntity(state.id, this.scene, color)
+      this.missiles.set(state.id, missile)
     }
-    let color = this.playerColors.get(state.playerId)
+    return missile
+  }
+
+  private getColorForState(state: CarState): THREE.Color {
+    return this.getColorForPlayer(state.playerId, state.isNpc)
+  }
+
+  private getColorForPlayer(playerId: string, isNpc?: boolean): THREE.Color {
+    if (isNpc) {
+      let npcColor = this.playerColors.get(playerId)
+      if (!npcColor) {
+        npcColor = new THREE.Color(0xffa133)
+        this.playerColors.set(playerId, npcColor)
+      }
+      return npcColor.clone()
+    }
+
+    let color = this.playerColors.get(playerId)
     if (!color) {
       let hash = 0
-      for (let i = 0; i < state.playerId.length; i++) {
-        hash = (hash * 31 + state.playerId.charCodeAt(i)) | 0
+      for (let i = 0; i < playerId.length; i++) {
+        hash = (hash * 31 + playerId.charCodeAt(i)) | 0
       }
       const normalized = (hash & 0xffff) / 0xffff
       color = new THREE.Color()
       color.setHSL((normalized + 1) % 1, 0.65, 0.5)
-      this.playerColors.set(state.playerId, color)
+      this.playerColors.set(playerId, color)
     }
+
     return color.clone()
   }
 
