@@ -19,8 +19,52 @@ const BAR_SCENE_MODEL_PATH = 'models/BarScene.glb'
 // Ajusta estas transformaciones para alinear el track con la mesa de la escena.
 export const BAR_SCENE_TRANSFORM = {
   scale: 200,
-  positionOffset: new THREE.Vector3(-900, -466, -1000),
+  positionOffset: new THREE.Vector3(-825, -466, -995),
   rotationY: 0,
+}
+
+const GROUND_SIZE = 600
+const GROUND_WORLD_OFFSET = new THREE.Vector3(0, -0.01, 0)
+
+// Plano de suelo reutilizable, se ancla al modelo del bar para mantenerse alineado con la mesa
+let barGroundPlane: THREE.Mesh | null = null
+
+export function createGroundPlane(size: number): THREE.Mesh {
+  const geometry = new THREE.PlaneGeometry(size, size)
+  geometry.rotateX(-Math.PI / 2)
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 1,
+    metalness: 0,
+  })
+
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.receiveShadow = true
+  return mesh
+}
+
+function ensureBarGroundPlane(): THREE.Mesh {
+  if (!barGroundPlane) {
+    barGroundPlane = createGroundPlane(GROUND_SIZE)
+    barGroundPlane.name = 'decor-ground-plane'
+  }
+  return barGroundPlane
+}
+
+function attachGroundPlaneToBarScene(trackCenter: THREE.Vector3, barScene: THREE.Object3D): void {
+  const ground = ensureBarGroundPlane()
+  ground.removeFromParent()
+
+  const targetWorld = trackCenter.clone().add(GROUND_WORLD_OFFSET)
+  const scale = BAR_SCENE_TRANSFORM.scale
+  const localX = (targetWorld.x - barScene.position.x + 20) / scale
+  const localY = (targetWorld.y - barScene.position.y) / scale
+  const localZ = (targetWorld.z - barScene.position.z - 10) / scale
+
+  ground.position.set(localX, localY, localZ)
+  ground.scale.setScalar(1 / scale)
+  barScene.add(ground)
 }
 
 const barSceneUrl = resolvePublicAssetUrl(BAR_SCENE_MODEL_PATH)
@@ -125,6 +169,7 @@ function addBarSceneEnvironment(track: TrackData, root: THREE.Object3D): void {
     instance.position.copy(trackCenter).add(BAR_SCENE_TRANSFORM.positionOffset)
     instance.rotation.y = BAR_SCENE_TRANSFORM.rotationY
     instance.scale.setScalar(BAR_SCENE_TRANSFORM.scale)
+    attachGroundPlaneToBarScene(trackCenter, instance)
     root.add(instance)
   })
 }
@@ -216,7 +261,6 @@ export function applyDecorators(
   random: () => number,
 ): void {
   addBarSceneEnvironment(track, root)
-
   const decorations = track.decorations ?? []
   for (const decoration of decorations) {
     const decorator = decoratorRegistry[decoration.type]

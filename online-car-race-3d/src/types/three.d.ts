@@ -152,6 +152,13 @@ declare module 'three' {
     constructor(skyColor?: number | string, groundColor?: number | string, intensity?: number)
   }
 
+  export class PointLight extends Object3D {
+    constructor(color?: number | string, intensity?: number, distance?: number, decay?: number)
+    distance: number
+    decay: number
+    castShadow?: boolean
+  }
+
   export class Group extends Object3D {
     children: Object3D[]
   }

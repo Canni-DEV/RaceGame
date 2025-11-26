@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { PointLight } from 'three'
 import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
 import { GameStateStore } from '../state/GameStateStore'
@@ -102,10 +103,10 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const hemisphere = new THREE.HemisphereLight(0x6fa5ff, 0x7a552d, 0.35)
+    const hemisphere = new THREE.HemisphereLight(0xffd5ae, 0x2b1b10, 0.15)
     this.scene.add(hemisphere)
 
-    const keyLight = new THREE.DirectionalLight(0xffe2b3, 1.15)
+    const keyLight = new THREE.DirectionalLight(0xffc88a, 0.9)
     keyLight.position.set(60, 120, 80)
     keyLight.castShadow = true
     keyLight.shadow.mapSize.width = 4096
@@ -121,17 +122,26 @@ export class SceneManager {
     this.scene.add(keyLight)
     this.scene.add(keyLight.target)
 
-    const fillLight = new THREE.DirectionalLight(0xd5e3ff, 0.35)
+    const fillLight = new THREE.DirectionalLight(0xffe7c7, 0.25)
     fillLight.position.set(-140, 80, 40)
     fillLight.castShadow = false
     this.scene.add(fillLight)
     this.scene.add(fillLight.target)
 
-    const rimLight = new THREE.DirectionalLight(0x9ecbff, 0.5)
+    const rimLight = new THREE.DirectionalLight(0xffb88a, 0.35)
     rimLight.position.set(100, 50, -160)
     rimLight.castShadow = false
     this.scene.add(rimLight)
     this.scene.add(rimLight.target)
+
+    // Luces de ambiente interior sobre la pista (simulan lámparas del bar)
+    const lamp1 = new PointLight(0xffd5ae, 45, 80, 2.2)
+    lamp1.position.set(0, 20, 0)
+    this.scene.add(lamp1)
+
+    const lamp2 = new PointLight(0xffc070, 30, 60, 2.0)
+    lamp2.position.set(30, 18, -25)
+    this.scene.add(lamp2)
 
     this.keyLight = keyLight
   }
@@ -148,8 +158,8 @@ export class SceneManager {
     }
 
     const gradient = context.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#182c47')
-    gradient.addColorStop(1, '#0f0c17')
+    gradient.addColorStop(0, '#2b1b10')
+    gradient.addColorStop(1, '#1a120c')
     context.fillStyle = gradient
     context.fillRect(0, 0, width, height)
 
