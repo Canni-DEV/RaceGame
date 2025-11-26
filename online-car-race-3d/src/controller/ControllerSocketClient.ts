@@ -64,6 +64,7 @@ export class ControllerSocketClient {
       steer: input.steer,
       throttle: input.throttle,
       brake: input.brake,
+      actions: input.actions,
     })
   }
 }

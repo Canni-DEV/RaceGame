@@ -20,6 +20,11 @@ export interface InputMessage {
   steer: number;
   throttle: number;
   brake: number;
+  actions?: {
+    turbo?: boolean;
+    reset?: boolean;
+    shoot?: boolean;
+  };
 }
 
 export type StateMessage = RoomState;

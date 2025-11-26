@@ -35,6 +35,10 @@ export interface CarState {
   angle: number
   speed: number
   isNpc?: boolean
+  turboActive?: boolean
+  turboCharges?: number
+  turboRecharge?: number
+  turboDurationLeft?: number
 }
 
 export interface RoomState {

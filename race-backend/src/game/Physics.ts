@@ -41,7 +41,11 @@ export function updateCarsForRoom(room: Room, dt: number): void {
   for (const [playerId, car] of room.cars.entries()) {
     const input = room.latestInputs.get(playerId) ?? NEUTRAL_INPUT;
 
-    const throttleAccel = Math.max(0, Math.min(1, input.throttle)) * ACCELERATION;
+    const movement = room.getMovementMultipliers(playerId);
+    const acceleration = ACCELERATION * movement.accelerationMultiplier;
+    const baseMaxSpeed = MAX_SPEED * movement.maxSpeedMultiplier;
+
+    const throttleAccel = Math.max(0, Math.min(1, input.throttle)) * acceleration;
     const brakeForce = Math.max(0, Math.min(1, input.brake)) * BRAKE_DECELERATION;
 
     car.speed += (throttleAccel - brakeForce) * dt;
@@ -53,11 +57,11 @@ export function updateCarsForRoom(room: Room, dt: number): void {
     }
 
     const trackSpeedMultiplier = room.isOnTrack(car) ? 1 : OFF_TRACK_SPEED_MULTIPLIER;
-    const maxSpeed = MAX_SPEED * trackSpeedMultiplier;
+    const maxSpeed = baseMaxSpeed * trackSpeedMultiplier;
     car.speed = Math.min(maxSpeed, Math.max(0, car.speed));
 
     const steerValue = Math.max(-1, Math.min(1, input.steer));
-    const speedFactor = car.speed / MAX_SPEED;
+    const speedFactor = baseMaxSpeed > 0 ? car.speed / baseMaxSpeed : 0;
     car.angle += steerValue * STEER_SENSITIVITY * speedFactor * dt;
     car.angle = normalizeAngle(car.angle);
 
@@ -106,8 +110,9 @@ function resolveCarCollisions(room: Room, bodies: CollisionBody[]): void {
   for (const body of bodies) {
     const speed = Math.hypot(body.velocity.x, body.velocity.z);
     if (speed > 1e-3) {
+      const movement = room.getMovementMultipliers(body.playerId);
       const trackMultiplier = room.isOnTrack(body.car) ? 1 : OFF_TRACK_SPEED_MULTIPLIER;
-      const maxSpeed = MAX_SPEED * trackMultiplier;
+      const maxSpeed = MAX_SPEED * movement.maxSpeedMultiplier * trackMultiplier;
       body.car.angle = normalizeAngle(Math.atan2(body.velocity.z, body.velocity.x));
       body.car.speed = Math.min(maxSpeed, speed);
     } else {

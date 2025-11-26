@@ -86,6 +86,9 @@ export class ControllerApp {
     this.throttleZone = this.createThrottleZone()
     layout.appendChild(this.throttleZone)
 
+    const actionBar = this.createActionBar()
+    this.root.appendChild(actionBar)
+
     this.overlay = createElement('div', 'controller-overlay')
     this.overlayMessage = createElement('div', 'controller-overlay__message')
     this.overlayDetails = createElement('div', 'controller-overlay__details')
@@ -213,9 +216,6 @@ export class ControllerApp {
     this.throttleThumb = createElement('div', 'controller-throttle-thumb')
     track.appendChild(this.throttleThumb)
     zone.appendChild(track)
-    const label = createElement('div', 'controller-zone__label')
-    label.textContent = 'Throttle'
-    zone.appendChild(label)
 
     const updateFromEvent = (event: PointerEvent) => {
       if (!this.sensorsActive) {
@@ -271,6 +271,59 @@ export class ControllerApp {
     return zone
   }
 
+  private createActionButton(
+    label: string,
+    className: string,
+    onPress: () => void,
+  ): HTMLButtonElement {
+    const button = createElement('button', className)
+    button.type = 'button'
+    button.textContent = label
+    button.addEventListener('pointerdown', (event) => {
+      event.preventDefault()
+      onPress()
+    })
+    button.addEventListener('click', (event) => {
+      event.preventDefault()
+      onPress()
+    })
+    return button
+  }
+
+  private createActionBar(): HTMLElement {
+    const bar = createElement('div', 'controller-actions')
+    const leftGroup = createElement('div', 'controller-actions__group controller-actions__group--left')
+    const centerGroup = createElement('div', 'controller-actions__group controller-actions__group--center')
+    const rightGroup = createElement('div', 'controller-actions__group controller-actions__group--right')
+
+    const turboButton = this.createActionButton(
+      'Turbo',
+      'controller-action controller-action--turbo',
+      () => this.triggerTurbo(),
+    )
+
+    const resetButton = this.createActionButton(
+      'Reset',
+      'controller-action controller-action--reset',
+      () => this.triggerReset(),
+    )
+
+    const shootButton = this.createActionButton(
+      'Shoot',
+      'controller-action controller-action--shoot',
+      () => this.triggerShoot(),
+    )
+
+    leftGroup.appendChild(turboButton)
+    centerGroup.appendChild(resetButton)
+    rightGroup.appendChild(shootButton)
+
+    bar.appendChild(leftGroup)
+    bar.appendChild(centerGroup)
+    bar.appendChild(rightGroup)
+    return bar
+  }
+
   private createSteeringZone(): HTMLElement {
     const zone = createElement('div', 'controller-zone controller-zone--steering')
 
@@ -309,6 +362,27 @@ export class ControllerApp {
     zone.appendChild(this.steeringHint)
 
     return zone
+  }
+
+  private triggerTurbo(): void {
+    if (!this.sensorsActive) {
+      return
+    }
+    this.inputStore.triggerTurbo()
+  }
+
+  private triggerReset(): void {
+    if (!this.sensorsActive) {
+      return
+    }
+    this.inputStore.triggerReset()
+  }
+
+  private triggerShoot(): void {
+    if (!this.sensorsActive) {
+      return
+    }
+    this.inputStore.triggerShoot()
   }
 
   private updateSensorsState(): void {
