@@ -1,10 +1,52 @@
+/*
+ * Controller UI refresh
+ * - Shared tokens for typography, spacing, radii, shadows and palette
+ * - Layout locked to 100vw/100vh in landscape with safe-area padding
+ * - Normalized button styles and glow/shadow system
+ */
+
 .controller-root {
+  --font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-xs: 12px;
+  --font-sm: 14px;
+  --font-base: 16px;
+  --font-md: 18px;
+  --font-lg: 24px;
+  --color-bg: #0b1118;
+  --color-surface: rgba(24, 31, 40, 0.82);
+  --color-surface-strong: rgba(17, 23, 31, 0.92);
+  --color-border: rgba(99, 112, 133, 0.5);
+  --color-border-strong: rgba(255, 255, 255, 0.08);
+  --color-text: #e2e8f0;
+  --color-text-muted: rgba(203, 213, 225, 0.82);
+  --color-accent: #3b82f6;
+  --color-accent-2: #60a5fa;
+  --color-success: #22c55e;
+  --color-success-strong: #16a34a;
+  --color-warning: #facc15;
+  --color-danger: #f97316;
+  --color-danger-2: #f43f5e;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+  --shadow-soft: 0 14px 32px rgba(0, 0, 0, 0.35);
+  --shadow-button: 0 10px 24px rgba(12, 17, 26, 0.45);
+  --shadow-glow: 0 0 0 8px rgba(59, 130, 246, 0.16);
+  --safe-area: clamp(12px, 2vw, 22px);
+  --safe-area-x: calc(var(--safe-area) + env(safe-area-inset-left, 0px));
+  --safe-area-y: calc(var(--safe-area) + env(safe-area-inset-top, 0px));
+  --safe-area-bottom: calc(var(--safe-area) + env(safe-area-inset-bottom, 0px));
+
   position: relative;
-  width: 100%;
-  height: 100%;
+  box-sizing: border-box;
+  width: 100vw;
+  height: 100vh;
   min-height: 100dvh;
-  background: linear-gradient(135deg, #0f1419 0%, #11161d 100%);
-  color: #f8fafc;
+  padding: var(--safe-area-y) var(--safe-area-x) var(--safe-area-bottom);
+  background: radial-gradient(circle at 20% 20%, rgba(59, 130, 246, 0.08), transparent 35%),
+    radial-gradient(circle at 80% 70%, rgba(248, 113, 113, 0.06), transparent 40%),
+    linear-gradient(145deg, #0a0f14 0%, #0f151c 45%, #0c1118 100%);
+  color: var(--color-text);
+  font-family: var(--font-family);
   user-select: none;
   overflow: hidden;
 }
@@ -14,17 +56,19 @@
   width: 100%;
   height: 100%;
   align-items: stretch;
+  justify-content: center;
+  gap: clamp(12px, 2.5vw, 28px);
 }
 
 .controller-actions {
   position: absolute;
-  top: clamp(10px, 2vw, 18px);
-  left: 0;
-  right: 0;
+  top: var(--safe-area-y);
+  left: var(--safe-area-x);
+  right: var(--safe-area-x);
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0 clamp(12px, 3vw, 32px);
+  padding: 0;
   pointer-events: none;
   z-index: 2;
 }
@@ -32,21 +76,30 @@
 .controller-actions__group {
   display: flex;
   align-items: center;
+  gap: 10px;
   pointer-events: none;
 }
 
 .controller-action {
   pointer-events: auto;
   border: none;
-  border-radius: 14px;
-  color: #f8fafc;
+  border-radius: var(--radius-lg);
+  color: var(--color-text);
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.45);
+  box-shadow: var(--shadow-button);
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
   backdrop-filter: blur(6px);
+  min-height: 48px;
+  font-size: var(--font-base);
+}
+
+.controller-action:hover,
+.controller-calibrate-button:hover,
+.controller-overlay__button:hover {
+  filter: brightness(1.05);
 }
 
 .controller-action:active {
@@ -56,31 +109,27 @@
 }
 
 .controller-action--turbo {
-  padding: 14px 24px;
-  min-width: clamp(110px, 16vw, 148px);
-  font-size: 1rem;
-  background: linear-gradient(135deg, #22c55e 0%, #16a34a 45%, #0ea5e9 100%);
+  padding: 12px clamp(18px, 3vw, 28px);
+  min-width: clamp(120px, 18vw, 168px);
+  background: linear-gradient(135deg, var(--color-success) 0%, var(--color-success-strong) 45%, var(--color-accent) 100%);
   border: 2px solid rgba(34, 197, 94, 0.7);
-  border-top-left-radius: 18px;
 }
 
 .controller-action--reset {
-  padding: 8px 14px;
-  font-size: 0.85rem;
-  background: rgba(15, 23, 42, 0.78);
-  border: 1px solid rgba(148, 163, 184, 0.5);
-  color: #e2e8f0;
+  padding: 10px 16px;
+  font-size: var(--font-sm);
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: var(--color-text);
   box-shadow: 0 6px 14px rgba(15, 23, 42, 0.4);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .controller-action--shoot {
-  padding: 12px 20px;
-  min-width: clamp(110px, 16vw, 148px);
-  font-size: 0.95rem;
-  background: linear-gradient(135deg, #f97316 0%, #f43f5e 55%, #7c3aed 100%);
-  border: 2px solid rgba(244, 63, 94, 0.7);
-  border-top-right-radius: 18px;
+  padding: 12px clamp(18px, 3vw, 28px);
+  min-width: clamp(120px, 18vw, 168px);
+  background: linear-gradient(135deg, var(--color-danger) 0%, var(--color-danger-2) 55%, #7c3aed 100%);
+  border: 2px solid rgba(244, 63, 94, 0.65);
 }
 
 .controller-zone {
@@ -90,56 +139,70 @@
   justify-content: center;
   position: relative;
   height: 100%;
+  box-sizing: border-box;
   touch-action: none;
 }
 
 .controller-zone--brake,
 .controller-zone--throttle {
-  flex: 0 0 clamp(60px, 16vw, 120px);
-  background: rgba(33, 41, 52, 0.65);
-  border-left: 1px solid rgba(148, 163, 184, 0.2);
-  border-right: 1px solid rgba(15, 23, 42, 0.6);
-  transition: background 0.2s ease;
+  flex: 0 0 clamp(78px, 16vw, 142px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  transition: background 0.2s ease, border-color 0.2s ease;
+  padding: clamp(14px, 3vh, 24px) clamp(10px, 1.6vw, 16px);
+  gap: clamp(16px, 3vh, 28px);
 }
 
 .controller-zone--brake {
   border-left: none;
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
 }
 
 .controller-zone--throttle {
   border-right: none;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  align-items: center;
+  justify-content: center;
 }
 
 .controller-zone.is-active {
-  background: rgba(71, 85, 105, 0.55);
+  background: rgba(71, 85, 105, 0.5);
+  border-color: rgba(148, 163, 184, 0.35);
 }
 
 .controller-zone__label {
   writing-mode: vertical-rl;
   transform: rotate(180deg);
-  letter-spacing: 0.2em;
-  font-size: 0.95rem;
+  letter-spacing: 0.18em;
+  font-size: var(--font-sm);
   text-transform: uppercase;
-  color: rgba(226, 232, 240, 0.8);
+  color: rgba(226, 232, 240, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  max-height: 100%;
+  align-self: stretch;
 }
 
 .controller-zone--throttle .controller-zone__label {
   transform: none;
   writing-mode: vertical-rl;
+  color: rgba(226, 232, 240, 0.9);
 }
 
 .controller-zone--steering {
   flex: 1 1 auto;
-  gap: clamp(18px, 3vh, 28px);
-  padding: clamp(10px, 3vh, 20px);
+  gap: clamp(16px, 3vh, 28px);
+  padding: clamp(16px, 3vh, 24px);
   justify-content: center;
 }
 
 .controller-steering {
   position: relative;
-  width: clamp(160px, min(62vmin, 70vw, calc(100dvh - 180px)), 420px);
-  max-width: 420px;
-  max-height: calc(100dvh - 140px);
+  width: clamp(180px, min(58vmin, 64vw, calc(100dvh - 220px)), 440px);
+  max-width: 440px;
+  max-height: calc(100dvh - 180px);
   margin: 0 auto;
   aspect-ratio: 1 / 1;
 }
@@ -148,8 +211,8 @@
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 10px solid rgba(248, 250, 252, 0.85);
-  box-shadow: inset 0 0 20px rgba(15, 23, 42, 0.6);
+  border: 10px solid rgba(248, 250, 252, 0.88);
+  box-shadow: inset 0 0 18px rgba(15, 23, 42, 0.55), var(--shadow-glow);
   transition: transform 0.08s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   touch-action: none;
   user-select: none;
@@ -158,7 +221,7 @@
 
 .controller-steering__rim {
   position: absolute;
-  inset: 12%;
+  inset: 12.5%;
   border-radius: 50%;
   border: 6px solid rgba(59, 130, 246, 0.4);
 }
@@ -176,7 +239,9 @@
 
 .controller-steering__bar {
   position: absolute;
-  inset: 50% 12%;
+  top: 50%;
+  left: 14%;
+  right: 14%;
   height: 8px;
   transform: translateY(-50%);
   border-radius: 6px;
@@ -187,42 +252,51 @@
 
 .controller-steering__outer.is-manual {
   border-color: rgba(248, 250, 252, 0.5);
-  box-shadow: inset 0 0 24px rgba(59, 130, 246, 0.25);
+  box-shadow: inset 0 0 24px rgba(59, 130, 246, 0.28);
 }
 
 .controller-steering__bar.is-manual {
   background: linear-gradient(90deg, rgba(248, 169, 120, 0.2) 0%, rgba(248, 250, 252, 0.75) 50%, rgba(248, 169, 120, 0.2) 100%);
 }
 
+.controller-steering__outer:active {
+  cursor: grabbing;
+}
+
 .controller-steering-status {
-  font-size: 0.9rem;
+  font-size: var(--font-sm);
   text-align: center;
-  color: rgba(148, 163, 184, 0.9);
-  margin-top: 12px;
+  color: rgba(148, 163, 184, 0.92);
+  margin-top: 8px;
+  max-width: min(520px, 80vw);
 }
 
 .controller-steering-hint {
-  font-size: 0.85rem;
+  font-size: var(--font-sm);
   text-align: center;
-  color: rgba(203, 213, 225, 0.7);
+  color: rgba(203, 213, 225, 0.78);
   letter-spacing: 0.04em;
-  margin-top: 6px;
+  margin-top: 4px;
+  max-width: min(520px, 82vw);
+  padding: 0 8px;
 }
 
 .controller-steering-hint.is-warning {
-  color: #facc15;
+  color: var(--color-warning);
 }
 
 .controller-throttle-track {
   position: relative;
-  width: clamp(28px, 40%, 56px);
-  height: 80%;
+  width: clamp(34px, 42%, 58px);
+  height: 84%;
   border-radius: 999px;
-  background: linear-gradient(180deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.9) 100%);
-  border: 2px solid rgba(148, 163, 184, 0.25);
+  background: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.88) 100%);
+  border: 2px solid rgba(148, 163, 184, 0.28);
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  box-shadow: inset 0 12px 28px rgba(0, 0, 0, 0.3);
+  margin: auto;
 }
 
 .controller-throttle-thumb {
@@ -231,26 +305,27 @@
   left: 50%;
   top: var(--thumb-percent);
   transform: translate(-50%, -50%);
-  width: clamp(42px, 55%, 64px);
+  width: clamp(44px, 58%, 66px);
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, #facc15 0%, #f97316 70%);
-  box-shadow: 0 6px 18px rgba(249, 115, 22, 0.35);
+  box-shadow: 0 6px 18px rgba(249, 115, 22, 0.35), 0 0 0 8px rgba(249, 115, 22, 0.18);
   border: 2px solid rgba(248, 250, 252, 0.35);
   pointer-events: none;
 }
 
 .controller-calibrate-button {
   padding: 10px 18px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid rgba(148, 163, 184, 0.35);
-  background: rgba(30, 41, 59, 0.75);
-  color: #e2e8f0;
-  font-size: 0.95rem;
+  background: rgba(30, 41, 59, 0.78);
+  color: var(--color-text);
+  font-size: var(--font-sm);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   cursor: pointer;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  min-width: 140px;
 }
 
 .controller-calibrate-button:active {
@@ -259,6 +334,7 @@
 
 .controller-calibrate-button:hover {
   background: rgba(51, 65, 85, 0.85);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.32);
 }
 
 .controller-calibrate-button:disabled {
@@ -267,15 +343,24 @@
 }
 
 .controller-status {
-  position: absolute;
-  bottom: 24px;
+  position: fixed;
   left: 50%;
+  bottom: var(--safe-area-bottom);
   transform: translateX(-50%);
-  font-size: 0.85rem;
-  letter-spacing: 0.04em;
+  font-size: var(--font-sm);
+  letter-spacing: 0.03em;
   color: rgba(148, 163, 184, 0.9);
   text-align: center;
   pointer-events: none;
+  background: rgba(15, 23, 42, 0.82);
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  padding: 10px 14px;
+  border-radius: var(--radius-pill);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.35);
+  max-width: min(520px, 90vw);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .controller-overlay {
@@ -299,25 +384,25 @@
 }
 
 .controller-overlay__message {
-  font-size: 1.6rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: var(--font-lg);
+  font-weight: 700;
+  letter-spacing: 0.06em;
 }
 
 .controller-overlay__details {
-  font-size: 1rem;
+  font-size: var(--font-base);
   color: rgba(203, 213, 225, 0.85);
   max-width: 320px;
 }
 
 .controller-overlay__button {
   padding: 12px 24px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, var(--color-accent) 0%, var(--color-accent-2) 100%);
   border: none;
   color: #f8fafc;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: var(--font-base);
   letter-spacing: 0.05em;
   cursor: pointer;
   box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35);
@@ -327,13 +412,40 @@
   display: none;
 }
 
-@media (max-height: 500px) {
+@media (max-width: 960px) {
+  .controller-action {
+    min-width: 0;
+    font-size: var(--font-sm);
+    padding: 10px 18px;
+  }
+
+  .controller-action--turbo,
+  .controller-action--shoot {
+    min-width: clamp(110px, 18vw, 150px);
+  }
+
   .controller-steering {
-    max-width: 320px;
+    width: clamp(180px, 60vw, 360px);
+  }
+
+  .controller-steering-status,
+  .controller-steering-hint {
+    font-size: var(--font-xs);
+  }
+}
+
+@media (max-height: 540px) {
+  .controller-steering {
+    width: clamp(160px, 52vw, 320px);
+  }
+
+  .controller-zone--brake,
+  .controller-zone--throttle {
+    padding: 10px 12px;
   }
 
   .controller-calibrate-button {
-    font-size: 0.85rem;
+    font-size: var(--font-xs);
     padding: 8px 14px;
   }
 }
