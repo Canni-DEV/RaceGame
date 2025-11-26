@@ -18,15 +18,17 @@
 
 .controller-actions {
   position: absolute;
-  top: clamp(10px, 2vw, 18px);
+  top: 2px;
   left: 0;
   right: 0;
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
+  justify-content: space-around;
   padding: 0 clamp(12px, 3vw, 32px);
   pointer-events: none;
   z-index: 2;
+  width: 80%;
+  margin: auto;
 }
 
 .controller-actions__group {
@@ -56,7 +58,7 @@
 }
 
 .controller-action--turbo {
-  padding: 14px 24px;
+  padding: 35px 24px;
   min-width: clamp(110px, 16vw, 148px);
   font-size: 1rem;
   background: linear-gradient(135deg, #22c55e 0%, #16a34a 45%, #0ea5e9 100%);
@@ -66,7 +68,7 @@
 
 .controller-action--reset {
   padding: 8px 14px;
-  font-size: 0.85rem;
+  font-size: 0.5rem;
   background: rgba(15, 23, 42, 0.78);
   border: 1px solid rgba(148, 163, 184, 0.5);
   color: #e2e8f0;
@@ -75,7 +77,7 @@
 }
 
 .controller-action--shoot {
-  padding: 12px 20px;
+  padding: 35px 20px;
   min-width: clamp(110px, 16vw, 148px);
   font-size: 0.95rem;
   background: linear-gradient(135deg, #f97316 0%, #f43f5e 55%, #7c3aed 100%);
@@ -130,7 +132,7 @@
 
 .controller-zone--steering {
   flex: 1 1 auto;
-  gap: clamp(18px, 3vh, 28px);
+  gap: clamp(5px, 3vh, 28px);
   padding: clamp(10px, 3vh, 20px);
   justify-content: center;
 }

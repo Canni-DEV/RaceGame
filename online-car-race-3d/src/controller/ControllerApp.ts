@@ -216,9 +216,6 @@ export class ControllerApp {
     this.throttleThumb = createElement('div', 'controller-throttle-thumb')
     track.appendChild(this.throttleThumb)
     zone.appendChild(track)
-    const label = createElement('div', 'controller-zone__label')
-    label.textContent = 'Throttle'
-    zone.appendChild(label)
 
     const updateFromEvent = (event: PointerEvent) => {
       if (!this.sensorsActive) {
