@@ -5,6 +5,7 @@ import { OrientationManager } from './OrientationManager'
 
 const INPUT_SEND_INTERVAL_MS = 100
 const SENSOR_PULSE_TIMEOUT_MS = 2000
+const SHOOT_COOLDOWN_MS = 2000
 
 function createElement<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -63,6 +64,7 @@ export class ControllerApp {
   private readonly sendIntervalId: number
   private readonly removeOrientationListener: () => void
   private readonly hasRoomParameters: boolean
+  private lastShootAt = 0
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -382,6 +384,11 @@ export class ControllerApp {
     if (!this.sensorsActive) {
       return
     }
+    const now = performance.now()
+    if (now - this.lastShootAt < SHOOT_COOLDOWN_MS) {
+      return
+    }
+    this.lastShootAt = now
     this.inputStore.triggerShoot()
   }
 

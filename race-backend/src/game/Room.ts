@@ -1,10 +1,18 @@
 import {
   CarState,
+  MissileState,
   RoomState,
   TrackData,
   Vec2
 } from "../types/trackTypes";
 import {
+  MISSILE_ACQUISITION_RADIUS,
+  MISSILE_HIT_RADIUS,
+  MISSILE_MAX_CHARGES,
+  MISSILE_MAX_RANGE_FACTOR,
+  MISSILE_MIN_SPEED,
+  MISSILE_RECHARGE_SECONDS,
+  MISSILE_SPEED_MULTIPLIER,
   TURBO_ACCELERATION_MULTIPLIER,
   TURBO_DURATION,
   TURBO_MAX_CHARGES,
@@ -14,6 +22,7 @@ import {
 import { updateCarsForRoom } from "./Physics";
 import { NpcControllerState, updateNpcControllers } from "./NpcController";
 import { TrackGeometry } from "./TrackGeometry";
+import { TrackNavigator } from "./TrackNavigator";
 
 export interface PlayerInput {
   steer: number;
@@ -32,6 +41,17 @@ interface TurboState {
   rechargeProgress: number;
 }
 
+interface MissileChargeState {
+  charges: number;
+  rechargeProgress: number;
+}
+
+interface MissileRuntime extends MissileState {
+  progress: { segmentIndex: number; distanceAlongSegment: number };
+  distanceTravelled: number;
+  onTrack: boolean;
+}
+
 interface SpawnPoint {
   position: Vec2;
   angle: number;
@@ -41,6 +61,11 @@ export interface MovementMultipliers {
   accelerationMultiplier: number;
   maxSpeedMultiplier: number;
   turboActive: boolean;
+}
+
+function normalizeAngle(angle: number): number {
+  const tau = Math.PI * 2;
+  return ((angle + Math.PI) % tau + tau) % tau - Math.PI;
 }
 
 export class Room {
@@ -55,12 +80,17 @@ export class Room {
   private playerToController: Map<string, string> = new Map();
   private spawnPoints: Map<string, SpawnPoint> = new Map();
   private turboStates: Map<string, TurboState> = new Map();
+  private missileCharges: Map<string, MissileChargeState> = new Map();
+  private missiles: Map<string, MissileRuntime> = new Map();
   private npcIds: Set<string> = new Set();
   private npcStates: Map<string, NpcControllerState> = new Map();
   private readonly trackGeometry: TrackGeometry;
+  private readonly trackNavigator: TrackNavigator;
+  private missileSequence = 0;
 
   constructor(public readonly roomId: string, public readonly track: TrackData) {
     this.trackGeometry = new TrackGeometry(track);
+    this.trackNavigator = new TrackNavigator(track.centerline);
     this.initializeNpc();
   }
 
@@ -121,6 +151,8 @@ export class Room {
       rechargeProgress: 0
     });
     this.updateCarTurboTelemetry(playerId, car);
+    this.missileCharges.set(playerId, { charges: MISSILE_MAX_CHARGES, rechargeProgress: 0 });
+    this.updateCarMissileTelemetry(playerId, car);
     return car;
   }
 
@@ -130,6 +162,7 @@ export class Room {
       this.latestInputs.delete(playerId);
       this.spawnPoints.delete(playerId);
       this.turboStates.delete(playerId);
+      this.missileCharges.delete(playerId);
       this.npcIds.delete(playerId);
       this.npcStates.delete(playerId);
       return undefined;
@@ -139,6 +172,8 @@ export class Room {
     this.latestInputs.delete(playerId);
     this.spawnPoints.delete(playerId);
     this.turboStates.delete(playerId);
+    this.missileCharges.delete(playerId);
+    this.removeMissilesForPlayer(playerId);
     const controllerSocket = this.playerToController.get(playerId);
     if (controllerSocket) {
       this.controllers.delete(controllerSocket);
@@ -210,6 +245,9 @@ export class Room {
     }
     if (actions.turbo) {
       this.activateTurbo(playerId);
+    }
+    if (actions.shoot) {
+      this.fireMissile(playerId);
     }
   }
 
@@ -298,6 +336,223 @@ export class Room {
     return turbo;
   }
 
+  private updateMissileCharges(dt: number): void {
+    for (const [playerId, car] of this.cars.entries()) {
+      if (car.isNpc) {
+        continue;
+      }
+      const state = this.ensureMissileChargeState(playerId);
+      if (state.charges < MISSILE_MAX_CHARGES) {
+        state.rechargeProgress += dt;
+        if (state.rechargeProgress >= MISSILE_RECHARGE_SECONDS) {
+          const recovered = Math.floor(state.rechargeProgress / MISSILE_RECHARGE_SECONDS);
+          state.charges = Math.min(MISSILE_MAX_CHARGES, state.charges + recovered);
+          state.rechargeProgress -= recovered * MISSILE_RECHARGE_SECONDS;
+        }
+      } else {
+        state.rechargeProgress = 0;
+      }
+
+      this.updateCarMissileTelemetry(playerId, car, state);
+    }
+  }
+
+  private fireMissile(playerId: string): void {
+    const car = this.cars.get(playerId);
+    if (!car) {
+      return;
+    }
+
+    const charges = this.ensureMissileChargeState(playerId);
+    if (charges.charges <= 0) {
+      return;
+    }
+
+    const progress = this.trackNavigator.project(car);
+    const missileId = `${playerId}-m${this.missileSequence++}`;
+
+    charges.charges -= 1;
+    this.updateCarMissileTelemetry(playerId, car, charges);
+
+    const missile: MissileRuntime = {
+      id: missileId,
+      ownerId: playerId,
+      x: car.x,
+      z: car.z,
+      angle: car.angle,
+      speed: Math.max(MISSILE_MIN_SPEED, car.speed * MISSILE_SPEED_MULTIPLIER),
+      targetId: undefined,
+      progress: { segmentIndex: progress.segmentIndex, distanceAlongSegment: progress.distanceAlongSegment },
+      distanceTravelled: 0,
+      onTrack: false
+    };
+
+    this.missiles.set(missileId, missile);
+  }
+
+  private updateMissiles(dt: number): void {
+    if (this.missiles.size === 0) {
+      return;
+    }
+
+    const removals: string[] = [];
+    const maxRange = this.trackNavigator.getTotalLength() * MISSILE_MAX_RANGE_FACTOR;
+    const acquisitionRadiusSq = MISSILE_ACQUISITION_RADIUS * MISSILE_ACQUISITION_RADIUS;
+
+    for (const missile of this.missiles.values()) {
+      const travel = missile.speed * dt;
+
+      if (missile.targetId && !this.cars.has(missile.targetId)) {
+        missile.targetId = undefined;
+      }
+
+      if (!missile.targetId) {
+        const nearbyTarget = this.findNearbyTarget(missile, acquisitionRadiusSq);
+        if (nearbyTarget) {
+          missile.targetId = nearbyTarget;
+        }
+      }
+
+      const activeTarget = missile.targetId ? this.cars.get(missile.targetId) : undefined;
+      if (activeTarget) {
+        const dx = activeTarget.x - missile.x;
+        const dz = activeTarget.z - missile.z;
+        const distance = Math.hypot(dx, dz);
+
+        if (distance <= MISSILE_HIT_RADIUS) {
+          removals.push(missile.id);
+          continue;
+        }
+
+        const dirX = distance > 0 ? dx / distance : Math.cos(missile.angle);
+        const dirZ = distance > 0 ? dz / distance : Math.sin(missile.angle);
+        missile.x += dirX * travel;
+        missile.z += dirZ * travel;
+        const desiredAngle = Math.atan2(dirZ, dirX);
+        missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+      } else {
+        let remaining = travel;
+
+        if (!missile.onTrack) {
+          const snap = this.trackNavigator.project({ x: missile.x, z: missile.z });
+          const dx = snap.position.x - missile.x;
+          const dz = snap.position.z - missile.z;
+          const distanceToTrack = Math.hypot(dx, dz);
+
+          if (distanceToTrack > 0) {
+            if (distanceToTrack >= remaining) {
+              const dirX = dx / distanceToTrack;
+              const dirZ = dz / distanceToTrack;
+              missile.x += dirX * remaining;
+              missile.z += dirZ * remaining;
+              const desiredAngle = Math.atan2(dirZ, dirX);
+              missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+              remaining = 0;
+            } else {
+              missile.x = snap.position.x;
+              missile.z = snap.position.z;
+              missile.progress = {
+                segmentIndex: snap.segmentIndex,
+                distanceAlongSegment: snap.distanceAlongSegment
+              };
+              missile.onTrack = true;
+              const desiredAngle = Math.atan2(snap.direction.z, snap.direction.x);
+              missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+              remaining -= distanceToTrack;
+            }
+          } else {
+            missile.onTrack = true;
+          }
+        }
+
+        if (remaining > 0) {
+          const progress = this.trackNavigator.advance(missile.progress, remaining);
+          missile.progress = {
+            segmentIndex: progress.segmentIndex,
+            distanceAlongSegment: progress.distanceAlongSegment
+          };
+          missile.x = progress.position.x;
+          missile.z = progress.position.z;
+          const desiredAngle = Math.atan2(progress.direction.z, progress.direction.x);
+          missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+        }
+      }
+
+      missile.distanceTravelled += travel;
+
+      if (maxRange > 0 && missile.distanceTravelled >= maxRange) {
+        removals.push(missile.id);
+      }
+    }
+
+    for (const id of removals) {
+      this.missiles.delete(id);
+    }
+  }
+
+  private findNearbyTarget(missile: MissileRuntime, acquisitionRadiusSq: number): string | null {
+    let closestId: string | null = null;
+    let closestDistance = acquisitionRadiusSq;
+    const forwardX = Math.cos(missile.angle);
+    const forwardZ = Math.sin(missile.angle);
+
+    for (const [playerId, car] of this.cars.entries()) {
+      if (playerId === missile.ownerId) {
+        continue;
+      }
+      const dx = car.x - missile.x;
+      const dz = car.z - missile.z;
+      const forwardDot = dx * forwardX + dz * forwardZ;
+      if (forwardDot <= 0) {
+        continue;
+      }
+      const distanceSq = dx * dx + dz * dz;
+      if (distanceSq <= closestDistance) {
+        closestDistance = distanceSq;
+        closestId = playerId;
+      }
+    }
+
+    return closestId;
+  }
+
+  private updateCarMissileTelemetry(
+    playerId: string,
+    car?: CarState,
+    missileState?: MissileChargeState
+  ): void {
+    const targetCar = car ?? this.cars.get(playerId);
+    const charges = missileState ?? this.missileCharges.get(playerId);
+    if (!targetCar || !charges) {
+      return;
+    }
+
+    targetCar.missileCharges = charges.charges;
+    targetCar.missileRecharge = charges.charges >= MISSILE_MAX_CHARGES
+      ? 0
+      : Math.max(0, MISSILE_RECHARGE_SECONDS - charges.rechargeProgress);
+  }
+
+  private ensureMissileChargeState(playerId: string): MissileChargeState {
+    let state = this.missileCharges.get(playerId);
+    if (!state) {
+      state = {
+        charges: this.npcIds.has(playerId) ? 0 : MISSILE_MAX_CHARGES,
+        rechargeProgress: 0
+      };
+      this.missileCharges.set(playerId, state);
+    }
+    return state;
+  }
+
+  private removeMissilesForPlayer(playerId: string): void {
+    for (const [id, missile] of this.missiles.entries()) {
+      if (missile.ownerId === playerId) {
+        this.missiles.delete(id);
+      }
+    }
+  }
+
   private getSpawnPoint(playerId: string): SpawnPoint | undefined {
     const existing = this.spawnPoints.get(playerId);
     if (existing) {
@@ -318,8 +573,10 @@ export class Room {
 
   update(dt: number): void {
     this.updateTurboStates(dt);
+    this.updateMissileCharges(dt);
     updateNpcControllers(this, this.npcStates, dt);
     updateCarsForRoom(this, dt);
+    this.updateMissiles(dt);
     this.serverTime += dt;
   }
 
@@ -335,7 +592,16 @@ export class Room {
       roomId: this.roomId,
       trackId: this.track.id,
       serverTime: this.serverTime,
-      cars: Array.from(this.cars.values()).map((car) => ({ ...car }))
+      cars: Array.from(this.cars.values()).map((car) => ({ ...car })),
+      missiles: Array.from(this.missiles.values()).map((missile) => ({
+        id: missile.id,
+        ownerId: missile.ownerId,
+        x: missile.x,
+        z: missile.z,
+        angle: missile.angle,
+        speed: missile.speed,
+        targetId: missile.targetId
+      }))
     };
   }
 
