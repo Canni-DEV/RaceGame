@@ -1121,6 +1121,14 @@ export class Room {
     return this.viewers.size === 0 && this.controllers.size === 0;
   }
 
+  getRacePhase(): RacePhase {
+    return this.racePhase;
+  }
+
+  isJoinOpen(): boolean {
+    return this.racePhase === "lobby";
+  }
+
   getHumanPlayerCount(): number {
     return Math.max(0, this.cars.size - this.npcIds.size);
   }

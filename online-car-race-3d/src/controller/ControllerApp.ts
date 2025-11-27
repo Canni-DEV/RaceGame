@@ -43,6 +43,8 @@ export class ControllerApp {
   private lastRaceState: RaceState | null = null
   private raceInputBlocked = false
   private readonly playerId: string
+  private overlayAction: 'permission' | 'refresh' | null = null
+  private hasRoomInfo = false
 
   private readonly inputStore = new ControllerInputStore()
   private readonly orientationManager = new OrientationManager()
@@ -102,9 +104,7 @@ export class ControllerApp {
     this.permissionButton = createElement('button', 'controller-overlay__button')
     this.permissionButton.textContent = 'Activar sensores'
     this.permissionButton.type = 'button'
-    this.permissionButton.addEventListener('click', () => {
-      this.requestSensorPermission()
-    })
+    this.permissionButton.onclick = () => this.handleOverlayButton()
 
     this.overlay.appendChild(this.overlayMessage)
     this.overlay.appendChild(this.overlayDetails)
@@ -128,10 +128,12 @@ export class ControllerApp {
       this.socketClient = new ControllerSocketClient({ roomId, playerId, serverUrl })
       this.socketClient.onError((message) => {
         this.errorMessage = message
+        this.hasRoomInfo = false
         this.updateOverlay()
       })
       this.socketClient.onRoomInfo((info) => {
         this.errorMessage = null
+        this.hasRoomInfo = true
         this.statusText.textContent = `Room ${info.roomId} · Player ${info.playerId}`
         this.updateOverlay()
       })
@@ -466,10 +468,18 @@ export class ControllerApp {
     let message = ''
     let details = ''
     let showButton = false
+    this.overlayAction = null
+
+    const raceBlocked = this.errorMessage ? this.isRaceBlockedError(this.errorMessage) : false
 
     if (!this.hasRoomParameters) {
       message = 'Configura el acceso a la sala'
       details = 'Agrega roomId y playerId en la URL para continuar.'
+    } else if (raceBlocked) {
+      message = 'Carrera en curso'
+      details = 'Espera a que termine la carrera y actualiza el controlador para entrar al lobby.'
+      showButton = true
+      this.overlayAction = 'refresh'
     } else if (!this.isLandscape) {
       message = 'Girá el teléfono'
       details = 'Usa el controlador en orientación horizontal.'
@@ -477,6 +487,7 @@ export class ControllerApp {
       message = 'Permite el acceso a los sensores'
       details = 'Necesitamos leer la orientación del dispositivo para el volante.'
       showButton = true
+      this.overlayAction = 'permission'
     } else if (this.errorMessage) {
       message = 'Sin conexión'
       details = this.errorMessage
@@ -496,10 +507,19 @@ export class ControllerApp {
     }
 
     if (showButton) {
+      if (this.overlayAction === 'refresh') {
+        this.permissionButton.textContent = 'Actualizar'
+      } else {
+        this.permissionButton.textContent = 'Activar sensores'
+      }
       this.permissionButton.classList.remove('is-hidden')
     } else {
       this.permissionButton.classList.add('is-hidden')
     }
+  }
+
+  private isRaceBlockedError(message: string): boolean {
+    return message.toLowerCase().includes('carrera en curso')
   }
 
   private updateThrottleVisual(value: number): void {
@@ -689,8 +709,21 @@ export class ControllerApp {
     this.updateOverlay()
   }
 
+  private handleOverlayButton(): void {
+    if (this.overlayAction === 'refresh') {
+      window.location.reload()
+      return
+    }
+    if (this.overlayAction === 'permission') {
+      void this.requestSensorPermission()
+    }
+  }
+
   private pushInput(): void {
     if (!this.socketClient) {
+      return
+    }
+    if (!this.hasRoomInfo) {
       return
     }
     if (this.raceInputBlocked) {
