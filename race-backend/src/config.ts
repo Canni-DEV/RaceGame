@@ -80,27 +80,31 @@ export interface ProceduralTrackSettings {
   treeDensity: number;
   treeMinDistanceFactor: number;
   treeMaxDistanceFactor: number;
+  startStraightMinCells: number;
+  startStraightMaxCells: number;
 }
 
 export const PROCEDURAL_TRACK_SETTINGS: ProceduralTrackSettings = {
-  gridWidth: Number(process.env.TRACK_GRID_WIDTH ?? 24),
-  gridHeight: Number(process.env.TRACK_GRID_HEIGHT ?? 16),
+  gridWidth: Number(process.env.TRACK_GRID_WIDTH ?? 12),
+  gridHeight: Number(process.env.TRACK_GRID_HEIGHT ?? 8),
   cellSize: Number(process.env.TRACK_CELL_SIZE ?? 100),
-  targetCoverage: Number(process.env.TRACK_TARGET_COVERAGE ?? 0.65),
+  targetCoverage: Number(process.env.TRACK_TARGET_COVERAGE ?? 0.1),
   minLoopLength: Number(process.env.TRACK_MIN_LOOP_LENGTH ?? 16),
-  maxAttempts: Number(process.env.TRACK_MAX_ATTEMPTS ?? 256),
+  maxAttempts: Number(process.env.TRACK_MAX_ATTEMPTS ?? 128),
   directionBias: Number(process.env.TRACK_DIRECTION_BIAS ?? 1.5),
   turnBias: Number(process.env.TRACK_TURN_BIAS ?? 1.1),
   smoothingPasses: Number(process.env.TRACK_SMOOTHING_PASSES ?? 3),
   cornerSubdivisions: Number(process.env.TRACK_CORNER_SUBDIVISIONS ?? 2),
   cornerRoundness: Number(process.env.TRACK_CORNER_ROUNDNESS ?? 0.32),
   widthRange: [
-    Number(process.env.TRACK_MIN_WIDTH ?? 24),
+    Number(process.env.TRACK_MIN_WIDTH ?? 30),
     Number(process.env.TRACK_MAX_WIDTH ?? 32)
   ],
-  treeDensity: Number(process.env.TRACK_TREE_DENSITY ?? 6),
+  treeDensity: Number(process.env.TRACK_TREE_DENSITY ?? 16),
   treeMinDistanceFactor: Number(process.env.TRACK_TREE_MIN_DIST ?? 0.7),
-  treeMaxDistanceFactor: Number(process.env.TRACK_TREE_MAX_DIST ?? 2.6)
+  treeMaxDistanceFactor: Number(process.env.TRACK_TREE_MAX_DIST ?? 2.6),
+  startStraightMinCells: Number(process.env.TRACK_START_STRAIGHT_MIN_CELLS ?? 5),
+  startStraightMaxCells: Number(process.env.TRACK_START_STRAIGHT_MAX_CELLS ?? 6)
 };
 
 export interface TrackAssetLibraryConfig {

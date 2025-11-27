@@ -27,6 +27,8 @@ export interface ProceduralTrackConfig {
   treeDensity: number;
   treeMinDistanceFactor: number;
   treeMaxDistanceFactor: number;
+  startStraightMinCells: number;
+  startStraightMaxCells: number;
 }
 
 export class ProceduralTrackGenerator {
@@ -38,14 +40,15 @@ export class ProceduralTrackGenerator {
     const basePoints = this.cellsToPoints(loopCells);
     const rounded = this.roundCorners(basePoints, this.config.cornerSubdivisions, this.config.cornerRoundness);
     const smoothed = this.smoothPoints(rounded, this.config.smoothingPasses);
+    const oriented = this.alignToStartingStraight(smoothed);
     const width = this.lerp(this.config.widthRange[0], this.config.widthRange[1], random());
-    const decorations = this.createDecorations(smoothed, width, seed);
+    const decorations = this.createDecorations(oriented, width, seed);
 
     return {
       id: `procedural-${seed}`,
       seed,
       width,
-      centerline: smoothed,
+      centerline: oriented,
       decorations
     };
   }
@@ -58,12 +61,14 @@ export class ProceduralTrackGenerator {
     );
 
     let bestPath: GridCell[] = [];
+    let longestAttempt: GridCell[] = [];
 
     for (let attempt = 0; attempt < this.config.maxAttempts; attempt++) {
-      const start = this.pickStart(random);
-      const visited = new Set<string>([this.cellKey(start)]);
-      const path: GridCell[] = [start];
-      let lastDirection = this.randomDirection(random);
+      const { path: straightStart, direction: straightDirection } = this.buildStartingStraight(random);
+      const start = straightStart[0];
+      const visited = new Set<string>(straightStart.map((cell) => this.cellKey(cell)));
+      const path: GridCell[] = [...straightStart];
+      let lastDirection = straightDirection;
 
       for (let step = 0; step < totalCells * 3; step++) {
         const current = path[path.length - 1];
@@ -108,26 +113,91 @@ export class ProceduralTrackGenerator {
         lastDirection = selection.direction;
       }
 
+      if (path.length > longestAttempt.length) {
+        longestAttempt = path;
+      }
+
       if (path.length > bestPath.length && this.areNeighbors(path[path.length - 1], path[0])) {
         bestPath = path;
       }
     }
 
     if (bestPath.length === 0) {
-      const start = this.pickStart(random);
-      const fallbackNeighbor = this.getNeighborDirections(start).find((option) => this.isInside(option.cell));
-      bestPath = fallbackNeighbor ? [start, fallbackNeighbor.cell] : [start];
+      bestPath = longestAttempt;
+    }
+
+    if (bestPath.length === 0) {
+      const { path } = this.buildStartingStraight(random);
+      const fallbackNeighbor = this.getNeighborDirections(path[0]).find((option) => this.isInside(option.cell));
+      bestPath = fallbackNeighbor ? [...path, fallbackNeighbor.cell] : path;
     }
 
     return this.forceClosure(bestPath);
   }
 
-  private pickStart(random: () => number): GridCell {
+  private buildStartingStraight(random: () => number): { path: GridCell[]; direction: Direction } {
+    const direction = this.randomDirection(random);
+    const length = this.pickStraightLength(direction, random);
+    const start = this.pickStartForStraight(random, direction, length);
+
+    const path: GridCell[] = [];
+    for (let i = 0; i < length; i++) {
+      path.push({
+        x: start.x + direction.dx * i,
+        y: start.y + direction.dy * i
+      });
+    }
+
+    return { path, direction };
+  }
+
+  private pickStraightLength(direction: Direction, random: () => number): number {
+    const axisLimit = direction.dx !== 0 ? this.config.gridWidth : this.config.gridHeight;
+    const min = Math.max(2, Math.min(this.config.startStraightMinCells, axisLimit));
+    const max = Math.max(min, Math.min(this.config.startStraightMaxCells, axisLimit));
+    return this.randomInt(random, min, max);
+  }
+
+  private pickStartForStraight(random: () => number, direction: Direction, length: number): GridCell {
     const biasX = Math.floor(this.config.gridWidth / 3);
     const biasY = Math.floor(this.config.gridHeight / 3);
-    const x = this.randomInt(random, biasX, this.config.gridWidth - biasX - 1);
-    const y = this.randomInt(random, biasY, this.config.gridHeight - biasY - 1);
-    return { x, y };
+
+    const [minX, maxX] = this.computeStartRange(direction.dx, length, this.config.gridWidth);
+    const [minY, maxY] = this.computeStartRange(direction.dy, length, this.config.gridHeight);
+
+    const startX = this.pickBiasedCoordinate(random, minX, maxX, biasX, this.config.gridWidth - biasX - 1);
+    const startY = this.pickBiasedCoordinate(random, minY, maxY, biasY, this.config.gridHeight - biasY - 1);
+
+    return { x: startX, y: startY };
+  }
+
+  private computeStartRange(delta: number, length: number, limit: number): [number, number] {
+    if (delta > 0) {
+      return [0, Math.max(0, limit - length)];
+    }
+    if (delta < 0) {
+      return [length - 1, limit - 1];
+    }
+    return [0, limit - 1];
+  }
+
+  private pickBiasedCoordinate(
+    random: () => number,
+    min: number,
+    max: number,
+    biasMin: number,
+    biasMax: number
+  ): number {
+    const clampedMin = Math.max(0, min);
+    const clampedMax = Math.max(clampedMin, max);
+    const preferredMin = Math.max(clampedMin, biasMin);
+    const preferredMax = Math.min(clampedMax, biasMax);
+
+    if (preferredMin <= preferredMax) {
+      return this.randomInt(random, preferredMin, preferredMax);
+    }
+
+    return this.randomInt(random, clampedMin, clampedMax);
   }
 
   private randomDirection(random: () => number): Direction {
@@ -230,6 +300,60 @@ export class ProceduralTrackGenerator {
     return result;
   }
 
+  private alignToStartingStraight(points: Vec2[]): Vec2[] {
+    if (points.length < 2) {
+      return points;
+    }
+
+    const segmentDirections = points.map((point, index) => {
+      const next = points[(index + 1) % points.length];
+      return this.normalizeVector({ x: next.x - point.x, z: next.z - point.z });
+    });
+
+    const segmentLengths = points.map((point, index) =>
+      this.distance(point, points[(index + 1) % points.length])
+    );
+
+    let bestStart = 0;
+    let bestLength = -Infinity;
+    const angleTolerance = 0.18; // ~10 degrees tolerance to consider segments part of the same straight
+
+    for (let start = 0; start < segmentDirections.length; start++) {
+      const baseDir = segmentDirections[start];
+      if (!this.isNonZeroVector(baseDir)) {
+        continue;
+      }
+
+      let totalLength = 0;
+      for (let offset = 0; offset < segmentDirections.length; offset++) {
+        const index = (start + offset) % segmentDirections.length;
+        const direction = segmentDirections[index];
+        if (!this.isNonZeroVector(direction)) {
+          break;
+        }
+
+        const angleDiff = this.angleBetween(baseDir, direction);
+        if (!Number.isFinite(angleDiff) || angleDiff > angleTolerance) {
+          break;
+        }
+
+        totalLength += segmentLengths[index];
+      }
+
+      if (totalLength > bestLength) {
+        bestLength = totalLength;
+        bestStart = start;
+      }
+    }
+
+    const minimumStraightLength = this.config.cellSize * Math.max(1, this.config.startStraightMinCells - 1);
+    if (bestLength < minimumStraightLength) {
+      return points;
+    }
+
+    return this.rotatePoints(points, bestStart);
+  }
+
   private randomInt(random: () => number, min: number, max: number): number {
     return Math.floor(random() * (max - min + 1)) + min;
   }
@@ -243,6 +367,40 @@ export class ProceduralTrackGenerator {
       x: a.x * (1 - t) + b.x * t,
       z: a.z * (1 - t) + b.z * t
     };
+  }
+
+  private rotatePoints(points: Vec2[], startIndex: number): Vec2[] {
+    if (points.length === 0 || startIndex % points.length === 0) {
+      return points;
+    }
+
+    const rotated: Vec2[] = [];
+    for (let i = 0; i < points.length; i++) {
+      rotated.push(points[(startIndex + i) % points.length]);
+    }
+    return rotated;
+  }
+
+  private angleBetween(a: Vec2, b: Vec2): number {
+    const dot = a.x * b.x + a.z * b.z;
+    const det = a.x * b.z - a.z * b.x;
+    return Math.abs(Math.atan2(det, dot));
+  }
+
+  private distance(a: Vec2, b: Vec2): number {
+    return Math.hypot(a.x - b.x, a.z - b.z);
+  }
+
+  private normalizeVector(vec: Vec2): Vec2 {
+    const length = Math.hypot(vec.x, vec.z);
+    if (length === 0) {
+      return { x: 0, z: 0 };
+    }
+    return { x: vec.x / length, z: vec.z / length };
+  }
+
+  private isNonZeroVector(vec: Vec2): boolean {
+    return Number.isFinite(vec.x) && Number.isFinite(vec.z) && Math.abs(vec.x) + Math.abs(vec.z) > 0;
   }
 
   private areNeighbors(a: GridCell, b: GridCell): boolean {
