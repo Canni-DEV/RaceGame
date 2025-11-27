@@ -23,7 +23,7 @@ const STEER_RESPONSE = Math.PI / 3; // radians for full steer input
 const MISTAKE_STEER_BIAS = Math.PI / 12;
 const MISTAKE_TRIGGER_CHANCE = 0.35;
 const MISTAKE_DURATION_RANGE: [number, number] = [0.35, 0.95];
-const MISTAKE_COOLDOWN_RANGE: [number, number] = [2.5, 5.5];
+const MISTAKE_COOLDOWN_RANGE: [number, number] = [1.5, 5.5];
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));

@@ -41,6 +41,12 @@ export const MISSILE_MIN_SPEED = clamp(Number(process.env.MISSILE_MIN_SPEED ?? 1
 export const MISSILE_ACQUISITION_RADIUS = clamp(Number(process.env.MISSILE_ACQUISITION_RADIUS ?? 25), 1, 250);
 export const MISSILE_HIT_RADIUS = clamp(Number(process.env.MISSILE_HIT_RADIUS ?? 4), 0.1, 50);
 export const MISSILE_MAX_RANGE_FACTOR = clamp(Number(process.env.MISSILE_MAX_RANGE_FACTOR ?? 0.5), 0.05, 2);
+export const MISSILE_IMPACT_SPIN_TURNS = clamp(Number(process.env.MISSILE_IMPACT_SPIN_TURNS ?? 3), 0, 50);
+export const MISSILE_IMPACT_SPIN_DURATION = clamp(
+  Number(process.env.MISSILE_IMPACT_SPIN_DURATION ?? 1.5),
+  0.1,
+  30,
+);
 
 export const DEFAULT_ROOM_PREFIX = "room";
 

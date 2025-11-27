@@ -8,6 +8,8 @@ import {
 import {
   MISSILE_ACQUISITION_RADIUS,
   MISSILE_HIT_RADIUS,
+  MISSILE_IMPACT_SPIN_DURATION,
+  MISSILE_IMPACT_SPIN_TURNS,
   MISSILE_MAX_CHARGES,
   MISSILE_MAX_RANGE_FACTOR,
   MISSILE_MIN_SPEED,
@@ -68,6 +70,11 @@ function normalizeAngle(angle: number): number {
   return ((angle + Math.PI) % tau + tau) % tau - Math.PI;
 }
 
+interface SpinState {
+  timeLeft: number;
+  angularVelocity: number;
+}
+
 export class Room {
   public serverTime = 0;
   public cars: Map<string, CarState> = new Map();
@@ -87,11 +94,13 @@ export class Room {
   private readonly trackGeometry: TrackGeometry;
   private readonly trackNavigator: TrackNavigator;
   private missileSequence = 0;
+  private readonly spinStates: Map<string, SpinState> = new Map();
 
   constructor(public readonly roomId: string, public readonly track: TrackData) {
     this.trackGeometry = new TrackGeometry(track);
     this.trackNavigator = new TrackNavigator(track.centerline);
-    this.initializeNpc();
+    this.initializeNpc("Garburator",0,1,0);
+    this.initializeNpc("Petrucci",0,-1,0.5);
   }
 
   addViewer(socketId: string, playerId: string): void {
@@ -262,6 +271,7 @@ export class Room {
     car.z = spawn.position.z;
     car.angle = spawn.angle;
     car.speed = 0;
+    this.spinStates.delete(playerId);
 
     this.latestInputs.set(playerId, { steer: 0, throttle: 0, brake: 0 });
   }
@@ -420,6 +430,7 @@ export class Room {
         const distance = Math.hypot(dx, dz);
 
         if (distance <= MISSILE_HIT_RADIUS) {
+          this.applyMissileImpact(activeTarget);
           removals.push(missile.id);
           continue;
         }
@@ -516,6 +527,41 @@ export class Room {
     return closestId;
   }
 
+  private applyMissileImpact(car: CarState): void {
+    car.speed = 0;
+    const angularVelocity = (MISSILE_IMPACT_SPIN_TURNS * Math.PI * 2) / Math.max(0.01, MISSILE_IMPACT_SPIN_DURATION);
+    this.spinStates.set(car.playerId, {
+      timeLeft: MISSILE_IMPACT_SPIN_DURATION,
+      angularVelocity
+    });
+  }
+
+  private updateSpinEffects(dt: number): void {
+    if (this.spinStates.size === 0) {
+      return;
+    }
+
+    const removals: string[] = [];
+    for (const [playerId, spin] of this.spinStates.entries()) {
+      const car = this.cars.get(playerId);
+      if (!car) {
+        removals.push(playerId);
+        continue;
+      }
+
+      car.speed = 0;
+      car.angle = normalizeAngle(car.angle + spin.angularVelocity * dt);
+      spin.timeLeft -= dt;
+      if (spin.timeLeft <= 0) {
+        removals.push(playerId);
+      }
+    }
+
+    for (const id of removals) {
+      this.spinStates.delete(id);
+    }
+  }
+
   private updateCarMissileTelemetry(
     playerId: string,
     car?: CarState,
@@ -577,6 +623,7 @@ export class Room {
     updateNpcControllers(this, this.npcStates, dt);
     updateCarsForRoom(this, dt);
     this.updateMissiles(dt);
+    this.updateSpinEffects(dt);
     this.serverTime += dt;
   }
 
@@ -617,12 +664,12 @@ export class Room {
     return this.trackGeometry.isPointOnTrack(position);
   }
 
-  private initializeNpc(): void {
+  private initializeNpc(name:string, mistakeCooldown:number,mistakeDirection:number, mistakeDuration:number): void {
     if (this.track.centerline.length < 2) {
       return;
     }
 
-    const npcId = "Garburator";
+    const npcId = name;
     const spawnPoint = this.track.centerline[0];
     const nextPoint = this.track.centerline[1 % this.track.centerline.length];
     const angle = Math.atan2(nextPoint.z - spawnPoint.z, nextPoint.x - spawnPoint.x);
@@ -641,9 +688,9 @@ export class Room {
     this.npcIds.add(npcId);
     this.npcStates.set(npcId, {
       targetIndex: 1 % this.track.centerline.length,
-      mistakeCooldown: 0,
-      mistakeDuration: 0,
-      mistakeDirection: 1
+      mistakeCooldown: mistakeCooldown,
+      mistakeDuration: mistakeDuration,
+      mistakeDirection: mistakeDirection
     });
   }
 }
