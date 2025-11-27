@@ -22,7 +22,7 @@ import {
 import { updateCarsForRoom } from "./Physics";
 import { NpcControllerState, updateNpcControllers } from "./NpcController";
 import { TrackGeometry } from "./TrackGeometry";
-import { ProjectedProgress, TrackNavigator } from "./TrackNavigator";
+import { TrackNavigator } from "./TrackNavigator";
 
 export interface PlayerInput {
   steer: number;
@@ -49,6 +49,7 @@ interface MissileChargeState {
 interface MissileRuntime extends MissileState {
   progress: { segmentIndex: number; distanceAlongSegment: number };
   distanceTravelled: number;
+  onTrack: boolean;
 }
 
 interface SpawnPoint {
@@ -60,6 +61,11 @@ export interface MovementMultipliers {
   accelerationMultiplier: number;
   maxSpeedMultiplier: number;
   turboActive: boolean;
+}
+
+function normalizeAngle(angle: number): number {
+  const tau = Math.PI * 2;
+  return ((angle + Math.PI) % tau + tau) % tau - Math.PI;
 }
 
 export class Room {
@@ -363,7 +369,6 @@ export class Room {
     }
 
     const progress = this.trackNavigator.project(car);
-    const targetId = this.findClosestTargetAhead(playerId, progress) ?? undefined;
     const missileId = `${playerId}-m${this.missileSequence++}`;
 
     charges.charges -= 1;
@@ -376,9 +381,10 @@ export class Room {
       z: car.z,
       angle: car.angle,
       speed: Math.max(MISSILE_MIN_SPEED, car.speed * MISSILE_SPEED_MULTIPLIER),
-      targetId,
+      targetId: undefined,
       progress: { segmentIndex: progress.segmentIndex, distanceAlongSegment: progress.distanceAlongSegment },
-      distanceTravelled: 0
+      distanceTravelled: 0,
+      onTrack: false
     };
 
     this.missiles.set(missileId, missile);
@@ -420,18 +426,56 @@ export class Room {
 
         const dirX = distance > 0 ? dx / distance : Math.cos(missile.angle);
         const dirZ = distance > 0 ? dz / distance : Math.sin(missile.angle);
-        missile.angle = Math.atan2(dirZ, dirX);
         missile.x += dirX * travel;
         missile.z += dirZ * travel;
+        const desiredAngle = Math.atan2(dirZ, dirX);
+        missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
       } else {
-        const progress = this.trackNavigator.advance(missile.progress, travel);
-        missile.progress = {
-          segmentIndex: progress.segmentIndex,
-          distanceAlongSegment: progress.distanceAlongSegment
-        };
-        missile.x = progress.position.x;
-        missile.z = progress.position.z;
-        missile.angle = Math.atan2(progress.direction.z, progress.direction.x);
+        let remaining = travel;
+
+        if (!missile.onTrack) {
+          const snap = this.trackNavigator.project({ x: missile.x, z: missile.z });
+          const dx = snap.position.x - missile.x;
+          const dz = snap.position.z - missile.z;
+          const distanceToTrack = Math.hypot(dx, dz);
+
+          if (distanceToTrack > 0) {
+            if (distanceToTrack >= remaining) {
+              const dirX = dx / distanceToTrack;
+              const dirZ = dz / distanceToTrack;
+              missile.x += dirX * remaining;
+              missile.z += dirZ * remaining;
+              const desiredAngle = Math.atan2(dirZ, dirX);
+              missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+              remaining = 0;
+            } else {
+              missile.x = snap.position.x;
+              missile.z = snap.position.z;
+              missile.progress = {
+                segmentIndex: snap.segmentIndex,
+                distanceAlongSegment: snap.distanceAlongSegment
+              };
+              missile.onTrack = true;
+              const desiredAngle = Math.atan2(snap.direction.z, snap.direction.x);
+              missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+              remaining -= distanceToTrack;
+            }
+          } else {
+            missile.onTrack = true;
+          }
+        }
+
+        if (remaining > 0) {
+          const progress = this.trackNavigator.advance(missile.progress, remaining);
+          missile.progress = {
+            segmentIndex: progress.segmentIndex,
+            distanceAlongSegment: progress.distanceAlongSegment
+          };
+          missile.x = progress.position.x;
+          missile.z = progress.position.z;
+          const desiredAngle = Math.atan2(progress.direction.z, progress.direction.x);
+          missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+        }
       }
 
       missile.distanceTravelled += travel;
@@ -449,6 +493,8 @@ export class Room {
   private findNearbyTarget(missile: MissileRuntime, acquisitionRadiusSq: number): string | null {
     let closestId: string | null = null;
     let closestDistance = acquisitionRadiusSq;
+    const forwardX = Math.cos(missile.angle);
+    const forwardZ = Math.sin(missile.angle);
 
     for (const [playerId, car] of this.cars.entries()) {
       if (playerId === missile.ownerId) {
@@ -456,35 +502,15 @@ export class Room {
       }
       const dx = car.x - missile.x;
       const dz = car.z - missile.z;
+      const forwardDot = dx * forwardX + dz * forwardZ;
+      if (forwardDot <= 0) {
+        continue;
+      }
       const distanceSq = dx * dx + dz * dz;
       if (distanceSq <= closestDistance) {
         closestDistance = distanceSq;
         closestId = playerId;
       }
-    }
-
-    return closestId;
-  }
-
-  private findClosestTargetAhead(playerId: string, shooterProgress: ProjectedProgress): string | null {
-    if (this.trackNavigator.getTotalLength() === 0) {
-      return null;
-    }
-
-    let closestId: string | null = null;
-    let smallestDistance = Number.POSITIVE_INFINITY;
-
-    for (const [candidateId, car] of this.cars.entries()) {
-      if (candidateId === playerId) {
-        continue;
-      }
-      const targetProgress = this.trackNavigator.project(car);
-      const forwardDistance = this.trackNavigator.distanceAhead(shooterProgress, targetProgress);
-      if (forwardDistance <= 0 || forwardDistance >= smallestDistance) {
-        continue;
-      }
-      closestId = candidateId;
-      smallestDistance = forwardDistance;
     }
 
     return closestId;

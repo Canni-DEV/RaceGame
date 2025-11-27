@@ -46,12 +46,15 @@ export class MissileEntity {
 
   setTargetState(state: MissileState): void {
     this.targetPosition.set(state.x, HEIGHT_OFFSET, state.z)
+    const forwardX = Math.cos(state.angle)
+    const forwardZ = Math.sin(state.angle)
+    const yaw = Math.atan2(forwardX, forwardZ)
     if (!this.hasReceivedState) {
       this.currentPosition.copy(this.targetPosition)
-      this.orientation.setFromEuler(new THREE.Euler(0, state.angle, 0))
+      this.orientation.setFromEuler(new THREE.Euler(0, yaw, 0))
       this.hasReceivedState = true
     }
-    this.targetOrientation.setFromEuler(new THREE.Euler(0, state.angle, 0))
+    this.targetOrientation.setFromEuler(new THREE.Euler(0, yaw, 0))
   }
 
   update(dt: number): void {

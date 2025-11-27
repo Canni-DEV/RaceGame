@@ -35,10 +35,10 @@ export const OFF_TRACK_SPEED_PENALTY = clamp(
 );
 export const OFF_TRACK_SPEED_MULTIPLIER = 1 - OFF_TRACK_SPEED_PENALTY;
 export const MISSILE_MAX_CHARGES = clamp(Number(process.env.MISSILE_MAX_CHARGES ?? 3), 0, 99);
-export const MISSILE_RECHARGE_SECONDS = clamp(Number(process.env.MISSILE_RECHARGE_SECONDS ?? 60), 1, 3600);
-export const MISSILE_SPEED_MULTIPLIER = clamp(Number(process.env.MISSILE_SPEED_MULTIPLIER ?? 2), 0.1, 20);
-export const MISSILE_MIN_SPEED = clamp(Number(process.env.MISSILE_MIN_SPEED ?? 20), 0, 500);
-export const MISSILE_ACQUISITION_RADIUS = clamp(Number(process.env.MISSILE_ACQUISITION_RADIUS ?? 15), 1, 250);
+export const MISSILE_RECHARGE_SECONDS = clamp(Number(process.env.MISSILE_RECHARGE_SECONDS ?? 30), 1, 3600);
+export const MISSILE_SPEED_MULTIPLIER = clamp(Number(process.env.MISSILE_SPEED_MULTIPLIER ?? 3), 0.1, 20);
+export const MISSILE_MIN_SPEED = clamp(Number(process.env.MISSILE_MIN_SPEED ?? 120), 0, 500);
+export const MISSILE_ACQUISITION_RADIUS = clamp(Number(process.env.MISSILE_ACQUISITION_RADIUS ?? 25), 1, 250);
 export const MISSILE_HIT_RADIUS = clamp(Number(process.env.MISSILE_HIT_RADIUS ?? 4), 0.1, 50);
 export const MISSILE_MAX_RANGE_FACTOR = clamp(Number(process.env.MISSILE_MAX_RANGE_FACTOR ?? 0.5), 0.05, 2);
 
