@@ -119,6 +119,17 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
+.player-list-overlay__item.is-selectable {
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.player-list-overlay__item.is-selectable:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.14);
+  transform: translateY(-1px);
+}
+
 .player-list-overlay__color {
   width: 12px;
   height: 12px;

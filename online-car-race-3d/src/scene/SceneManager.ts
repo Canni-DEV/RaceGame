@@ -76,6 +76,7 @@ export class SceneManager {
     this.playerListOverlay = new PlayerListOverlay(
       this.container,
       this.gameStateStore,
+      { onSelectPlayer: this.handleSelectPlayer },
     )
     this.raceHud = new RaceHud(this.container, this.gameStateStore)
     new HotkeyOverlay(this.container)
@@ -218,6 +219,10 @@ export class SceneManager {
       event.preventDefault()
       event.stopPropagation()
     }
+  }
+
+  private readonly handleSelectPlayer = (playerId: string): void => {
+    this.trackScene.setFollowTarget(playerId)
   }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
