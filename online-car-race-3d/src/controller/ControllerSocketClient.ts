@@ -1,5 +1,5 @@
 import { SocketClient } from '../net/SocketClient'
-import type { RoomInfoMessage } from '../net/messages'
+import type { RoomInfoMessage, StateMessage } from '../net/messages'
 import type { ControllerInput } from './ControllerInputStore'
 
 type ControllerSocketOptions = {
@@ -49,6 +49,10 @@ export class ControllerSocketClient {
 
   onConnect(callback: ConnectCallback): () => void {
     return this.client.onConnect(callback)
+  }
+
+  onState(callback: (state: StateMessage) => void): () => void {
+    return this.client.onState(callback)
   }
 
   sendInput(input: ControllerInput): void {

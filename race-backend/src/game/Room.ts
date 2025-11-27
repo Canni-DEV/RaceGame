@@ -1,6 +1,9 @@
 import {
   CarState,
+  LeaderboardEntry,
   MissileState,
+  RacePhase,
+  RaceState,
   RoomState,
   TrackData,
   Vec2
@@ -19,12 +22,23 @@ import {
   TURBO_DURATION,
   TURBO_MAX_CHARGES,
   TURBO_MAX_SPEED_MULTIPLIER,
-  TURBO_RECHARGE_SECONDS
+  TURBO_RECHARGE_SECONDS,
+  RACE_BACKTRACK_TOLERANCE,
+  RACE_COUNTDOWN_SECONDS,
+  RACE_FINISH_TIMEOUT,
+  RACE_GRID_SPACING,
+  RACE_LAPS,
+  RACE_LATERAL_SPACING,
+  RACE_MIN_FORWARD_ADVANCE,
+  RACE_POST_DURATION,
+  RACE_SHORTCUT_MAX_RATIO,
+  RACE_SHORTCUT_MIN_DISTANCE,
+  RACE_START_SEGMENT_INDEX
 } from "../config";
 import { updateCarsForRoom } from "./Physics";
 import { NpcControllerState, updateNpcControllers } from "./NpcController";
 import { TrackGeometry } from "./TrackGeometry";
-import { TrackNavigator } from "./TrackNavigator";
+import { ProjectedProgress, TrackNavigator } from "./TrackNavigator";
 
 export interface PlayerInput {
   steer: number;
@@ -65,6 +79,20 @@ export interface MovementMultipliers {
   turboActive: boolean;
 }
 
+interface PlayerRaceProgress {
+  playerId: string;
+  lap: number;
+  totalDistance: number;
+  progress: ProjectedProgress;
+  lastWorldPosition: Vec2;
+  ready: boolean;
+  isFinished: boolean;
+  isNpc: boolean;
+  finishTime?: number;
+}
+
+const NEUTRAL_INPUT: PlayerInput = { steer: 0, throttle: 0, brake: 0 };
+
 function normalizeAngle(angle: number): number {
   const tau = Math.PI * 2;
   return ((angle + Math.PI) % tau + tau) % tau - Math.PI;
@@ -93,12 +121,30 @@ export class Room {
   private npcStates: Map<string, NpcControllerState> = new Map();
   private readonly trackGeometry: TrackGeometry;
   private readonly trackNavigator: TrackNavigator;
+  private readonly trackLength: number;
+  private readonly startDistance: number;
+  private raceProgress: Map<string, PlayerRaceProgress> = new Map();
+  private raceParticipants: Set<string> = new Set();
+  private racePhase: RacePhase = "lobby";
+  private countdownRemaining = 0;
+  private countdownTotal = 0;
+  private finishTimeoutRemaining = 0;
+  private postRaceRemaining = 0;
+  private raceStartTime: number | null = null;
+  private firstFinishTime: number | null = null;
+  private readonly lapsRequired = RACE_LAPS;
+  private readonly startSegmentIndex = Math.max(0, Math.floor(RACE_START_SEGMENT_INDEX));
   private missileSequence = 0;
   private readonly spinStates: Map<string, SpinState> = new Map();
 
   constructor(public readonly roomId: string, public readonly track: TrackData) {
     this.trackGeometry = new TrackGeometry(track);
     this.trackNavigator = new TrackNavigator(track.centerline);
+    this.trackLength = this.trackNavigator.getTotalLength();
+    this.startDistance = track.centerline.length > 0
+      ? this.trackNavigator.project(track.centerline[this.startSegmentIndex % track.centerline.length]).distanceAlongTrack
+      : 0;
+    this.countdownTotal = RACE_COUNTDOWN_SECONDS;
     this.initializeNpc("Garburator",0,1,0);
     this.initializeNpc("Petrucci",0,-1,0.5);
   }
@@ -162,6 +208,7 @@ export class Room {
     this.updateCarTurboTelemetry(playerId, car);
     this.missileCharges.set(playerId, { charges: MISSILE_MAX_CHARGES, rechargeProgress: 0 });
     this.updateCarMissileTelemetry(playerId, car);
+    this.ensureRaceProgress(playerId, car);
     return car;
   }
 
@@ -182,6 +229,8 @@ export class Room {
     this.spawnPoints.delete(playerId);
     this.turboStates.delete(playerId);
     this.missileCharges.delete(playerId);
+    this.raceProgress.delete(playerId);
+    this.raceParticipants.delete(playerId);
     this.removeMissilesForPlayer(playerId);
     const controllerSocket = this.playerToController.get(playerId);
     if (controllerSocket) {
@@ -216,16 +265,33 @@ export class Room {
     if (!this.cars.has(playerId)) {
       return;
     }
-    this.latestInputs.set(playerId, {
-      steer: input.steer,
-      throttle: input.throttle,
-      brake: input.brake
-    });
-    this.handleActions(playerId, input.actions);
+    const isHuman = !this.npcIds.has(playerId);
+    const readyCombo = Boolean(input.actions?.turbo && input.actions?.shoot);
+    if (isHuman && readyCombo && this.racePhase === "lobby") {
+      this.toggleReady(playerId);
+      return;
+    }
+
+    const effectiveInput = this.isControlLocked(playerId)
+      ? NEUTRAL_INPUT
+      : {
+          steer: input.steer,
+          throttle: input.throttle,
+          brake: input.brake
+        };
+
+    this.latestInputs.set(playerId, effectiveInput);
+    if (!this.isControlLocked(playerId)) {
+      this.handleActions(playerId, input.actions);
+    }
   }
 
   setNpcInput(playerId: string, input: PlayerInput): void {
     if (!this.npcIds.has(playerId)) {
+      return;
+    }
+    if (this.isControlLocked(playerId)) {
+      this.latestInputs.set(playerId, NEUTRAL_INPUT);
       return;
     }
     this.latestInputs.set(playerId, {
@@ -236,6 +302,14 @@ export class Room {
   }
 
   getMovementMultipliers(playerId: string): MovementMultipliers {
+    if (this.isControlLocked(playerId)) {
+      return {
+        accelerationMultiplier: 0,
+        maxSpeedMultiplier: 0,
+        turboActive: false
+      };
+    }
+
     const turbo = this.ensureTurboState(playerId);
     const turboActive = turbo.activeTime > 0;
     return {
@@ -258,6 +332,19 @@ export class Room {
     if (actions.shoot) {
       this.fireMissile(playerId);
     }
+  }
+
+  private isControlLocked(playerId: string): boolean {
+    if (this.racePhase === "countdown" || this.racePhase === "postrace") {
+      return true;
+    }
+    if (this.racePhase === "race") {
+      const progress = this.raceProgress.get(playerId);
+      if (progress?.isFinished) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private resetCar(playerId: string): void {
@@ -618,13 +705,333 @@ export class Room {
   }
 
   update(dt: number): void {
+    this.advanceCountdown(dt);
     this.updateTurboStates(dt);
     this.updateMissileCharges(dt);
     updateNpcControllers(this, this.npcStates, dt);
+    this.applyLockedInputs();
     updateCarsForRoom(this, dt);
     this.updateMissiles(dt);
     this.updateSpinEffects(dt);
+    this.updateRaceProgress();
+    this.updateRaceEndTimers(dt);
     this.serverTime += dt;
+  }
+
+  private advanceCountdown(dt: number): void {
+    if (this.racePhase === "countdown") {
+      this.countdownRemaining = Math.max(0, this.countdownRemaining - dt);
+      if (this.countdownRemaining <= 0) {
+        this.startRace();
+      }
+      return;
+    }
+
+    if (this.racePhase === "postrace") {
+      this.postRaceRemaining = Math.max(0, this.postRaceRemaining - dt);
+      if (this.postRaceRemaining <= 0) {
+        this.resetToLobby();
+      }
+    }
+  }
+
+  private applyLockedInputs(): void {
+    if (this.racePhase === "lobby") {
+      return;
+    }
+    for (const playerId of this.cars.keys()) {
+      if (this.isControlLocked(playerId)) {
+        this.latestInputs.set(playerId, NEUTRAL_INPUT);
+      }
+    }
+  }
+
+  private updateRaceProgress(): void {
+    if (this.trackLength <= 0) {
+      return;
+    }
+
+    for (const [playerId, car] of this.cars.entries()) {
+      const progress = this.ensureRaceProgress(playerId, car);
+      const projection = this.trackNavigator.project({ x: car.x, z: car.z });
+      const previousDistance = this.normalizeDistance(progress.progress.distanceAlongTrack);
+      const currentDistance = this.normalizeDistance(projection.distanceAlongTrack);
+      const delta = this.computeSignedDelta(previousDistance, currentDistance);
+      const worldDistance = Math.hypot(car.x - progress.lastWorldPosition.x, car.z - progress.lastWorldPosition.z);
+
+      if (!this.shouldAcceptAdvance(delta, worldDistance)) {
+        continue;
+      }
+
+      const clampedDelta = delta >= 0 ? delta : Math.max(delta, -RACE_BACKTRACK_TOLERANCE);
+      progress.totalDistance = Math.max(0, progress.totalDistance + clampedDelta);
+      const lapsCompleted = Math.floor(progress.totalDistance / this.trackLength);
+      progress.lap = Math.max(progress.lap, lapsCompleted);
+      progress.progress = projection;
+      progress.lastWorldPosition = { x: car.x, z: car.z };
+
+      if (this.racePhase === "race" && !progress.isFinished && progress.lap >= this.lapsRequired) {
+        progress.isFinished = true;
+        progress.finishTime = this.serverTime - (this.raceStartTime ?? 0);
+        if (this.firstFinishTime === null) {
+          this.firstFinishTime = this.serverTime;
+          this.finishTimeoutRemaining = RACE_FINISH_TIMEOUT;
+        }
+      }
+    }
+  }
+
+  private updateRaceEndTimers(dt: number): void {
+    if (this.racePhase !== "race") {
+      return;
+    }
+
+    if (this.firstFinishTime !== null && this.finishTimeoutRemaining > 0) {
+      this.finishTimeoutRemaining = Math.max(0, this.finishTimeoutRemaining - dt);
+    }
+
+    if (this.shouldEndRace()) {
+      this.enterPostRace();
+      return;
+    }
+  }
+
+  private beginCountdown(): void {
+    if (this.track.centerline.length < 2) {
+      return;
+    }
+    this.racePhase = "countdown";
+    this.countdownTotal = RACE_COUNTDOWN_SECONDS;
+    this.countdownRemaining = this.countdownTotal;
+    this.raceStartTime = null;
+    this.firstFinishTime = null;
+    this.finishTimeoutRemaining = 0;
+    this.postRaceRemaining = 0;
+    this.raceParticipants = new Set(this.cars.keys());
+    this.placeCarsOnGrid();
+  }
+
+  private startRace(): void {
+    this.racePhase = "race";
+    this.countdownRemaining = 0;
+    this.raceStartTime = this.serverTime;
+    this.firstFinishTime = null;
+    this.finishTimeoutRemaining = 0;
+  }
+
+  private enterPostRace(): void {
+    this.racePhase = "postrace";
+    this.postRaceRemaining = RACE_POST_DURATION;
+    this.finishTimeoutRemaining = 0;
+    this.countdownRemaining = 0;
+  }
+
+  private resetToLobby(): void {
+    this.racePhase = "lobby";
+    this.postRaceRemaining = 0;
+    this.finishTimeoutRemaining = 0;
+    this.countdownRemaining = 0;
+    this.raceStartTime = null;
+    this.firstFinishTime = null;
+    this.raceParticipants.clear();
+    for (const progress of this.raceProgress.values()) {
+      progress.ready = progress.isNpc;
+      progress.isFinished = false;
+      progress.finishTime = undefined;
+      progress.lap = 0;
+      progress.totalDistance = 0;
+    }
+  }
+
+  private shouldEndRace(): boolean {
+    if (this.raceParticipants.size === 0) {
+      return true;
+    }
+    if (this.allParticipantsFinished()) {
+      return true;
+    }
+    if (this.firstFinishTime !== null && this.finishTimeoutRemaining <= 0) {
+      return true;
+    }
+    return false;
+  }
+
+  private allParticipantsFinished(): boolean {
+    if (this.raceParticipants.size === 0) {
+      return false;
+    }
+    for (const playerId of this.raceParticipants) {
+      const progress = this.raceProgress.get(playerId);
+      if (!progress?.isFinished) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private placeCarsOnGrid(): void {
+    if (this.track.centerline.length < 2) {
+      return;
+    }
+
+    const startPoint = this.track.centerline[this.startSegmentIndex % this.track.centerline.length];
+    const nextPoint = this.track.centerline[(this.startSegmentIndex + 1) % this.track.centerline.length];
+    const dirX = nextPoint.x - startPoint.x;
+    const dirZ = nextPoint.z - startPoint.z;
+    const length = Math.max(0.001, Math.hypot(dirX, dirZ));
+    const forward = { x: dirX / length, z: dirZ / length };
+    const right = { x: -forward.z, z: forward.x };
+    const sortedCars = Array.from(this.cars.values()).sort((a, b) => {
+      const aNpc = a.isNpc ? 1 : 0;
+      const bNpc = b.isNpc ? 1 : 0;
+      return aNpc - bNpc;
+    });
+
+    const lateralSpacing = Math.min(RACE_LATERAL_SPACING, this.track.width * 0.8);
+
+    sortedCars.forEach((car, index) => {
+      const row = Math.floor(index / 2);
+      const side = index % 2 === 0 ? -1 : 1;
+      const forwardOffset = -row * RACE_GRID_SPACING;
+      const lateralOffset = side * lateralSpacing * 0.5;
+      const position = {
+        x: startPoint.x + forward.x * forwardOffset + right.x * lateralOffset,
+        z: startPoint.z + forward.z * forwardOffset + right.z * lateralOffset
+      };
+      const angle = Math.atan2(forward.z, forward.x);
+
+      car.x = position.x;
+      car.z = position.z;
+      car.angle = angle;
+      car.speed = 0;
+
+      this.spawnPoints.set(car.playerId, { position: { ...position }, angle });
+      this.latestInputs.set(car.playerId, NEUTRAL_INPUT);
+      const progress = this.ensureRaceProgress(car.playerId, car);
+      progress.lap = 0;
+      progress.totalDistance = 0;
+      progress.progress = this.trackNavigator.project(position);
+      progress.lastWorldPosition = { ...position };
+      progress.isFinished = false;
+      progress.finishTime = undefined;
+    });
+
+    this.spinStates.clear();
+    this.missiles.clear();
+    this.resetPowerups();
+  }
+
+  private resetPowerups(): void {
+    for (const [playerId, car] of this.cars.entries()) {
+      const turbo = this.ensureTurboState(playerId);
+      turbo.charges = this.npcIds.has(playerId) ? 0 : TURBO_MAX_CHARGES;
+      turbo.activeTime = 0;
+      turbo.rechargeProgress = 0;
+      this.updateCarTurboTelemetry(playerId, car, turbo);
+
+      const missiles = this.ensureMissileChargeState(playerId);
+      missiles.charges = this.npcIds.has(playerId) ? 0 : MISSILE_MAX_CHARGES;
+      missiles.rechargeProgress = 0;
+      this.updateCarMissileTelemetry(playerId, car, missiles);
+    }
+  }
+
+  private toggleReady(playerId: string): void {
+    const car = this.cars.get(playerId);
+    if (!car || this.npcIds.has(playerId)) {
+      return;
+    }
+    const progress = this.ensureRaceProgress(playerId, car);
+    progress.ready = !progress.ready;
+
+    if (this.racePhase === "lobby" && this.areAllHumansReady()) {
+      this.beginCountdown();
+    }
+  }
+
+  private areAllHumansReady(): boolean {
+    let humanCount = 0;
+    for (const [playerId, car] of this.cars.entries()) {
+      if (this.npcIds.has(playerId)) {
+        continue;
+      }
+      humanCount += 1;
+      const progress = this.ensureRaceProgress(playerId, car);
+      if (!progress.ready) {
+        return false;
+      }
+    }
+    return humanCount > 0;
+  }
+
+  private ensureRaceProgress(playerId: string, car?: CarState): PlayerRaceProgress {
+    let progress = this.raceProgress.get(playerId);
+    if (!progress) {
+      const reference = car ?? this.cars.get(playerId);
+      const projection = reference
+        ? this.trackNavigator.project({ x: reference.x, z: reference.z })
+        : this.trackNavigator.project({ x: 0, z: 0 });
+      progress = {
+        playerId,
+        lap: 0,
+        totalDistance: this.normalizeDistance(projection.distanceAlongTrack),
+        progress: projection,
+        lastWorldPosition: reference ? { x: reference.x, z: reference.z } : { x: 0, z: 0 },
+        ready: this.npcIds.has(playerId),
+        isFinished: false,
+        isNpc: this.npcIds.has(playerId)
+      };
+      this.raceProgress.set(playerId, progress);
+    } else {
+      progress.isNpc = this.npcIds.has(playerId);
+      if (progress.isNpc) {
+        progress.ready = true;
+      }
+    }
+    return progress;
+  }
+
+  private normalizeDistance(distance: number): number {
+    if (this.trackLength <= 0) {
+      return 0;
+    }
+    const wrapped = (distance - this.startDistance) % this.trackLength;
+    return wrapped < 0 ? wrapped + this.trackLength : wrapped;
+  }
+
+  private computeSignedDelta(previous: number, next: number): number {
+    if (this.trackLength <= 0) {
+      return 0;
+    }
+    let delta = next - previous;
+    const half = this.trackLength * 0.5;
+    if (delta > half) {
+      delta -= this.trackLength;
+    } else if (delta < -half) {
+      delta += this.trackLength;
+    }
+    return delta;
+  }
+
+  private shouldAcceptAdvance(delta: number, worldDistance: number): boolean {
+    if (Math.abs(delta) < RACE_MIN_FORWARD_ADVANCE) {
+      return true;
+    }
+
+    if (delta < 0) {
+      return Math.abs(delta) <= RACE_BACKTRACK_TOLERANCE * 2;
+    }
+
+    if (worldDistance < 0.001) {
+      return delta <= RACE_MIN_FORWARD_ADVANCE;
+    }
+
+    const allowedAdvance = worldDistance * RACE_SHORTCUT_MAX_RATIO + RACE_MIN_FORWARD_ADVANCE;
+    if (delta > allowedAdvance && delta > RACE_SHORTCUT_MIN_DISTANCE) {
+      return false;
+    }
+
+    return true;
   }
 
   getPlayers(): { playerId: string; isNpc: boolean }[] {
@@ -632,6 +1039,63 @@ export class Room {
       playerId,
       isNpc: this.npcIds.has(playerId)
     }));
+  }
+
+  private toRaceState(): RaceState {
+    const lapLength = this.trackLength || 1;
+    const entries = Array.from(this.raceProgress.values()).filter((entry) => this.cars.has(entry.playerId));
+    entries.sort((a, b) => {
+      if (a.totalDistance !== b.totalDistance) {
+        return b.totalDistance - a.totalDistance;
+      }
+      if (a.finishTime !== undefined && b.finishTime !== undefined) {
+        return a.finishTime - b.finishTime;
+      }
+      if (a.finishTime !== undefined) {
+        return -1;
+      }
+      if (b.finishTime !== undefined) {
+        return 1;
+      }
+      return a.playerId.localeCompare(b.playerId);
+    });
+
+    const firstTotal = entries[0]?.totalDistance ?? 0;
+
+    const leaderboard: LeaderboardEntry[] = entries.map((entry, index) => ({
+      playerId: entry.playerId,
+      position: index + 1,
+      lap: entry.lap,
+      totalDistance: entry.totalDistance,
+      gapToFirst: index === 0 ? null : Math.max(0, firstTotal - entry.totalDistance),
+      isFinished: entry.isFinished,
+      isNpc: entry.isNpc,
+      ready: entry.ready,
+      finishTime: entry.finishTime
+    }));
+
+    return {
+      phase: this.racePhase,
+      lapsRequired: this.lapsRequired,
+      countdownRemaining: this.racePhase === "countdown" ? this.countdownRemaining : null,
+      countdownTotal: this.racePhase === "countdown" ? this.countdownTotal : null,
+      finishTimeoutRemaining: this.firstFinishTime !== null && this.racePhase === "race"
+        ? this.finishTimeoutRemaining
+        : null,
+      postRaceRemaining: this.racePhase === "postrace" ? this.postRaceRemaining : null,
+      startSegmentIndex: this.startSegmentIndex,
+      leaderboard,
+      players: entries.map((entry) => ({
+        playerId: entry.playerId,
+        lap: entry.lap,
+        progressOnLap: lapLength > 0 ? entry.totalDistance % lapLength : 0,
+        totalDistance: entry.totalDistance,
+        ready: entry.ready,
+        isFinished: entry.isFinished,
+        isNpc: entry.isNpc,
+        finishTime: entry.finishTime
+      }))
+    };
   }
 
   toRoomState(): RoomState {
@@ -648,7 +1112,8 @@ export class Room {
         angle: missile.angle,
         speed: missile.speed,
         targetId: missile.targetId
-      }))
+      })),
+      race: this.toRaceState()
     };
   }
 
@@ -692,5 +1157,6 @@ export class Room {
       mistakeDuration: mistakeDuration,
       mistakeDirection: mistakeDirection
     });
+    this.ensureRaceProgress(npcId, car);
   }
 }

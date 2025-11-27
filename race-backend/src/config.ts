@@ -4,6 +4,17 @@ export const PORT = 4000;
 export const TICK_RATE = 60; // ticks per second
 export const STATE_BROADCAST_RATE = 20; // snapshots per second
 export const MAX_PLAYERS_PER_ROOM = 8;
+export const RACE_COUNTDOWN_SECONDS = clamp(Number(process.env.RACE_COUNTDOWN_SECONDS ?? 5), 1, 120);
+export const RACE_LAPS = clamp(Number(process.env.RACE_LAPS ?? 3), 1, 99);
+export const RACE_START_SEGMENT_INDEX = clamp(Number(process.env.RACE_START_SEGMENT_INDEX ?? 0), 0, 100000);
+export const RACE_GRID_SPACING = clamp(Number(process.env.RACE_GRID_SPACING ?? 10), 2, 200);
+export const RACE_LATERAL_SPACING = clamp(Number(process.env.RACE_LATERAL_SPACING ?? 5), 1, 100);
+export const RACE_FINISH_TIMEOUT = clamp(Number(process.env.RACE_FINISH_TIMEOUT ?? 25), 5, 600);
+export const RACE_POST_DURATION = clamp(Number(process.env.RACE_POST_DURATION ?? 8), 2, 300);
+export const RACE_SHORTCUT_MAX_RATIO = clamp(Number(process.env.RACE_SHORTCUT_MAX_RATIO ?? 2.8), 1, 10);
+export const RACE_SHORTCUT_MIN_DISTANCE = clamp(Number(process.env.RACE_SHORTCUT_MIN_DISTANCE ?? 25), 0, 500);
+export const RACE_BACKTRACK_TOLERANCE = clamp(Number(process.env.RACE_BACKTRACK_TOLERANCE ?? 12), 0, 300);
+export const RACE_MIN_FORWARD_ADVANCE = clamp(Number(process.env.RACE_MIN_FORWARD_ADVANCE ?? 1), 0, 100);
 
 // Physics configuration
 export const MAX_SPEED = 65; // units per second

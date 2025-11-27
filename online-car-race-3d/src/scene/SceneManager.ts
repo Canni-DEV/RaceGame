@@ -7,6 +7,7 @@ import { ViewerControllerAccess } from './ViewerControllerAccess'
 import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
+import { RaceHud } from './RaceHud'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -75,6 +76,7 @@ export class SceneManager {
       this.container,
       this.gameStateStore,
     )
+    new RaceHud(this.container, this.gameStateStore)
     new HotkeyOverlay(this.container)
 
     this.socketClient = new SocketClient()

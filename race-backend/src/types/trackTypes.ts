@@ -59,6 +59,44 @@ export interface RoomState {
   serverTime: number;
   cars: CarState[];
   missiles: MissileState[];
+  race: RaceState;
 }
 
 export type PlayerRole = "viewer" | "controller";
+
+export type RacePhase = "lobby" | "countdown" | "race" | "postrace";
+
+export interface LeaderboardEntry {
+  playerId: string;
+  position: number;
+  lap: number;
+  totalDistance: number;
+  gapToFirst: number | null;
+  isFinished: boolean;
+  isNpc?: boolean;
+  ready: boolean;
+  finishTime?: number;
+}
+
+export interface RacePlayerState {
+  playerId: string;
+  lap: number;
+  progressOnLap: number;
+  totalDistance: number;
+  ready: boolean;
+  isFinished: boolean;
+  isNpc?: boolean;
+  finishTime?: number;
+}
+
+export interface RaceState {
+  phase: RacePhase;
+  lapsRequired: number;
+  countdownRemaining: number | null;
+  countdownTotal: number | null;
+  finishTimeoutRemaining: number | null;
+  postRaceRemaining: number | null;
+  startSegmentIndex: number;
+  leaderboard: LeaderboardEntry[];
+  players: RacePlayerState[];
+}

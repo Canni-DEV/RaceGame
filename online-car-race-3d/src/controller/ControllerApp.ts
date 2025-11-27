@@ -2,6 +2,7 @@ import './controller.css'
 import { ControllerInputStore } from './ControllerInputStore'
 import { ControllerSocketClient } from './ControllerSocketClient'
 import { OrientationManager } from './OrientationManager'
+import type { RaceState } from '../core/trackTypes'
 
 const INPUT_SEND_INTERVAL_MS = 100
 const SENSOR_PULSE_TIMEOUT_MS = 2000
@@ -38,6 +39,10 @@ export class ControllerApp {
   private steeringStatus!: HTMLElement
   private steeringHint!: HTMLElement
   private calibrateButton!: HTMLButtonElement
+  private raceStatus!: HTMLElement
+  private lastRaceState: RaceState | null = null
+  private raceInputBlocked = false
+  private readonly playerId: string
 
   private readonly inputStore = new ControllerInputStore()
   private readonly orientationManager = new OrientationManager()
@@ -109,11 +114,14 @@ export class ControllerApp {
     const params = new URLSearchParams(window.location.search)
     const roomId = params.get('roomId') ?? ''
     const playerId = params.get('playerId') ?? ''
+    this.playerId = playerId
     const serverUrl = params.get('serverUrl') ?? params.get('server') ?? undefined
     this.hasRoomParameters = Boolean(roomId && playerId)
 
     this.statusText = createElement('div', 'controller-status')
     steeringZone.appendChild(this.statusText)
+    this.raceStatus = createElement('div', 'controller-race-status')
+    steeringZone.appendChild(this.raceStatus)
 
     if (this.hasRoomParameters) {
       this.statusText.textContent = `Room ${roomId} · Player ${playerId}`
@@ -126,6 +134,10 @@ export class ControllerApp {
         this.errorMessage = null
         this.statusText.textContent = `Room ${info.roomId} · Player ${info.playerId}`
         this.updateOverlay()
+      })
+      this.socketClient.onState((state) => {
+        this.lastRaceState = state.race
+        this.updateRaceStatus()
       })
       this.socketClient.onConnect(() => {
         this.errorMessage = null
@@ -151,6 +163,7 @@ export class ControllerApp {
     this.orientationAngle = this.orientationManager.getOrientationAngle()
     this.isLandscape = this.orientationManager.isLandscape()
     this.updateSensorsState()
+    this.updateRaceStatus()
 
     for (const eventName of this.orientationEventNames) {
       window.addEventListener(
@@ -390,6 +403,49 @@ export class ControllerApp {
     }
     this.lastShootAt = now
     this.inputStore.triggerShoot()
+  }
+
+  private updateRaceStatus(): void {
+    if (!this.raceStatus) {
+      return
+    }
+
+    const race = this.lastRaceState
+    if (!race) {
+      this.raceStatus.textContent = 'Esperando estado de carrera'
+      this.raceInputBlocked = false
+      return
+    }
+
+    const humans = race.players.filter((p) => !p.isNpc)
+    const readyCount = humans.filter((p) => p.ready).length
+    const me =
+      race.leaderboard.find((entry) => entry.playerId === this.playerId) ??
+      race.players.find((entry) => entry.playerId === this.playerId)
+
+    let message = 'Lobby libre'
+    if (race.phase === 'lobby') {
+      message =
+        humans.length === 0
+          ? 'Lobby libre'
+          : `Lobby · Ready ${readyCount}/${humans.length}`
+      this.raceInputBlocked = false
+    } else if (race.phase === 'countdown') {
+      const time = race.countdownRemaining ?? 0
+      message = `Preparando salida · ${time.toFixed(1)}s`
+      this.raceInputBlocked = true
+    } else if (race.phase === 'race') {
+      const lapText = me ? `V${me.lap}/${race.lapsRequired}` : `Vueltas ${race.lapsRequired}`
+      const finished = Boolean(me?.isFinished)
+      message = finished ? 'Carrera finalizada' : `Carrera · ${lapText}`
+      this.raceInputBlocked = finished
+    } else {
+      const remaining = race.postRaceRemaining ?? 0
+      message = `Resultados · ${remaining.toFixed(1)}s`
+      this.raceInputBlocked = true
+    }
+
+    this.raceStatus.textContent = message
   }
 
   private updateSensorsState(): void {
@@ -635,6 +691,9 @@ export class ControllerApp {
 
   private pushInput(): void {
     if (!this.socketClient) {
+      return
+    }
+    if (this.raceInputBlocked) {
       return
     }
     const input = this.inputStore.getCurrentInput()
