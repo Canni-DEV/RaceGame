@@ -9,11 +9,11 @@ export class HotkeyOverlay {
     this.root.appendChild(this.createDot())
     this.root.appendChild(this.createEntry('R', 'Rotacion camara'))
     this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('C', 'Panel QR'))
+    this.root.appendChild(this.createEntry('Q', 'Panel QR'))
     this.root.appendChild(this.createDot())
     this.root.appendChild(this.createEntry('F', 'Vista player/panorámica'))
     this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('P', 'Lista de players'))
+    this.root.appendChild(this.createEntry('P', 'Lista/HUD carrera'))
     container.appendChild(this.root)
   }
 

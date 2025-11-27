@@ -21,6 +21,7 @@ export class SceneManager {
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
   private readonly playerListOverlay: PlayerListOverlay
+  private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
@@ -76,7 +77,7 @@ export class SceneManager {
       this.container,
       this.gameStateStore,
     )
-    new RaceHud(this.container, this.gameStateStore)
+    this.raceHud = new RaceHud(this.container, this.gameStateStore)
     new HotkeyOverlay(this.container)
 
     this.socketClient = new SocketClient()
@@ -203,12 +204,13 @@ export class SceneManager {
       this.audioManager.toggle()
       event.preventDefault()
       event.stopPropagation()
-    } else if (matchesKey('c')) {
+    } else if (matchesKey('q')) {
       this.controllerAccess.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()
     } else if (matchesKey('p')) {
       this.playerListOverlay.toggleVisibility()
+      this.raceHud.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()
     } else if (matchesKey('r')) {

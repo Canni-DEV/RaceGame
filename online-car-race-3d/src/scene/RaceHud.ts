@@ -28,6 +28,7 @@ export class RaceHud {
   private readonly laps: HTMLElement
   private readonly countdown: HTMLElement
   private readonly timers: HTMLElement
+  private userHidden = false
 
   constructor(container: HTMLElement, store: GameStateStore) {
     this.root = document.createElement('div')
@@ -63,6 +64,15 @@ export class RaceHud {
     store.onState((state) => {
       this.render(state.race)
     })
+  }
+
+  toggleVisibility(): void {
+    this.userHidden = !this.userHidden
+    this.updateVisibility()
+  }
+
+  private updateVisibility(): void {
+    this.root.hidden = this.userHidden
   }
 
   private render(race: RaceState): void {
