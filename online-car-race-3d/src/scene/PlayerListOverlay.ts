@@ -2,16 +2,28 @@ import type { GameStateStore } from '../state/GameStateStore'
 import type { PlayerSummary } from '../net/messages'
 import type { RoomState } from '../core/trackTypes'
 
+interface PlayerListOverlayOptions {
+  onSelectPlayer?: (playerId: string) => void
+}
+
 export class PlayerListOverlay {
   private readonly root: HTMLElement
   private readonly list: HTMLElement
   private readonly playerSpeeds: Map<string, number>
+  private readonly turboCharges: Map<string, number>
+  private readonly missileCharges: Map<string, number>
+  private readonly onSelectPlayer?: (playerId: string) => void
   private players: PlayerSummary[] = []
   private userHidden = false
   private isReady = false
+  private localPlayerId: string | null = null
+  private localHasCar = false
 
-  constructor(container: HTMLElement, store: GameStateStore) {
+  constructor(container: HTMLElement, store: GameStateStore, options?: PlayerListOverlayOptions) {
     this.playerSpeeds = new Map()
+    this.turboCharges = new Map()
+    this.missileCharges = new Map()
+    this.onSelectPlayer = options?.onSelectPlayer
 
     this.root = document.createElement('div')
     this.root.className = 'player-list-overlay'
@@ -30,6 +42,7 @@ export class PlayerListOverlay {
 
     store.onRoomInfo((info) => {
       this.players = info.players
+      this.localPlayerId = info.playerId
       this.isReady = this.players.length > 0
       this.render()
     })
@@ -49,11 +62,19 @@ export class PlayerListOverlay {
 
   private handleState(state: RoomState): void {
     this.playerSpeeds.clear()
+    this.turboCharges.clear()
+    this.missileCharges.clear()
+    this.localHasCar = false
     const playersInRace: PlayerSummary[] = []
 
     for (const car of state.cars) {
       this.playerSpeeds.set(car.playerId, Math.abs(car.speed))
+      this.turboCharges.set(car.playerId, car.turboCharges ?? 0)
+      this.missileCharges.set(car.playerId, car.missileCharges ?? 0)
       playersInRace.push({ playerId: car.playerId, isNpc: car.isNpc })
+      if (car.playerId === this.localPlayerId) {
+        this.localHasCar = true
+      }
     }
 
     this.players = playersInRace
@@ -76,6 +97,17 @@ export class PlayerListOverlay {
     for (const player of this.players) {
       const entry = document.createElement('div')
       entry.className = 'player-list-overlay__item'
+      if (this.canSelectTarget(player)) {
+        entry.classList.add('is-selectable')
+        entry.tabIndex = 0
+        entry.addEventListener('click', () => this.handleSelect(player.playerId))
+        entry.addEventListener('keypress', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            this.handleSelect(player.playerId)
+          }
+        })
+      }
 
       const badge = document.createElement('span')
       badge.className = 'player-list-overlay__color'
@@ -91,13 +123,14 @@ export class PlayerListOverlay {
       content.appendChild(name)
 
       const speedValue = this.playerSpeeds.get(player.playerId)
-      const speed = document.createElement('div')
-      speed.className = 'player-list-overlay__speed'
-      speed.textContent =
-        speedValue === undefined
-          ? 'Sin datos de velocidad'
-          : `Velocidad: ${speedValue.toFixed(1)} u`
-      content.appendChild(speed)
+      const status = document.createElement('div')
+      status.className = 'player-list-overlay__speed'
+      const turbo = this.turboCharges.get(player.playerId) ?? 0
+      const missiles = this.missileCharges.get(player.playerId) ?? 0
+      const speedText =
+        speedValue === undefined ? 'sin datos' : `${speedValue.toFixed(1)}u`
+      status.textContent = `${speedText} · ⚡${turbo} · 🎯${missiles}`
+      content.appendChild(status)
 
       entry.appendChild(content)
       this.list.appendChild(entry)
@@ -122,5 +155,25 @@ export class PlayerListOverlay {
     const normalized = (hash & 0xffff) / 0xffff
     const hue = ((normalized + 1) % 1) * 360
     return `hsl(${hue.toFixed(0)}deg 65% 50%)`
+  }
+
+  private canSelectTarget(player: PlayerSummary): boolean {
+    if (!this.onSelectPlayer) {
+      return false
+    }
+    if (!this.localPlayerId) {
+      return false
+    }
+    if (this.localHasCar) {
+      return false
+    }
+    return !player.isNpc
+  }
+
+  private handleSelect(playerId: string): void {
+    if (!this.onSelectPlayer) {
+      return
+    }
+    this.onSelectPlayer(playerId)
   }
 }

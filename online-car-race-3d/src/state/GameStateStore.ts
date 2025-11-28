@@ -1,4 +1,10 @@
-import type { CarState, MissileState, RoomState, TrackData } from '../core/trackTypes'
+import type {
+  CarState,
+  MissileState,
+  RaceState,
+  RoomState,
+  TrackData,
+} from '../core/trackTypes'
 import type { PlayerSummary } from '../net/messages'
 
 export interface RoomInfoSnapshot {
@@ -59,6 +65,10 @@ export class GameStateStore {
 
   getMissilesForRender(_currentTime: number): MissileState[] {
     return this.lastState?.missiles ?? []
+  }
+
+  getRaceState(): RaceState | null {
+    return this.lastState?.race ?? null
   }
 
   getLastStateTimestamp(): number {

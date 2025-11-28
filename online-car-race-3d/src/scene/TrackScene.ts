@@ -61,6 +61,11 @@ export class TrackScene {
     })
   }
 
+  setFollowTarget(playerId: string): void {
+    this.requestedFollowId = playerId
+    this.cameraMode = 'follow'
+  }
+
   update(dt: number): void {
     const now = performance.now()
     const carStates = this.store.getCarsForRender(now)

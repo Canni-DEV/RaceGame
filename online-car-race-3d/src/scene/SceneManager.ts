@@ -7,6 +7,7 @@ import { ViewerControllerAccess } from './ViewerControllerAccess'
 import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
+import { RaceHud } from './RaceHud'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -20,6 +21,7 @@ export class SceneManager {
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
   private readonly playerListOverlay: PlayerListOverlay
+  private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
@@ -74,7 +76,9 @@ export class SceneManager {
     this.playerListOverlay = new PlayerListOverlay(
       this.container,
       this.gameStateStore,
+      { onSelectPlayer: this.handleSelectPlayer },
     )
+    this.raceHud = new RaceHud(this.container, this.gameStateStore)
     new HotkeyOverlay(this.container)
 
     this.socketClient = new SocketClient()
@@ -201,7 +205,7 @@ export class SceneManager {
       this.audioManager.toggle()
       event.preventDefault()
       event.stopPropagation()
-    } else if (matchesKey('c')) {
+    } else if (matchesKey('q')) {
       this.controllerAccess.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()
@@ -209,11 +213,19 @@ export class SceneManager {
       this.playerListOverlay.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()
+    } else if (matchesKey('c')) {
+      this.raceHud.toggleVisibility()
+      event.preventDefault()
+      event.stopPropagation()
     } else if (matchesKey('r')) {
       this.cameraRig.toggleAutoOrbit()
       event.preventDefault()
       event.stopPropagation()
     }
+  }
+
+  private readonly handleSelectPlayer = (playerId: string): void => {
+    this.trackScene.setFollowTarget(playerId)
   }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {

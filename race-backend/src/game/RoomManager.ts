@@ -76,6 +76,9 @@ export class RoomManager {
     if (!room) {
       throw new Error("Room not found");
     }
+    if (!room.isJoinOpen()) {
+      throw new Error("Carrera en curso, espera al lobby y actualiza el controlador.");
+    }
 
     if (!room.hasViewerForPlayer(payload.playerId)) {
       throw new Error("Viewer session not found for player");
