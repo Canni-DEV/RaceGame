@@ -24,6 +24,7 @@ export class CarEntity {
   private readonly lastServerPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
   private hasReceivedState = false
   private disposed = false
+  private impactSpinTimeLeft = 0
 
   constructor(
     id: string,
@@ -61,6 +62,7 @@ export class CarEntity {
 
   setTargetState(state: CarState): void {
     this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT + 0.75, state.z)
+    this.impactSpinTimeLeft = Math.max(0, state.impactSpinTimeLeft ?? 0)
     if (!this.hasReceivedState) {
       this.currentPosition.copy(this.targetPosition)
       this.lastServerPosition.copy(this.targetPosition)
@@ -101,6 +103,7 @@ export class CarEntity {
     if (!this.hasReceivedState) {
       return
     }
+    this.impactSpinTimeLeft = Math.max(0, this.impactSpinTimeLeft - dt)
     const positionLerp = 1 - Math.exp(-dt * 7)
     this.currentPosition.lerp(this.targetPosition, positionLerp)
 
@@ -117,6 +120,10 @@ export class CarEntity {
 
   getObject(): THREE.Object3D | null {
     return this.object
+  }
+
+  isImpactSpinning(): boolean {
+    return this.impactSpinTimeLeft > 0
   }
 
   dispose(): void {

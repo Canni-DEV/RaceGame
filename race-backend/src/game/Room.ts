@@ -617,6 +617,7 @@ export class Room {
   private applyMissileImpact(car: CarState): void {
     car.speed = 0;
     const angularVelocity = (MISSILE_IMPACT_SPIN_TURNS * Math.PI * 2) / Math.max(0.01, MISSILE_IMPACT_SPIN_DURATION);
+    car.impactSpinTimeLeft = MISSILE_IMPACT_SPIN_DURATION;
     this.spinStates.set(car.playerId, {
       timeLeft: MISSILE_IMPACT_SPIN_DURATION,
       angularVelocity
@@ -639,7 +640,9 @@ export class Room {
       car.speed = 0;
       car.angle = normalizeAngle(car.angle + spin.angularVelocity * dt);
       spin.timeLeft -= dt;
+      car.impactSpinTimeLeft = Math.max(spin.timeLeft, 0);
       if (spin.timeLeft <= 0) {
+        delete car.impactSpinTimeLeft;
         removals.push(playerId);
       }
     }

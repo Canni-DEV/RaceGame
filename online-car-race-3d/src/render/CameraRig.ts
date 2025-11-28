@@ -24,6 +24,9 @@ export class CameraRig {
   private followTarget: THREE.Object3D | null = null
   private followDistance = 26
   private followHeight = 14
+  private followRotationLocked = false
+  private readonly followForward = new THREE.Vector3(0, 0, 1)
+  private readonly tempForward = new THREE.Vector3(0, 0, 1)
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera
@@ -112,8 +115,12 @@ export class CameraRig {
     this.smoothedTarget.copy(this.manualTarget)
   }
 
-  follow(object: THREE.Object3D | null): void {
+  follow(object: THREE.Object3D | null, options?: { lockRotation?: boolean }): void {
+    if (object !== this.followTarget && object) {
+      this.followForward.copy(this.getTargetForward(object))
+    }
     this.followTarget = object
+    this.followRotationLocked = object ? Boolean(options?.lockRotation) : false
   }
 
   isFollowing(): boolean {
@@ -125,11 +132,16 @@ export class CameraRig {
     const targetLerp = 1 - Math.exp(-dt * 3.5)
     if (this.followTarget) {
       this.smoothedTarget.lerp(this.followTarget.position, targetLerp)
-      const forward = new THREE.Vector3(0, 0, 1)
-      forward.applyQuaternion(this.followTarget.quaternion)
-      forward.normalize()
+      if (!this.followRotationLocked) {
+        const targetForward = this.getTargetForward(this.followTarget)
+        if (targetForward.lengthSq() > 1e-6) {
+          const forwardLerp = 1 - Math.exp(-dt * 6)
+          this.followForward.lerp(targetForward, forwardLerp)
+          this.followForward.normalize()
+        }
+      }
       this.desiredPosition.copy(this.smoothedTarget)
-      this.desiredPosition.addScaledVector(forward, -this.followDistance)
+      this.desiredPosition.addScaledVector(this.followForward, -this.followDistance)
       this.desiredPosition.y = this.smoothedTarget.y + this.followHeight
     } else {
       this.smoothedTarget.lerp(this.manualTarget, targetLerp)
@@ -182,5 +194,11 @@ export class CameraRig {
   private wrapAngle(value: number): number {
     const fullTurn = Math.PI * 2
     return ((value % fullTurn) + fullTurn) % fullTurn
+  }
+
+  private getTargetForward(target: THREE.Object3D): THREE.Vector3 {
+    this.tempForward.set(0, 0, 1)
+    this.tempForward.applyQuaternion(target.quaternion)
+    return this.tempForward.normalize()
   }
 }

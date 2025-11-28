@@ -282,7 +282,9 @@ export class TrackScene {
     }
 
     const followEntity = this.resolveFollowEntity()
-    this.cameraRig.follow(followEntity?.getObject() ?? null)
+    this.cameraRig.follow(followEntity?.getObject() ?? null, {
+      lockRotation: followEntity?.isImpactSpinning() ?? false,
+    })
   }
 
   private resolveFollowEntity(): CarEntity | null {

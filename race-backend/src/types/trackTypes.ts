@@ -41,6 +41,7 @@ export interface CarState {
   turboDurationLeft?: number;
   missileCharges?: number;
   missileRecharge?: number;
+  impactSpinTimeLeft?: number;
 }
 
 export interface MissileState {
