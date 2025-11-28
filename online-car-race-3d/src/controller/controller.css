@@ -132,7 +132,6 @@
 
 .controller-zone--steering {
   flex: 1 1 auto;
-  gap: clamp(5px, 3vh, 28px);
   padding: clamp(10px, 3vh, 20px);
   justify-content: center;
 }
@@ -207,7 +206,6 @@
   font-size: 0.92rem;
   text-align: center;
   color: #e2e8f0;
-  margin-top: 8px;
   letter-spacing: 0.03em;
   font-weight: 600;
 }
@@ -252,6 +250,7 @@
 }
 
 .controller-calibrate-button {
+  margin-top: 5px;
   padding: 10px 18px;
   border-radius: 999px;
   border: 1px solid rgba(148, 163, 184, 0.35);
@@ -278,10 +277,6 @@
 }
 
 .controller-status {
-  position: absolute;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
   font-size: 0.85rem;
   letter-spacing: 0.04em;
   color: rgba(148, 163, 184, 0.9);
