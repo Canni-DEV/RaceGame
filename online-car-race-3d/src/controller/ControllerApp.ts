@@ -84,6 +84,7 @@ export class ControllerApp {
 
     this.root = createElement('div', 'controller-root')
     this.container.appendChild(this.root)
+    this.disableContextInteractions()
 
     const layout = createElement('div', 'controller-layout')
     this.root.appendChild(layout)
@@ -185,6 +186,14 @@ export class ControllerApp {
     this.updateSteeringVisual()
     this.updateSensorStatus()
     this.updateOverlay()
+  }
+
+  private disableContextInteractions(): void {
+    const preventDefault = (event: Event): void => event.preventDefault()
+    this.root.addEventListener('contextmenu', preventDefault)
+    this.root.addEventListener('gesturestart', preventDefault as EventListener, { passive: false })
+    this.root.addEventListener('gesturechange', preventDefault as EventListener, { passive: false })
+    this.root.addEventListener('gestureend', preventDefault as EventListener, { passive: false })
   }
 
   private createBrakeZone(): HTMLElement {
