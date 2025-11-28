@@ -16,7 +16,7 @@
 assets:
   # Árboles procedurales distribuidos de forma pseudo-aleatoria en ambos lados
   - mesh: procedural-tree
-    density: 60
+    density: 300
     minSpacing: 1
     minDistance: 0.8   # factores respecto al ancho de pista
     maxDistance: 2.5
@@ -53,7 +53,7 @@ assets:
     maxSize: 20
 
   - file: tent.glb
-    density: 100
+    density: 200
     minSpacing: 10
     offset: 10
     side: both

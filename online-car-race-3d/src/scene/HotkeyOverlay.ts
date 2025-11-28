@@ -13,9 +13,9 @@ export class HotkeyOverlay {
     this.root.appendChild(this.createDot())
     this.root.appendChild(this.createEntry('Q', 'Panel QR'))
     this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('P', 'Lista de players'))
+    this.root.appendChild(this.createEntry('P', 'Players'))
     this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('C', 'HUD carrera'))
+    this.root.appendChild(this.createEntry('C', 'HUD'))
     container.appendChild(this.root)
   }
 
