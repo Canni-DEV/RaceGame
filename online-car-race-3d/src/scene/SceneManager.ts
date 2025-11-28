@@ -211,6 +211,9 @@ export class SceneManager {
       event.stopPropagation()
     } else if (matchesKey('p')) {
       this.playerListOverlay.toggleVisibility()
+      event.preventDefault()
+      event.stopPropagation()
+    } else if (matchesKey('c')) {
       this.raceHud.toggleVisibility()
       event.preventDefault()
       event.stopPropagation()
