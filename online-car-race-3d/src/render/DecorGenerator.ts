@@ -156,7 +156,7 @@ export function applyDecorators(
   root: THREE.Object3D,
   random: () => number,
 ): void {
-  const groundSize = Math.max(200, track.width * 100)
+  const groundSize = Math.max(200, track.width * 200)
   const ground = createGroundPlane(groundSize)
   ground.position.y = -0.01
   root.add(ground)
