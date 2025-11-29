@@ -1,21 +1,31 @@
 # Ejemplo de manifiesto completo para colocar assets a lo largo de la pista.
 # Nuevos campos aceptados por entrada:
 #   mesh             : "gltf" (default si hay file) o "procedural-tree"
-#   file / fileName  : nombre del .glb ubicado en este mismo directorio
-#   node / nodeIndex : indice de nodo en la línea central (comienza en 1)
-#   density          : instancias por kilómetro (si no hay node)
-#   every            : coloca en cada N segmentos (si no hay node)
-#   minSpacing       : separación mínima entre instancias
+#   file / fileName      : nombre del .glb ubicado en este mismo directorio
+#   node / nodeIndex     : indice de nodo en la línea central (comienza en 1)
+#   nodes                : lista de nodos específicos (se combinan con node/nodeIndex)
+#   placement            : required / optional / filler (define prioridad)
+#   min                  : instancias mínimas a generar (default: 1 para required)
+#   density              : instancias por kilómetro (si no hay node)
+#   every                : coloca en cada N segmentos (si no hay node)
+#   minSpacing           : separación mínima entre instancias
 #   minDistance/maxDistance : rango de distancia al centro (para árboles usa factores del ancho)
-#   segment          : any / straight / curve
-#   zone             : any / outer
-#   side             : right / left / both / + / - / opposite (default: right)
-#   scale / size     : factor de escala (default: TRACK_ASSET_SIZE)
-#   alignToTrack     : alinear la rotación con la pista (true por defecto)
+#   offset               : distancia extra respecto al origen elegido
+#   offsetMode           : edge (default) / centerline / absolute
+#   rotationOffset       : giro adicional en grados o radianes (positivo hacia la izquierda)
+#   segment              : any / straight / curve
+#   zone                 : any / outer
+#   side                 : right / left / both / + / - / opposite (default: right)
+#   scale / size         : factor de escala (default: TRACK_ASSET_SIZE)
+#   alignToTrack         : alinear la rotación con la pista (true por defecto)
+#   lookAtTrack          : rotar para mirar hacia el centro de la pista más cercano
+#   allowOnTrack         : permite ubicar el decorador sobre la pista (banners de meta, etc.)
+#   chance               : probabilidad de usar esta entrada si no es required (0..1)
 
 assets:
   # Árboles procedurales distribuidos de forma pseudo-aleatoria en ambos lados
   - mesh: procedural-tree
+    placement: filler
     density: 300
     minSpacing: 1
     minDistance: 0.8   # factores respecto al ancho de pista
@@ -26,7 +36,8 @@ assets:
   # Carteles espaciados en rectas cada pocos segmentos
   - file: lightPost_exclusive.glb
     mesh: gltf
-    density: 20
+    placement: required
+    every: 6
     minSpacing: 25
     offset: 5
     side: left
@@ -34,7 +45,9 @@ assets:
     alignToTrack: true
     scale: 20
 
+  # Árboles grandes que refuerzan la zona exterior
   - file: treeLarge.glb
+    placement: filler
     density: 60
     minSpacing: 10
     offset: 30
@@ -43,7 +56,9 @@ assets:
     scale: 10
     zone: outer
 
+  # Relleno de follaje mixto
   - file: treeSmall.glb
+    placement: filler
     density: 250
     minSpacing: 2
     offset: 30
@@ -53,6 +68,8 @@ assets:
     maxSize: 20
 
   - file: tent.glb
+    placement: optional
+    chance: 0.65
     density: 200
     minSpacing: 10
     offset: 10
@@ -61,12 +78,32 @@ assets:
     minSize: 5
     maxSize: 8
 
+  # Carteles publicitarios que miran hacia la pista desde el exterior
+  - file: billboard.glb
+    placement: optional
+    density: 80
+    minSpacing: 35
+    offset: 15
+    side: both
+    lookAtTrack: true
+    alignToTrack: false
+    rotationOffset: -5   # grados
+    minSize: 1
+    maxSize: 1.5
+
+  # Banner de meta centrado en un nodo concreto
   - file: flagCheckers.glb
-    node: 5
+    placement: required
+    nodes: [5]
     size: 20
     alignToTrack: true
+    offsetMode: centerline
+    allowOnTrack: true
+    side: both
 
+  # Juego de banderas adicionales al costado de la meta
   - file: flagCheckers.glb
+    placement: required
     node: 5
     offset: 20
     size: 20

@@ -57,14 +57,27 @@ class TrackAssetLoader {
 
   private prepareModel(scene: THREE.Object3D): THREE.Object3D {
     const root = scene.clone()
-    root.traverse((child: THREE.Object3D) => {
+    root.updateMatrixWorld(true)
+
+    const bounds = new THREE.Box3().setFromObject(root)
+    const pivot = new THREE.Group()
+    pivot.name = 'decor-asset-pivot'
+
+    const recenter = bounds.getCenter(new THREE.Vector3())
+    recenter.y = bounds.min.y
+    root.position.sub(recenter)
+    root.updateMatrixWorld(true)
+
+    pivot.add(root)
+
+    pivot.traverse((child: THREE.Object3D) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh
         mesh.castShadow = true
         mesh.receiveShadow = true
       }
     })
-    return root
+    return pivot
   }
 }
 

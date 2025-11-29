@@ -2,16 +2,25 @@ import { PROCEDURAL_TRACK_SETTINGS, TRACK_ASSET_LIBRARY } from "../config";
 import { InstancedDecoration, TrackObjectInstance, Vec2 } from "../types/trackTypes";
 import { AssetDescriptor, loadAssetDescriptors } from "./TrackAssetManifestReader";
 
+interface TrackFrame {
+  tangent: Vec2;
+  normal: Vec2;
+  curvature: number;
+}
+
 interface SegmentInfo {
+  startIndex: number;
   start: Vec2;
+  end: Vec2;
   direction: Vec2;
   length: number;
   curvature: number;
+  frameStart: TrackFrame;
+  frameEnd: TrackFrame;
 }
 
 interface PlanningContext {
   width: number;
-  random: () => number;
   occupied: Vec2[];
 }
 
@@ -20,18 +29,30 @@ export function planAssetDecorations(centerline: Vec2[], width: number, seed: nu
     return [];
   }
 
-  const random = createRandom(seed ^ 0x9e3779b9);
+  const baseSeed = seed ^ 0x9e3779b9;
   const descriptors = withDefaultTreeDescriptor(loadAssetDescriptors(TRACK_ASSET_LIBRARY));
   if (descriptors.length === 0) {
     return [];
   }
 
-  const segments = buildSegments(centerline);
+  const frames = buildFrames(centerline);
+  const segments = buildSegments(centerline, frames);
   const occupied: Vec2[] = [];
   const decorations: InstancedDecoration[] = [];
 
   for (const descriptor of descriptors) {
-    const instances = planInstances(descriptor, segments, centerline, { width, random, occupied });
+    const descriptorSeed = mixSeeds(baseSeed, descriptor.seedOffset ?? 0, descriptor.id);
+    const descriptorRandom = createRandom(descriptorSeed);
+    const chance = descriptor.chance ?? 1;
+    if (chance < 1 && descriptorRandom() > chance && descriptor.placement !== "required") {
+      continue;
+    }
+
+    const instances = planInstances(descriptor, segments, centerline, frames, {
+      width,
+      occupied,
+      random: descriptorRandom
+    });
     if (instances.length === 0) {
       continue;
     }
@@ -73,24 +94,45 @@ function planInstances(
   descriptor: AssetDescriptor,
   segments: SegmentInfo[],
   centerline: Vec2[],
-  context: PlanningContext
+  frames: TrackFrame[],
+  context: PlanningContext & { random: () => number }
 ): TrackObjectInstance[] {
   const { random, occupied, width } = context;
   const instances: TrackObjectInstance[] = [];
   const spacing = resolveSpacing(descriptor, width);
   const limit = descriptor.maxInstances ?? Number.POSITIVE_INFINITY;
+  const minInstances = descriptor.minInstances ?? (descriptor.placement === "required" ? 1 : 0);
   let distanceToNext = spacing * random();
+
+  const targetNodes = collectTargetNodes(descriptor, centerline.length);
+  if (targetNodes.length > 0) {
+    for (const targetIndex of targetNodes) {
+      const anchor = centerline[targetIndex];
+      const frame = frames[targetIndex % frames.length];
+      const instance = buildInstance(descriptor, anchor, frame, width, random);
+      if (!instance) {
+        continue;
+      }
+      if ((descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+        canPlace(instance.position, descriptor, occupied)) {
+        instances.push(instance);
+        occupied.push(instance.position);
+      }
+    }
+    return ensureMinimumInstances(instances, descriptor, segments, centerline, frames, context, minInstances, spacing);
+  }
 
   if (descriptor.nodeIndex !== undefined) {
     const targetIndex = clamp(descriptor.nodeIndex, 0, centerline.length - 1);
-    const segment = segments[targetIndex % segments.length];
     const anchor = centerline[targetIndex];
-    const instance = buildInstance(descriptor, anchor, segment, width, random);
-    if (instance && isOutsideTrack(instance.position, segments, width) && canPlace(instance.position, descriptor, occupied)) {
+    const frame = frames[targetIndex % frames.length];
+    const instance = buildInstance(descriptor, anchor, frame, width, random);
+    if (instance && (descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+      canPlace(instance.position, descriptor, occupied)) {
       instances.push(instance);
       occupied.push(instance.position);
     }
-    return instances;
+    return ensureMinimumInstances(instances, descriptor, segments, centerline, frames, context, minInstances, spacing);
   }
 
   for (let i = 0; i < segments.length && instances.length < limit; i++) {
@@ -107,8 +149,13 @@ function planInstances(
         x: segment.start.x + segment.direction.x * distanceAlong,
         z: segment.start.z + segment.direction.z * distanceAlong
       };
-      const instance = buildInstance(descriptor, anchor, segment, width, random);
-      if (instance && isOutsideTrack(instance.position, segments, width) && canPlace(instance.position, descriptor, occupied)) {
+      const frame = interpolateFrame(segment.frameStart, segment.frameEnd, segment.length === 0 ? 0 : distanceAlong / segment.length);
+      const instance = buildInstance(descriptor, anchor, frame, width, random);
+      if (
+        instance &&
+        (descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+        canPlace(instance.position, descriptor, occupied)
+      ) {
         instances.push(instance);
         occupied.push(instance.position);
       }
@@ -120,20 +167,108 @@ function planInstances(
     distanceToNext = Math.max(0, distanceToNext - (segment.length - travelled));
   }
 
+  return ensureMinimumInstances(instances, descriptor, segments, centerline, frames, context, minInstances, spacing);
+}
+
+function collectTargetNodes(descriptor: AssetDescriptor, nodeCount: number): number[] {
+  const result: number[] = [];
+  if (descriptor.nodeIndices && descriptor.nodeIndices.length > 0) {
+    result.push(...descriptor.nodeIndices.map((index) => clamp(index, 0, nodeCount - 1)));
+  }
+  if (descriptor.nodeIndex !== undefined) {
+    result.push(clamp(descriptor.nodeIndex, 0, nodeCount - 1));
+  }
+  return result;
+}
+
+function ensureMinimumInstances(
+  instances: TrackObjectInstance[],
+  descriptor: AssetDescriptor,
+  segments: SegmentInfo[],
+  centerline: Vec2[],
+  frames: TrackFrame[],
+  context: PlanningContext & { random: () => number },
+  minInstances: number,
+  spacing: number
+): TrackObjectInstance[] {
+  if (instances.length >= minInstances || minInstances <= 0) {
+    return instances;
+  }
+
+  const { random, width, occupied } = context;
+  let searchIndex = 0;
+  while (instances.length < minInstances && searchIndex < centerline.length) {
+    const idx = searchIndex % centerline.length;
+    const anchor = centerline[idx];
+    const frame = frames[idx % frames.length];
+    const instance = buildInstance(descriptor, anchor, frame, width, random);
+    if (
+      instance &&
+      (descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+      canPlace(instance.position, descriptor, occupied)
+    ) {
+      instances.push(instance);
+      occupied.push(instance.position);
+      searchIndex += Math.max(1, Math.round(spacing));
+      continue;
+    }
+    searchIndex++;
+  }
+
   return instances;
 }
 
-function buildSegments(centerline: Vec2[]): SegmentInfo[] {
+function buildFrames(centerline: Vec2[]): TrackFrame[] {
+  const frames: TrackFrame[] = [];
+  const count = centerline.length;
+  for (let i = 0; i < count; i++) {
+    const prev = centerline[(i - 1 + count) % count];
+    const curr = centerline[i];
+    const next = centerline[(i + 1) % count];
+    const tangent = normalize({ x: next.x - prev.x, z: next.z - prev.z });
+    const incoming = normalize({ x: curr.x - prev.x, z: curr.z - prev.z });
+    const outgoing = normalize({ x: next.x - curr.x, z: next.z - curr.z });
+    const curvature = angleBetween(incoming, outgoing);
+    frames.push({ tangent, normal: leftNormal(tangent), curvature });
+  }
+  return frames;
+}
+
+function interpolateFrame(start: TrackFrame, end: TrackFrame, t: number): TrackFrame {
+  const clamped = clamp(t, 0, 1);
+  const tangent = normalize({
+    x: lerp(start.tangent.x, end.tangent.x, clamped),
+    z: lerp(start.tangent.z, end.tangent.z, clamped)
+  });
+  const rawNormal = normalize({
+    x: lerp(start.normal.x, end.normal.x, clamped),
+    z: lerp(start.normal.z, end.normal.z, clamped)
+  });
+  const normal = rawNormal.x === 0 && rawNormal.z === 0 ? leftNormal(tangent) : rawNormal;
+  const curvature = lerp(start.curvature, end.curvature, clamped);
+
+  return { tangent, normal, curvature };
+}
+
+function buildSegments(centerline: Vec2[], frames: TrackFrame[]): SegmentInfo[] {
   const segments: SegmentInfo[] = [];
   for (let i = 0; i < centerline.length; i++) {
     const current = centerline[i];
-    const next = centerline[(i + 1) % centerline.length];
+    const nextIndex = (i + 1) % centerline.length;
+    const next = centerline[nextIndex];
     const direction = normalize({ x: next.x - current.x, z: next.z - current.z });
     const length = Math.max(0.001, distance(current, next));
-    const prev = centerline[(i - 1 + centerline.length) % centerline.length];
-    const prevDir = normalize({ x: current.x - prev.x, z: current.z - prev.z });
-    const curvature = angleBetween(prevDir, direction);
-    segments.push({ start: current, direction, length, curvature });
+    const curvature = (frames[i].curvature + frames[nextIndex].curvature) * 0.5;
+    segments.push({
+      startIndex: i,
+      start: current,
+      end: next,
+      direction,
+      length,
+      curvature,
+      frameStart: frames[i],
+      frameEnd: frames[nextIndex]
+    });
   }
   return segments;
 }
@@ -157,20 +292,21 @@ function segmentMatches(descriptor: AssetDescriptor, segment: SegmentInfo, index
 function buildInstance(
   descriptor: AssetDescriptor,
   anchor: Vec2,
-  segment: SegmentInfo,
+  frame: TrackFrame,
   width: number,
   random: () => number
 ): TrackObjectInstance | null {
-  const side = resolveSide(descriptor, segment, random);
-  const normal = leftNormal(segment.direction);
+  const side = resolveSide(descriptor, frame, random);
   const offset = resolveOffset(descriptor, width, random);
+  const offsetMode = descriptor.offsetMode ?? "edge";
+  const signedOffset = offsetMode === "centerline" ? (descriptor.offset ?? 0) : offset;
+  const lateral = side === 0 ? 0 : signedOffset * side;
   const position = {
-    x: anchor.x + normal.x * offset * side,
-    z: anchor.z + normal.z * offset * side
+    x: anchor.x + frame.normal.x * lateral,
+    z: anchor.z + frame.normal.z * lateral
   };
-  const rotation = descriptor.mesh === "gltf"
-    ? Math.atan2(segment.direction.z, segment.direction.x) + (descriptor.alignToTrack === false ? random() * Math.PI * 2 : 0)
-    : random() * Math.PI * 2;
+
+  const rotation = resolveRotation(descriptor, frame, position, anchor, random);
   const scale = resolveScale(descriptor, random);
 
   if (!Number.isFinite(position.x) || !Number.isFinite(position.z)) {
@@ -181,19 +317,53 @@ function buildInstance(
 }
 
 function resolveOffset(descriptor: AssetDescriptor, width: number, random: () => number): number {
+  const mode = descriptor.offsetMode ?? "edge";
+  const userOffset = Math.max(0, descriptor.offset ?? 0);
   const baseEdge = width * 0.5;
   const libraryOffset = Math.max(0, TRACK_ASSET_LIBRARY.offset);
-  const userOffset = Math.max(0, descriptor.offset ?? 0);
-  const effectiveOffset = baseEdge + libraryOffset + userOffset;
+  const edgeOffset = baseEdge + libraryOffset + userOffset;
+
+  if (mode === "centerline") {
+    return descriptor.offset ?? 0;
+  }
+
+  if (mode === "absolute") {
+    return userOffset;
+  }
 
   if (descriptor.mesh === "procedural-tree") {
     const min = (descriptor.minDistance ?? PROCEDURAL_TRACK_SETTINGS.treeMinDistanceFactor) * width;
     const max = (descriptor.maxDistance ?? PROCEDURAL_TRACK_SETTINGS.treeMaxDistanceFactor) * width;
     const distance = randomRange(min, max, random);
-    return Math.max(effectiveOffset, distance);
+    return Math.max(edgeOffset, distance);
   }
 
-  return effectiveOffset;
+  return edgeOffset;
+}
+
+function resolveRotation(
+  descriptor: AssetDescriptor,
+  frame: TrackFrame,
+  position: Vec2,
+  anchor: Vec2,
+  random: () => number
+): number {
+  const forwardRotation = Math.atan2(frame.tangent.z, frame.tangent.x);
+  const rotationOffset = descriptor.rotationOffset ?? 0;
+
+  if (descriptor.lookAtTrack) {
+    const toTrack = { x: anchor.x - position.x, z: anchor.z - position.z };
+    const lengthSq = toTrack.x * toTrack.x + toTrack.z * toTrack.z;
+    const trackRotation = lengthSq > 1e-6 ? Math.atan2(toTrack.z, toTrack.x) : forwardRotation;
+    return normalizeAngle(trackRotation + rotationOffset);
+  }
+
+  if (descriptor.mesh === "gltf" && descriptor.alignToTrack !== false) {
+    return normalizeAngle(forwardRotation + rotationOffset);
+  }
+
+  const randomRotation = random() * Math.PI * 2;
+  return normalizeAngle(randomRotation + rotationOffset);
 }
 
 function resolveSpacing(descriptor: AssetDescriptor, width: number): number {
@@ -210,13 +380,17 @@ function spacingWithJitter(spacing: number, random: () => number): number {
   return spacing * jitter;
 }
 
-function resolveSide(descriptor: AssetDescriptor, segment: SegmentInfo, random: () => number): 1 | -1 {
-  if (descriptor.side !== 0) {
+function resolveSide(descriptor: AssetDescriptor, frame: TrackFrame, random: () => number): 1 | -1 | 0 {
+  if (descriptor.side === -1 || descriptor.side === 1) {
     return descriptor.side;
   }
 
+  if (descriptor.offsetMode === "centerline") {
+    return 0;
+  }
+
   if (descriptor.zone === "outer") {
-    const curvature = segment.curvature;
+    const curvature = frame.curvature;
     if (Math.abs(curvature) > 0.05) {
       return curvature > 0 ? -1 : 1;
     }
@@ -245,7 +419,10 @@ function canPlace(position: Vec2, descriptor: AssetDescriptor, occupied: Vec2[])
   return occupied.every((item) => squaredDistance(item, position) > minDistanceSq);
 }
 
-function isOutsideTrack(position: Vec2, segments: SegmentInfo[], width: number): boolean {
+function isOutsideTrack(position: Vec2, segments: SegmentInfo[], width: number, descriptor: AssetDescriptor): boolean {
+  if (descriptor.allowOnTrack) {
+    return true;
+  }
   if (segments.length === 0) {
     return true;
   }
@@ -317,6 +494,16 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function normalizeAngle(angle: number): number {
+  const twoPi = Math.PI * 2;
+  const wrapped = ((angle % twoPi) + twoPi) % twoPi;
+  return wrapped > Math.PI ? wrapped - twoPi : wrapped;
+}
+
 function randomRange(min: number, max: number, random: () => number): number {
   if (min >= max) {
     return min;
@@ -333,5 +520,14 @@ function createRandom(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function mixSeeds(base: number, offset: number, id: string): number {
+  let hash = base ^ Math.trunc(offset) ^ 0x9e3779b9;
+  for (let i = 0; i < id.length; i++) {
+    hash ^= (id.charCodeAt(i) + i) * 0x45d9f3b;
+    hash = (hash << 13) | (hash >>> 19);
+  }
+  return hash >>> 0;
 }
 
