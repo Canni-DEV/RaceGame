@@ -1,7 +1,8 @@
 param(
   [int]$BackendPort = 4000,
   [int]$FrontendPort = 5173,
-  [string]$LanHost = '192.168.0.214'  # ajusta si quieres otra IP LAN
+  [string]$LanHost = '192.168.0.214',  # ajusta si quieres otra IP LAN
+  [switch]$ShowLogs = $false          # usa -ShowLogs para ver stdout/err en esta consola
 )
 
 Set-StrictMode -Version Latest
@@ -25,9 +26,11 @@ if ($npmCandidate) {
 }
 
 $procs = @()
+$logJobs = @()
 function Cleanup {
   Write-Host "Saliendo, matando procesos..."
   foreach ($p in $procs) { if ($p -and !$p.HasExited) { $p.Kill() } }
+  foreach ($job in $logJobs) { if ($job -and $job.State -eq 'Running') { Stop-Job $job -Force } Remove-Job $job -Force -ErrorAction SilentlyContinue }
 }
 Register-EngineEvent PowerShell.Exiting -Action { Cleanup } | Out-Null
 
@@ -44,6 +47,22 @@ $frontendProc = Start-Process $npmCmd -ArgumentList @('run','dev','--','--host',
   -RedirectStandardOutput $frontendOut -RedirectStandardError $frontendErr
 $procs += $frontendProc
 Write-Host "Frontend dev en https://$($LanHost):$($FrontendPort) (logs: $frontendOut / $frontendErr)"
+
+if ($ShowLogs) {
+  Write-Host "Mostrando logs en vivo (Ctrl+C para salir):"
+  $logJobs += Start-Job -Name "backend-log" -ScriptBlock {
+    Get-Content -Path $using:backendOut -Wait -Tail 50 | ForEach-Object { Write-Host "[backend] $_" }
+  }
+  $logJobs += Start-Job -Name "backend-err" -ScriptBlock {
+    Get-Content -Path $using:backendErr -Wait -Tail 50 | ForEach-Object { Write-Host "[backend:err] $_" }
+  }
+  $logJobs += Start-Job -Name "frontend-log" -ScriptBlock {
+    Get-Content -Path $using:frontendOut -Wait -Tail 50 | ForEach-Object { Write-Host "[frontend] $_" }
+  }
+  $logJobs += Start-Job -Name "frontend-err" -ScriptBlock {
+    Get-Content -Path $using:frontendErr -Wait -Tail 50 | ForEach-Object { Write-Host "[frontend:err] $_" }
+  }
+}
 
 Write-Host ""
 Write-Host "Listo para desarrollo local:"

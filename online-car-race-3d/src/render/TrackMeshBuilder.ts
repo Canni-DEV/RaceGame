@@ -25,7 +25,10 @@ export class TrackMeshBuilder {
       throw new Error('Track centerline must contain at least two points')
     }
 
-    const smoothCenterline = this.generateSmoothCenterline(track.centerline)
+    // Tracks procedurales ya llegan suavizados desde el backend; evitamos suavizar de nuevo
+    // para no desalinear decoradores. Solo suavizamos si el track es muy corto (ej. muestras locales).
+    const shouldSmooth = track.centerline.length <= 32
+    const smoothCenterline = shouldSmooth ? this.generateSmoothCenterline(track.centerline) : track.centerline
     const metadata = this.computeEdges(smoothCenterline, track.width / 2)
     const geometry = this.buildGeometry(metadata.leftEdge, metadata.rightEdge)
     const material = new THREE.MeshStandardMaterial({

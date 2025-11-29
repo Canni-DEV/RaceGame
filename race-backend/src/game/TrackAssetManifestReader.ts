@@ -8,13 +8,18 @@ export interface AssetDescriptor {
   mesh: InstanceMeshKind;
   fileName?: string;
   nodeIndex?: number;
+  nodes?: number[];
+  placement?: "fixed" | "repeat" | "scatter";
+  category?: "required" | "optional" | "filler";
   side: 1 | -1 | 0;
   size?: number;
   minSize?: number;
   maxSize?: number;
   offset?: number;
+  offsetFromCenter?: number;
   density?: number;
   every?: number;
+  repeatOffset?: number;
   minSpacing?: number;
   maxInstances?: number;
   segment?: "any" | "straight" | "curve";
@@ -23,6 +28,15 @@ export interface AssetDescriptor {
   maxDistance?: number;
   seedOffset?: number;
   alignToTrack?: boolean;
+  faceTrack?: boolean;
+  allowOnTrack?: boolean;
+  clearance?: number;
+  bothSides?: boolean;
+  startNode?: number;
+  endNode?: number;
+  probability?: number;
+  anchor?: "edge" | "center";
+  rotationOffset?: number;
 }
 
 interface ManifestEntry {
@@ -37,9 +51,15 @@ interface ManifestEntry {
   minSize?: unknown;
   maxSize?: unknown;
   offset?: unknown;
+  offsetFromCenter?: unknown;
   density?: unknown;
   frequency?: unknown;
   every?: unknown;
+  repeat?: unknown;
+  repeatOffset?: unknown;
+  placement?: unknown;
+  mode?: unknown;
+  category?: unknown;
   minSpacing?: unknown;
   spacing?: unknown;
   max?: unknown;
@@ -49,6 +69,22 @@ interface ManifestEntry {
   maxDistance?: unknown;
   seed?: unknown;
   alignToTrack?: unknown;
+  faceTrack?: unknown;
+  onTrack?: unknown;
+  allowOnTrack?: unknown;
+  clearance?: unknown;
+  bothSides?: unknown;
+  nodes?: unknown;
+  nodeList?: unknown;
+  startNode?: unknown;
+  endNode?: unknown;
+  probability?: unknown;
+  chance?: unknown;
+  anchor?: unknown;
+  place?: unknown;
+  lookAtTrack?: unknown;
+  rotationOffset?: unknown;
+  rotation?: unknown;
 }
 
 export function loadAssetDescriptors(library: TrackAssetLibraryConfig): AssetDescriptor[] {
@@ -160,14 +196,16 @@ function normalizeEntry(entry: unknown, index: number): AssetDescriptor | null {
     return null;
   }
 
+  const rawNodes = normalizeNodeList(manifestEntry.nodes ?? manifestEntry.nodeList);
   const nodeNumber = normalizeNodeNumber(manifestEntry.node ?? manifestEntry.nodeIndex);
   const nodeProvided = manifestEntry.node !== undefined || manifestEntry.nodeIndex !== undefined;
   if (nodeProvided && nodeNumber === null) {
     console.warn(`[TrackAssetManifest] La entrada ${index + 1} tiene un índice de nodo inválido.`);
     return null;
   }
+  const nodes = toZeroBasedNodes(rawNodes ?? (nodeNumber !== null ? [nodeNumber] : null));
 
-  const side = normalizeSide(manifestEntry.side);
+  const { side, bothSides: bothSidesFromSide } = normalizeSide(manifestEntry.side);
   const explicitMinSize = normalizePositiveNumber(
     manifestEntry.minSize ?? (manifestEntry as Record<string, unknown>).minsize
   );
@@ -178,33 +216,58 @@ function normalizeEntry(entry: unknown, index: number): AssetDescriptor | null {
   const minSize = explicitMinSize ?? uniformSize;
   const maxSize = explicitMaxSize ?? uniformSize ?? explicitMinSize ?? null;
   const density = normalizePositiveNumber(manifestEntry.density ?? manifestEntry.frequency);
-  const every = normalizePositiveInteger(manifestEntry.every);
+  const every = normalizePositiveInteger(manifestEntry.every ?? manifestEntry.repeat);
+  const repeatOffset = normalizePositiveInteger(manifestEntry.repeatOffset);
   const minSpacing = normalizePositiveNumber(manifestEntry.minSpacing ?? manifestEntry.spacing);
   const maxInstances = normalizePositiveInteger(manifestEntry.max);
   const offset = normalizePositiveNumber(manifestEntry.offset);
+  const offsetFromCenter = normalizePositiveNumber(manifestEntry.offsetFromCenter);
   const minDistance = normalizePositiveNumber(manifestEntry.minDistance);
   const maxDistance = normalizePositiveNumber(manifestEntry.maxDistance);
   const seedOffset = normalizeNumber(manifestEntry.seed);
   const alignToTrack = normalizeBoolean(manifestEntry.alignToTrack);
+  const faceTrack = normalizeBoolean(manifestEntry.faceTrack ?? manifestEntry.lookAtTrack);
+  const placement = normalizePlacement(manifestEntry.placement ?? manifestEntry.mode ?? manifestEntry.place);
+  const category = normalizeCategory(manifestEntry.category);
+  const allowOnTrack = normalizeBoolean(manifestEntry.onTrack ?? manifestEntry.allowOnTrack);
+  const clearance = normalizePositiveNumber(manifestEntry.clearance);
+  const startNode = normalizeNodeNumber(manifestEntry.startNode);
+  const endNode = normalizeNodeNumber(manifestEntry.endNode);
+  const probability = normalizeUnitInterval(manifestEntry.probability ?? manifestEntry.chance);
+  const anchor = normalizeAnchor(manifestEntry.anchor);
+  const rotationOffset = normalizeNumber(manifestEntry.rotationOffset ?? manifestEntry.rotation);
 
   return {
     id: fileName ?? `entry-${index + 1}`,
     mesh,
     ...(fileName ? { fileName } : {}),
-    ...(nodeNumber !== null ? { nodeIndex: nodeNumber - 1 } : {}),
+    ...(nodes ? { nodes, nodeIndex: nodes[0] } : {}),
     side,
+    bothSides: bothSidesFromSide || normalizeBoolean(manifestEntry.bothSides) === true,
     ...(uniformSize !== null ? { size: uniformSize } : {}),
     ...(minSize !== null ? { minSize } : {}),
     ...(maxSize !== null ? { maxSize } : {}),
     ...(density !== null ? { density } : {}),
     ...(every !== null ? { every } : {}),
+    ...(repeatOffset !== null ? { repeatOffset } : {}),
     ...(minSpacing !== null ? { minSpacing } : {}),
     ...(maxInstances !== null ? { maxInstances } : {}),
     ...(offset !== null ? { offset } : {}),
+    ...(offsetFromCenter !== null ? { offsetFromCenter } : {}),
     ...(minDistance !== null ? { minDistance } : {}),
     ...(maxDistance !== null ? { maxDistance } : {}),
     ...(seedOffset !== null ? { seedOffset } : {}),
     ...(alignToTrack !== null ? { alignToTrack } : {}),
+    ...(faceTrack !== null ? { faceTrack } : {}),
+    ...(placement ? { placement } : {}),
+    ...(category ? { category } : {}),
+    ...(allowOnTrack !== null ? { allowOnTrack } : {}),
+    ...(clearance !== null ? { clearance } : {}),
+    ...(startNode !== null ? { startNode: startNode - 1 } : {}),
+    ...(endNode !== null ? { endNode: endNode - 1 } : {}),
+    ...(probability !== null ? { probability } : {}),
+    ...(anchor ? { anchor } : {}),
+    ...(rotationOffset !== null ? { rotationOffset } : {}),
     segment: normalizeSegment(manifestEntry.segment),
     zone: normalizeZone(manifestEntry.zone)
   };
@@ -253,23 +316,62 @@ function normalizeNodeNumber(value: unknown): number | null {
   return rounded > 0 ? rounded : null;
 }
 
-function normalizeSide(value: unknown): 1 | -1 | 0 {
+function normalizeNodeList(value: unknown): number[] | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    const nodes = value
+      .map((item) => normalizeNodeNumber(item))
+      .filter((item): item is number => item !== null);
+    return nodes.length > 0 ? nodes : null;
+  }
+  if (typeof value === "string") {
+    const parts = value
+      .split(/[,;]/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+    const nodes = parts
+      .map((item) => normalizeNodeNumber(item))
+      .filter((item): item is number => item !== null);
+    return nodes.length > 0 ? nodes : null;
+  }
+  const single = normalizeNodeNumber(value);
+  return single !== null ? [single] : null;
+}
+
+function toZeroBasedNodes(nodes: number[] | null): number[] | null {
+  if (!nodes || nodes.length === 0) {
+    return null;
+  }
+  const converted = nodes
+    .map((node) => node - 1)
+    .filter((node) => Number.isFinite(node) && node >= 0);
+  if (converted.length === 0) {
+    return null;
+  }
+  converted.sort((a, b) => a - b);
+  return Array.from(new Set(converted));
+}
+
+function normalizeSide(value: unknown): { side: 1 | -1 | 0; bothSides: boolean } {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
-    if (normalized === "both" || normalized === "any" || normalized === "0") {
-      return 0;
+    const isBoth = normalized === "both" || normalized === "any" || normalized === "0";
+    if (isBoth) {
+      return { side: 0, bothSides: true };
     }
     if (normalized === "left" || normalized === "-" || normalized === "opposite") {
-      return -1;
+      return { side: -1, bothSides: false };
     }
     if (normalized === "right" || normalized === "+") {
-      return 1;
+      return { side: 1, bothSides: false };
     }
   }
   if (typeof value === "number" && value < 0) {
-    return -1;
+    return { side: -1, bothSides: false };
   }
-  return 1;
+  return { side: 1, bothSides: false };
 }
 
 function normalizeSegment(value: unknown): "any" | "straight" | "curve" {
@@ -295,6 +397,54 @@ function normalizeZone(value: unknown): "any" | "outer" {
     return "outer";
   }
   return "any";
+}
+
+function normalizePlacement(value: unknown): AssetDescriptor["placement"] | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("fix")) {
+    return "fixed";
+  }
+  if (normalized.startsWith("repeat") || normalized.startsWith("seq")) {
+    return "repeat";
+  }
+  if (normalized.startsWith("scatter") || normalized.startsWith("fill")) {
+    return "scatter";
+  }
+  return null;
+}
+
+function normalizeCategory(value: unknown): AssetDescriptor["category"] | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("req")) {
+    return "required";
+  }
+  if (normalized.startsWith("opt")) {
+    return "optional";
+  }
+  if (normalized.startsWith("fill")) {
+    return "filler";
+  }
+  return null;
+}
+
+function normalizeAnchor(value: unknown): AssetDescriptor["anchor"] | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized.startsWith("center") || normalized === "middle" || normalized === "track") {
+    return "center";
+  }
+  if (normalized.startsWith("edge") || normalized === "outside" || normalized === "outer") {
+    return "edge";
+  }
+  return null;
 }
 
 function readFromDirectory(directory: string): AssetDescriptor[] {
@@ -333,6 +483,7 @@ function parsePlacement(fileName: string): Omit<AssetDescriptor, "fileName" | "m
   const isOppositeSide = prefix.endsWith("-");
   return {
     nodeIndex: nodeNumber - 1,
+    nodes: [nodeNumber - 1],
     side: isOppositeSide ? -1 : 1
   };
 }
@@ -484,6 +635,20 @@ function normalizePositiveInteger(value: unknown): number | null {
   }
   const rounded = Math.round(numberValue);
   return rounded > 0 ? rounded : null;
+}
+
+function normalizeUnitInterval(value: unknown): number | null {
+  const numberValue = parseFloatValue(value);
+  if (numberValue === null) {
+    return null;
+  }
+  if (numberValue < 0) {
+    return 0;
+  }
+  if (numberValue > 1) {
+    return 1;
+  }
+  return numberValue;
 }
 
 function normalizeNumber(value: unknown): number | null {

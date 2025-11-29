@@ -29,19 +29,17 @@ export function createGroundPlane(size: number): THREE.Mesh {
   return mesh
 }
 
+interface AssetData {
+  object: THREE.Object3D
+  offset: THREE.Vector3
+  baseRotationY: number
+}
+
 class TrackAssetLoader {
   private readonly loader = new GLTFLoader()
-  private readonly cache = new Map<string, Promise<THREE.Object3D | null>>()
+  private readonly cache = new Map<string, Promise<AssetData | null>>()
 
-  async createInstance(assetUrl: string): Promise<THREE.Object3D | null> {
-    const base = await this.loadBase(assetUrl)
-    if (!base) {
-      return null
-    }
-    return SkeletonUtils.clone(base) as THREE.Object3D
-  }
-
-  async loadBase(assetUrl: string): Promise<THREE.Object3D | null> {
+  async loadBase(assetUrl: string): Promise<AssetData | null> {
     if (!this.cache.has(assetUrl)) {
       const promise = this.loader
         .loadAsync(assetUrl)
@@ -52,10 +50,10 @@ class TrackAssetLoader {
         })
       this.cache.set(assetUrl, promise)
     }
-    return this.cache.get(assetUrl) as Promise<THREE.Object3D | null>
+    return this.cache.get(assetUrl) as Promise<AssetData | null>
   }
 
-  private prepareModel(scene: THREE.Object3D): THREE.Object3D {
+  private prepareModel(scene: THREE.Object3D): AssetData {
     const root = scene.clone()
     root.traverse((child: THREE.Object3D) => {
       if ((child as THREE.Mesh).isMesh) {
@@ -64,7 +62,13 @@ class TrackAssetLoader {
         mesh.receiveShadow = true
       }
     })
-    return root
+
+    root.updateMatrixWorld(true)
+
+    const box = new THREE.Box3().setFromObject(root)
+    const center = box.getCenter(new THREE.Vector3())
+    const baseRotationY = root.rotation.y
+    return { object: root, offset: center, baseRotationY }
   }
 }
 
@@ -100,18 +104,37 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     instances: InstancedDecoration['instances'],
     root: THREE.Object3D,
   ): Promise<void> {
-    const base = await trackAssetLoader.loadBase(assetUrl)
-    if (!base) {
+    const asset = await trackAssetLoader.loadBase(assetUrl)
+    if (!asset) {
       return
     }
 
     for (const [index, instance] of instances.entries()) {
-      const clone = SkeletonUtils.clone(base) as THREE.Object3D
+      const clone = SkeletonUtils.clone(asset.object) as THREE.Object3D
       clone.userData.isTrackAsset = true
       clone.name = `decor-asset-${assetUrl}-${index}`
-      clone.position.set(instance.position.x, 0, instance.position.z)
-      clone.rotation.y = instance.rotation
-      clone.scale.setScalar(instance.scale)
+
+      const scaleFactor = instance.scale
+      const baseScale = clone.scale.x
+      const totalScale = baseScale * scaleFactor
+      const deltaScale = scaleFactor - 1
+      let px = instance.position.x
+      let pz = instance.position.z
+      if (Math.abs(deltaScale) > 1e-6 && asset.offset) {
+        const ox = asset.offset.x * deltaScale
+        const oz = asset.offset.z * deltaScale
+        const totalRotation = asset.baseRotationY + instance.rotation
+        const cos = Math.cos(totalRotation)
+        const sin = Math.sin(totalRotation)
+        const rx = ox * cos - oz * sin
+        const rz = ox * sin + oz * cos
+        px -= rx
+        pz -= rz
+      }
+
+      clone.position.set(px, 0, pz)
+      clone.rotation.y = asset.baseRotationY + instance.rotation
+      clone.scale.setScalar(totalScale)
       root.add(clone)
     }
   }

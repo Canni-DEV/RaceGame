@@ -1,75 +1,330 @@
-# Ejemplo de manifiesto completo para colocar assets a lo largo de la pista.
+#
+# Ejemplo de manifiesto completo para colocar decoradores a lo largo de la pista.
 # Nuevos campos aceptados por entrada:
+#   placement        : fixed / repeat / scatter (scatter por defecto)
+#   category         : required / optional / filler (required por defecto en fixed y repeat)
 #   mesh             : "gltf" (default si hay file) o "procedural-tree"
 #   file / fileName  : nombre del .glb ubicado en este mismo directorio
-#   node / nodeIndex : indice de nodo en la línea central (comienza en 1)
-#   density          : instancias por kilómetro (si no hay node)
-#   every            : coloca en cada N segmentos (si no hay node)
+#   nodes            : lista o valor simple (1-based) para colocar en nodos concretos
+#   every            : coloca en cada N nodos/segmentos (placement: repeat)
+#   repeatOffset     : desplazamiento inicial para repeat
+#   startNode/endNode: rango de nodos donde aplicar repeat/scatter
+#   density          : instancias por kilómetro (scatter)
 #   minSpacing       : separación mínima entre instancias
 #   minDistance/maxDistance : rango de distancia al centro (para árboles usa factores del ancho)
-#   segment          : any / straight / curve
-#   zone             : any / outer
-#   side             : right / left / both / + / - / opposite (default: right)
-#   scale / size     : factor de escala (default: TRACK_ASSET_SIZE)
+#   offset           : distancia extra desde el borde de pista (edge) o desde el centro (center)
+#   offsetFromCenter : distancia absoluta desde la línea central
+#   anchor           : edge / center (center permite objetos sobre la pista)
+#   side             : right / left / both / + / - (both duplica a ambos lados)
+#   size / minSize / maxSize : factor de escala
+#   rotationOffset   : rotación extra en radianes (para ajustar modelos sin reexportar)
+#   probability      : 0..1 para decoradores opcionales
 #   alignToTrack     : alinear la rotación con la pista (true por defecto)
 
 assets:
-  # Árboles procedurales distribuidos de forma pseudo-aleatoria en ambos lados
-  - mesh: procedural-tree
-    density: 300
-    minSpacing: 1
-    minDistance: 0.8   # factores respecto al ancho de pista
-    maxDistance: 2.5
-    segment: any
-    side: both
+  # === Obligatorios inicio/fin ===
+  - id: finish-arches
+    file: overheadRoundColored.glb
+    placement: fixed
+    category: required
+    nodes: 2
+    anchor: center
+    allowOnTrack: true
+    size: 35
+    rotationOffset: -1.5708
+    offsetFromCenter: 40
 
-  # Carteles espaciados en rectas cada pocos segmentos
-  - file: lightPost_exclusive.glb
-    mesh: gltf
-    density: 20
-    minSpacing: 25
-    offset: 5
-    side: left
+  # === Pits y boxes ===
+  - id: pit-garage
+    file: pitsGarage.glb
+    placement: fixed
+    category: required
+    nodes: 2
+    anchor: edge
+    side: right
+    offset: 20
+    size: 10
+    alignToTrack: true
+
+  - id: pit-office
+    file: pitsOffice.glb
+    placement: fixed
+    category: optional
+    nodes: 3
+    anchor: edge
+    side: right
+    offset: 22
+    size: 10
+    alignToTrack: true
+    probability: 0.7
+
+  # === Luces y cámaras perimetrales ===
+  - id: grid-lights
+    file: lightPost_exclusive.glb
+    placement: repeat
+    category: required
+    every: 3
+    repeatOffset: 0
+    anchor: edge
+    side: both
+    bothSides: true
+    offset: 3
+    minSpacing: 8
     segment: straight
     alignToTrack: true
-    scale: 20
+    size: 18
 
-  - file: treeLarge.glb
+  - id: colored-lights
+    file: lightColored.glb
+    placement: scatter
+    category: optional
+    density: 18
+    minSpacing: 10
+    anchor: edge
+    side: both
+    offset: 6
+    segment: curve
+    alignToTrack: true
+    size: 12
+    probability: 0.5
+
+  - id: cameras
+    file: camera_exclusive.glb
+    placement: scatter
+    category: optional
+    density: 12
+    minSpacing: 25
+    anchor: edge
+    side: both
+    offset: 8
+    segment: any
+    alignToTrack: true
+    faceTrack: true
+    probability: 0.6
+
+  # === Gradas y público ===
+  - id: grandstands-main
+    file: grandStand.glb
+    placement: repeat
+    category: optional
+    every: 5
+    startNode: 2
+    endNode: 48
+    anchor: edge
+    side: right
+    offset: 32
+    minSpacing: 30
+    alignToTrack: true
+    faceTrack: true
+    size: 12
+    probability: 0.8
+
+  - id: grandstands-round
+    file: grandStandCoveredRound.glb
+    placement: repeat
+    category: optional
+    every: 7
+    startNode: 5
+    endNode: 40
+    anchor: edge
+    side: left
+    offset: 34
+    minSpacing: 35
+    alignToTrack: true
+    faceTrack: true
+    size: 12
+    probability: 0.5
+
+  - id: grandstands-awning
+    file: grandStandAwning.glb
+    placement: scatter
+    category: filler
+    density: 8
+    minSpacing: 40
+    anchor: edge
+    side: both
+    offset: 28
+    alignToTrack: true
+    faceTrack: true
+    size: 10
+    probability: 0.4
+
+  # === Carteles / Publicidad ===
+  - id: billboards
+    file: billboard.glb
+    placement: scatter
+    category: optional
+    density: 2
+    minSpacing: 18
+    anchor: edge
+    offset: 24
+    side: both
+    probability: 0.8
+    segment: straight
+    alignToTrack: true
+    faceTrack: true
+    rotationOffset: 1.5708
+    size: 14
+
+  - id: billboards-low
+    file: billboardLow.glb
+    placement: scatter
+    category: filler
+    density: 4
+    minSpacing: 12
+    anchor: edge
+    offset: 20
+    side: both
+    segment: curve
+    alignToTrack: true
+    faceTrack: true
+    size: 10
+
+  - id: pylons
+    file: pylon.glb
+    placement: scatter
+    category: filler
+    density: 60
+    minSpacing: 6
+    anchor: edge
+    offset: 6
+    side: both
+    segment: any
+    alignToTrack: true
+    size: 6
+
+  # === Barreras y rails ===
+  - id: barriers-red
+    file: barrierRed.glb
+    placement: scatter
+    category: required
+    density: 40
+    minSpacing: 6
+    anchor: edge
+    side: both
+    offset: 10
+    segment: curve
+    faceTrack: true
+    size: 8
+
+  - id: barriers-white
+    file: barrierWhite.glb
+    placement: scatter
+    category: filler
+    density: 30
+    minSpacing: 8
+    anchor: edge
+    side: both
+    offset: 2
+    segment: straight
+    alignToTrack: true
+    size: 8
+
+  - id: rails
+    file: rail.glb
+    placement: repeat
+    category: optional
+    every: 2
+    anchor: edge
+    side: both
+    offset: 1.5
+    alignToTrack: true
+    size: 6
+
+  # === Señalización y props especiales ===
+  - id: radar
+    file: radarEquipment.glb
+    placement: scatter
+    category: optional
+    density: 4
+    minSpacing: 60
+    anchor: edge
+    side: right
+    offset: 10
+    alignToTrack: true
+    size: 10
+    probability: 0.6
+
+  - id: lights-red
+    file: lightRed.glb
+    placement: fixed
+    category: required
+    nodes: [1, 2]
+    anchor: center
+    allowOnTrack: true
+    size: 8
+    rotationOffset: 1.5708
+    faceTrack: true
+    alignToTrack: true
+
+  - id: overhead-lights
+    file: overheadLights.glb
+    placement: fixed
+    category: optional
+    nodes: [1, 3]
+    anchor: center
+    allowOnTrack: true
+    size: 14
+    rotationOffset: 1.5708
+    alignToTrack: true
+    probability: 0.7
+
+  # === Tents / paddock ===
+  - id: tents-curve
+    file: tent.glb
+    placement: scatter
+    category: filler
+    density: 120
+    minSpacing: 8
+    offset: 12
+    side: both
+    segment: curve
+    minSize: 4
+    maxSize: 8
+
+  - id: tents-closed
+    file: tentClosed.glb
+    placement: scatter
+    category: filler
     density: 60
     minSpacing: 10
-    offset: 30
+    offset: 14
+    side: both
+    segment: straight
+    minSize: 6
+    maxSize: 10
+
+  # === Vegetación / relleno ===
+  - id: procedural-trees
+    mesh: procedural-tree
+    placement: scatter
+    category: filler
+    density: 320
+    minSpacing: 1.5
+    minDistance: 0.8   # factores respecto al ancho de pista
+    maxDistance: 2.6
+    side: both
+    zone: outer
+
+  - id: tree-large
+    file: treeLarge.glb
+    placement: scatter
+    category: filler
+    density: 60
+    minSpacing: 10
+    offset: 28
     side: both
     alignToTrack: true
     scale: 10
     zone: outer
 
-  - file: treeSmall.glb
-    density: 250
+  - id: tree-small
+    file: treeSmall.glb
+    placement: scatter
+    category: filler
+    density: 240
     minSpacing: 2
-    offset: 30
+    offset: 22
     side: both
-    zone: any
     minSize: 5
-    maxSize: 20
-
-  - file: tent.glb
-    density: 200
-    minSpacing: 10
-    offset: 10
-    side: both
-    zone: curve
-    minSize: 5
-    maxSize: 8
-
-  - file: flagCheckers.glb
-    node: 5
-    size: 20
-    alignToTrack: true
-
-  - file: flagCheckers.glb
-    node: 5
-    offset: 20
-    size: 20
-    side: left
-    alignToTrack: true
-
+    maxSize: 14
