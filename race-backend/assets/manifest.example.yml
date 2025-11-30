@@ -1,112 +1,166 @@
-# Ejemplo de manifiesto completo para colocar assets a lo largo de la pista.
-# Nuevos campos aceptados por entrada:
-#   mesh             : "gltf" (default si hay file) o "procedural-tree"
-#   file / fileName      : nombre del .glb ubicado en este mismo directorio
-#   node / nodeIndex     : indice de nodo en la línea central (comienza en 1)
-#   nodes                : lista de nodos específicos (se combinan con node/nodeIndex)
-#   placement            : required / optional / filler (define prioridad)
-#   min                  : instancias mínimas a generar (default: 1 para required)
-#   density              : instancias por kilómetro (si no hay node)
-#   every                : coloca en cada N segmentos (si no hay node)
-#   minSpacing           : separación mínima entre instancias
-#   minDistance/maxDistance : rango de distancia al centro (para árboles usa factores del ancho)
-#   offset               : distancia extra respecto al origen elegido
-#   offsetMode           : edge (default) / centerline / absolute
-#   rotationOffset       : giro adicional en grados o radianes (positivo hacia la izquierda)
-#   segment              : any / straight / curve
-#   zone                 : any / outer
-#   side                 : right / left / both / + / - / opposite (default: right)
-#   scale / size         : factor de escala (default: TRACK_ASSET_SIZE)
-#   alignToTrack         : alinear la rotación con la pista (true por defecto)
-#   lookAtTrack          : rotar para mirar hacia el centro de la pista más cercano
-#   allowOnTrack         : permite ubicar el decorador sobre la pista (banners de meta, etc.)
-#   chance               : probabilidad de usar esta entrada si no es required (0..1)
+# Manifiesto de decoradores (formato soportado por TrackAssetManifestReader).
+# Parámetros aceptados (todos opcionales salvo mesh/file):
+# - mesh            : "gltf" (usa file/fileName) o "procedural-tree".
+# - file/fileName   : nombre del .glb en assets/.
+# - placement       : "required" (se fuerza), "optional" (probabilístico), "filler" (relleno).
+# - min/max         : instancias mínimas/máximas de este descriptor.
+# - density         : instancias por kilómetro; spacing = max(minSpacing, 1000/density).
+# - every           : coloca en cada N segmentos (filtro por índice de segmento).
+# - minSpacing      : distancia mínima respecto a otros decoradores ya colocados.
+# - node/nodeIndex  : nodo 1-based específico; nodes: lista de nodos.
+# - side            : "left" / "right" / "both" / "opposite" / "+" / "-" / 0 (default right).
+# - segment         : "any" / "straight" / "curve"; zone: "any" / "outer" / "inner" (alias: inside).
+# - offset          : desplazamiento lateral; offsetMode: "edge" (borde pista), "centerline", "absolute".
+# - minDistance/maxDistance : para procedural-tree, factores del ancho respecto a la línea central.
+# - spreadMode      : "edge" (default), "band" (banda aleatoria), "random-outer" (distribución amplia).
+# - offsetJitter    : jitter lateral adicional (metros, valor máximo).
+# - longitudinalJitter : jitter a lo largo del segmento (metros o fracción si < 1).
+# - size / minSize / maxSize : escala uniforme o rango aleatorio.
+# - seed            : desplazamiento de aleatoriedad por descriptor; chance: probabilidad 0..1 (si no es required).
+# - alignToTrack    : alinear yaw al tangente de pista (gltf, default true).
+# - lookAtTrack     : mirar al punto de pista más cercano (domina sobre alignToTrack).
+# - baseRotation    : rotación base del modelo (rad o grados si |valor| > 2.5π).
+# - rotationOffset  : offset adicional; rotationJitter: ruido aleatorio aplicado al final.
+# - allowOnTrack    : permitir colocar sobre la pista.
+# - placementTier   : orden de prioridad al colocar (menor primero).
+# - clusterSize / clusterRadius : agrupa varias instancias alrededor del anchor.
+# - fillEmpty       : usa este descriptor para rellenar huecos de la grilla de entorno.
+# - fillCellSize    : tamaño de celda (metros) para el relleno de huecos.
 
 assets:
-  # Árboles procedurales distribuidos de forma pseudo-aleatoria en ambos lados
+  # Vegetación base con dispersión natural
   - mesh: procedural-tree
+    id: trees-bg
     placement: filler
-    density: 300
-    minSpacing: 1
-    minDistance: 0.8   # factores respecto al ancho de pista
-    maxDistance: 2.5
-    segment: any
-    side: both
+    placementTier: 0
+    density: 180
+    minSpacing: 5
+    minDistance: 0.9
+    maxDistance: 2.6
+    spreadMode: random-outer
+    offsetJitter: 6
+    rotationJitter: 0.2
+    clusterSize: 2
+    clusterRadius: 4
+    seed: 10
 
-  # Carteles espaciados en rectas cada pocos segmentos
-  - file: lightPost_exclusive.glb
-    mesh: gltf
-    placement: required
-    every: 6
-    minSpacing: 25
-    offset: 5
-    side: left
-    segment: straight
-    alignToTrack: true
-    scale: 20
-
-  # Árboles grandes que refuerzan la zona exterior
   - file: treeLarge.glb
+    id: trees-large
     placement: filler
-    density: 60
-    minSpacing: 10
-    offset: 30
-    side: both
-    alignToTrack: true
-    scale: 10
-    zone: outer
-
-  # Relleno de follaje mixto
-  - file: treeSmall.glb
-    placement: filler
-    density: 250
-    minSpacing: 2
-    offset: 30
-    side: both
-    zone: any
-    minSize: 5
-    maxSize: 20
-
-  - file: tent.glb
-    placement: optional
-    chance: 0.65
+    placementTier: 1
     density: 200
-    minSpacing: 10
-    offset: 10
+    minSpacing: 12
+    offset: 26
+    spreadMode: band
+    offsetJitter: 6
     side: both
-    zone: curve
-    minSize: 5
-    maxSize: 8
+    minSize: 10
+    maxSize: 16
+    clusterSize: 2
+    clusterRadius: 5
+    rotationJitter: 0.35
+    seed: 11
 
-  # Carteles publicitarios que miran hacia la pista desde el exterior
-  - file: billboard.glb
-    placement: optional
-    density: 80
-    minSpacing: 35
-    offset: 15
+  - file: treeSmall.glb
+    id: trees-small
+    placement: filler
+    placementTier: 1
+    density: 120
+    minSpacing: 6
+    offset: 24
+    spreadMode: band
+    offsetJitter: 5
+    side: both
+    minSize: 6
+    maxSize: 11
+    clusterSize: 3
+    clusterRadius: 6
+    seed: 12
+
+  # Iluminación y cartelería con lookAt estable
+  - file: lightPost_exclusive.glb
+    id: lights-straight
+    placement: required
+    placementTier: 2
+    every: 5            # cada 5 segmentos
+    oncePerSegment: true
+    minSpacing: 20
     side: both
     lookAtTrack: true
     alignToTrack: false
-    rotationOffset: -5   # grados
-    minSize: 1
-    maxSize: 1.5
+    baseRotation: 270       # en grados, corrige forward del modelo si apunta al eje Z
+    size: 12
 
-  # Banner de meta centrado en un nodo concreto
-  - file: flagCheckers.glb
+  - file: billboardLow.glb
+    id: billboards
+    placement: optional
+    placementTier: 3
+    density: 22
+    minSpacing: 20
+    offset: 14
+    side: both
+    lookAtTrack: true
+    alignToTrack: false
+    rotationOffset: -90      # grados
+    rotationJitter: 1
+    minSize: 10
+    maxSize: 13
+
+  # Gradas en rectas mirando hacia la pista
+  - file: grandStand.glb
+    id: grandstands-left
+    placement: optional
+    placementTier: 0
+    every: 6
+    oncePerSegment: true
+    minSpacing: 60
+    offset: 10
+    side: left
+    zone: outer
+    lookAtTrack: true
+    alignToTrack: false
+    baseRotation: 270
+    size: 18
+
+  # Meta / salida
+  - file: overheadRoundColored.glb
+    id: start-arch
     placement: required
-    nodes: [5]
-    size: 20
-    alignToTrack: true
+    placementTier: 0
+    node: 5
     offsetMode: centerline
     allowOnTrack: true
-    side: both
-
-  # Juego de banderas adicionales al costado de la meta
-  - file: flagCheckers.glb
-    placement: required
-    node: 5
-    offset: 20
-    size: 20
-    side: left
     alignToTrack: true
+    baseRotation: 90
+    size: 35
 
+  # Boxes compactos
+  - file: pitsGarage.glb
+    id: pits-garage
+    placement: required
+    placementTier: 0
+    nodes: [1, 2, 3]
+    offset: 10
+    side: right
+    alignToTrack: true
+    lookAtTrack: true
+    baseRotation: 270        # grados
+    size: 12
+    seed: 40
+
+  # Relleno de huecos (grilla) con césped
+  - file: tent.glb
+    id: grass-gaps
+    placement: filler
+    placementTier: 4
+    fillEmpty: true
+    fillCellSize: 22
+    density: 120
+    minSpacing: 8
+    offset: 10
+    spreadMode: band
+    offsetJitter: 6
+    side: both
+    minSize: 4
+    maxSize: 7
+    seed: 50
