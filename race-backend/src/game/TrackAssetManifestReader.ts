@@ -8,21 +8,40 @@ export interface AssetDescriptor {
   mesh: InstanceMeshKind;
   fileName?: string;
   nodeIndex?: number;
+  nodeIndices?: number[];
   side: 1 | -1 | 0;
   size?: number;
   minSize?: number;
   maxSize?: number;
   offset?: number;
+  offsetMode?: "edge" | "centerline" | "absolute";
+  offsetJitter?: number;
+  longitudinalJitter?: number;
+  spreadMode?: "edge" | "band" | "random-outer";
+  rotationOffset?: number;
+  baseRotation?: number;
+  rotationJitter?: number;
   density?: number;
+  chance?: number;
   every?: number;
   minSpacing?: number;
+  minInstances?: number;
   maxInstances?: number;
   segment?: "any" | "straight" | "curve";
-  zone?: "any" | "outer";
+  zone?: "any" | "outer" | "inner";
   minDistance?: number;
   maxDistance?: number;
   seedOffset?: number;
   alignToTrack?: boolean;
+  lookAtTrack?: boolean;
+  oncePerSegment?: boolean;
+  placementTier?: number;
+  clusterSize?: number;
+  clusterRadius?: number;
+  fillEmpty?: boolean;
+  fillCellSize?: number;
+  placement?: "required" | "optional" | "filler";
+  allowOnTrack?: boolean;
 }
 
 interface ManifestEntry {
@@ -31,16 +50,27 @@ interface ManifestEntry {
   mesh?: unknown;
   node?: unknown;
   nodeIndex?: unknown;
+  nodes?: unknown;
   side?: unknown;
   size?: unknown;
   scale?: unknown;
   minSize?: unknown;
   maxSize?: unknown;
   offset?: unknown;
+  offsetMode?: unknown;
+  offsetJitter?: unknown;
+  longitudinalJitter?: unknown;
+  spreadMode?: unknown;
+  rotation?: unknown;
+  rotationOffset?: unknown;
+  baseRotation?: unknown;
+  rotationJitter?: unknown;
   density?: unknown;
+  chance?: unknown;
   frequency?: unknown;
   every?: unknown;
   minSpacing?: unknown;
+  min?: unknown;
   spacing?: unknown;
   max?: unknown;
   segment?: unknown;
@@ -49,6 +79,16 @@ interface ManifestEntry {
   maxDistance?: unknown;
   seed?: unknown;
   alignToTrack?: unknown;
+  lookAtTrack?: unknown;
+  oncePerSegment?: unknown;
+  tier?: unknown;
+  placementTier?: unknown;
+  clusterSize?: unknown;
+  clusterRadius?: unknown;
+  fillEmpty?: unknown;
+  fillCellSize?: unknown;
+  placement?: unknown;
+  allowOnTrack?: unknown;
 }
 
 export function loadAssetDescriptors(library: TrackAssetLibraryConfig): AssetDescriptor[] {
@@ -161,6 +201,7 @@ function normalizeEntry(entry: unknown, index: number): AssetDescriptor | null {
   }
 
   const nodeNumber = normalizeNodeNumber(manifestEntry.node ?? manifestEntry.nodeIndex);
+  const explicitNodes = normalizeNodeList(manifestEntry.nodes);
   const nodeProvided = manifestEntry.node !== undefined || manifestEntry.nodeIndex !== undefined;
   if (nodeProvided && nodeNumber === null) {
     console.warn(`[TrackAssetManifest] La entrada ${index + 1} tiene un índice de nodo inválido.`);
@@ -180,31 +221,68 @@ function normalizeEntry(entry: unknown, index: number): AssetDescriptor | null {
   const density = normalizePositiveNumber(manifestEntry.density ?? manifestEntry.frequency);
   const every = normalizePositiveInteger(manifestEntry.every);
   const minSpacing = normalizePositiveNumber(manifestEntry.minSpacing ?? manifestEntry.spacing);
+  const minInstances = normalizePositiveInteger(manifestEntry.min);
   const maxInstances = normalizePositiveInteger(manifestEntry.max);
   const offset = normalizePositiveNumber(manifestEntry.offset);
+  const offsetMode = normalizeOffsetMode(manifestEntry.offsetMode);
+  const offsetJitter = normalizeNumber(manifestEntry.offsetJitter);
+  const longitudinalJitter = normalizeNumber(manifestEntry.longitudinalJitter);
+  const spreadMode = normalizeSpreadMode(manifestEntry.spreadMode);
+  const rotationOffset = normalizeRotation(manifestEntry.rotationOffset ?? manifestEntry.rotation);
+  const baseRotation = normalizeRotation(manifestEntry.baseRotation);
+  const rotationJitter = normalizeRotation(manifestEntry.rotationJitter);
   const minDistance = normalizePositiveNumber(manifestEntry.minDistance);
   const maxDistance = normalizePositiveNumber(manifestEntry.maxDistance);
   const seedOffset = normalizeNumber(manifestEntry.seed);
   const alignToTrack = normalizeBoolean(manifestEntry.alignToTrack);
+  const lookAtTrack = normalizeBoolean(manifestEntry.lookAtTrack);
+  const placement = normalizePlacement(manifestEntry.placement);
+  const chance = normalizeChance(manifestEntry.chance);
+  const allowOnTrack = normalizeBoolean(manifestEntry.allowOnTrack);
+  const oncePerSegment = normalizeBoolean(manifestEntry.oncePerSegment);
+  const placementTier = normalizeNumber(manifestEntry.placementTier ?? manifestEntry.tier);
+  const clusterSize = normalizePositiveInteger(manifestEntry.clusterSize);
+  const clusterRadius = normalizePositiveNumber(manifestEntry.clusterRadius);
+  const fillEmpty = normalizeBoolean(manifestEntry.fillEmpty);
+  const fillCellSize = normalizePositiveNumber(manifestEntry.fillCellSize);
 
   return {
     id: fileName ?? `entry-${index + 1}`,
     mesh,
     ...(fileName ? { fileName } : {}),
     ...(nodeNumber !== null ? { nodeIndex: nodeNumber - 1 } : {}),
+    ...(explicitNodes ? { nodeIndices: explicitNodes.map((value) => value - 1) } : {}),
     side,
     ...(uniformSize !== null ? { size: uniformSize } : {}),
     ...(minSize !== null ? { minSize } : {}),
     ...(maxSize !== null ? { maxSize } : {}),
+    ...(offsetMode ? { offsetMode } : {}),
     ...(density !== null ? { density } : {}),
+    ...(chance !== null ? { chance } : {}),
     ...(every !== null ? { every } : {}),
     ...(minSpacing !== null ? { minSpacing } : {}),
+    ...(minInstances !== null ? { minInstances } : {}),
     ...(maxInstances !== null ? { maxInstances } : {}),
     ...(offset !== null ? { offset } : {}),
+    ...(offsetJitter !== null ? { offsetJitter } : {}),
+    ...(longitudinalJitter !== null ? { longitudinalJitter } : {}),
+    ...(spreadMode ? { spreadMode } : {}),
+    ...(rotationOffset !== null ? { rotationOffset } : {}),
+    ...(baseRotation !== null ? { baseRotation } : {}),
+    ...(rotationJitter !== null ? { rotationJitter } : {}),
     ...(minDistance !== null ? { minDistance } : {}),
     ...(maxDistance !== null ? { maxDistance } : {}),
     ...(seedOffset !== null ? { seedOffset } : {}),
     ...(alignToTrack !== null ? { alignToTrack } : {}),
+    ...(lookAtTrack !== null ? { lookAtTrack } : {}),
+    ...(oncePerSegment !== null ? { oncePerSegment } : {}),
+    ...(placementTier !== null ? { placementTier } : {}),
+    ...(clusterSize !== null ? { clusterSize } : {}),
+    ...(clusterRadius !== null ? { clusterRadius } : {}),
+    ...(fillEmpty !== null ? { fillEmpty } : {}),
+    ...(fillCellSize !== null ? { fillCellSize } : {}),
+    ...(allowOnTrack !== null ? { allowOnTrack } : {}),
+    placement,
     segment: normalizeSegment(manifestEntry.segment),
     zone: normalizeZone(manifestEntry.zone)
   };
@@ -286,7 +364,21 @@ function normalizeSegment(value: unknown): "any" | "straight" | "curve" {
   return "any";
 }
 
-function normalizeZone(value: unknown): "any" | "outer" {
+function normalizePlacement(value: unknown): "required" | "optional" | "filler" {
+  if (typeof value !== "string") {
+    return "optional";
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "required" || normalized === "always" || normalized === "mandatory") {
+    return "required";
+  }
+  if (normalized === "filler" || normalized === "background" || normalized === "ambient") {
+    return "filler";
+  }
+  return "optional";
+}
+
+function normalizeZone(value: unknown): "any" | "outer" | "inner" {
   if (typeof value !== "string") {
     return "any";
   }
@@ -294,7 +386,74 @@ function normalizeZone(value: unknown): "any" | "outer" {
   if (normalized.startsWith("outer") || normalized === "outside") {
     return "outer";
   }
+  if (normalized.startsWith("inner") || normalized === "inside") {
+    return "inner";
+  }
   return "any";
+}
+
+function normalizeOffsetMode(value: unknown): "edge" | "centerline" | "absolute" | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "center" || normalized === "centerline" || normalized === "track") {
+    return "centerline";
+  }
+  if (normalized === "absolute") {
+    return "absolute";
+  }
+  if (normalized === "edge" || normalized === "default") {
+    return "edge";
+  }
+  return null;
+}
+
+function normalizeSpreadMode(value: unknown): "edge" | "band" | "random-outer" | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "band") {
+    return "band";
+  }
+  if (normalized === "random-outer" || normalized === "randomouter" || normalized === "outer") {
+    return "random-outer";
+  }
+  if (normalized === "edge" || normalized === "default") {
+    return "edge";
+  }
+  return null;
+}
+
+function normalizeRotation(value: unknown): number | null {
+  const numberValue = parseFloatValue(value);
+  if (numberValue === null) {
+    return null;
+  }
+
+  const abs = Math.abs(numberValue);
+  const isDegrees = abs > Math.PI * 2.5;
+  return isDegrees ? (numberValue * Math.PI) / 180 : numberValue;
+}
+
+function normalizeNodeList(value: unknown): number[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+  const parsed = value
+    .map(normalizeNodeNumber)
+    .filter((item): item is number => item !== null);
+  return parsed.length > 0 ? parsed : null;
+}
+
+function normalizeChance(value: unknown): number | null {
+  const numberValue = parseFloatValue(value);
+  if (numberValue === null) {
+    return null;
+  }
+  const clamped = Math.min(Math.max(numberValue, 0), 1);
+  return clamped;
 }
 
 function readFromDirectory(directory: string): AssetDescriptor[] {
@@ -440,6 +599,45 @@ function splitKeyValue(text: string): { key: string; value: string } | null {
 }
 
 function parseScalar(value: string): unknown {
+  if (value.startsWith("[") && value.endsWith("]")) {
+    const list = parseInlineList(value);
+    if (list !== null) {
+      return list;
+    }
+  }
+
+  if (value === "" || value === "null") {
+    return null;
+  }
+  if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  const numberValue = parseFloatValue(value);
+  if (numberValue !== null) {
+    return numberValue;
+  }
+  return value;
+}
+
+function parseInlineList(text: string): unknown[] | null {
+  const inner = text.slice(1, -1).trim();
+  if (inner.length === 0) {
+    return [];
+  }
+  const parts = inner.split(",").map((part) => part.trim());
+  const values = parts
+    .map(parseScalarValue)
+    .filter((v) => v !== undefined);
+  return values;
+}
+
+function parseScalarValue(value: string): unknown {
   if (value === "" || value === "null") {
     return null;
   }

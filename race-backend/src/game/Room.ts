@@ -145,7 +145,7 @@ export class Room {
       ? this.trackNavigator.project(track.centerline[this.startSegmentIndex % track.centerline.length]).distanceAlongTrack
       : 0;
     this.countdownTotal = RACE_COUNTDOWN_SECONDS;
-    // this.initializeNpc("Garburator",0,1,0);
+    this.initializeNpc("Garburator",0,1,0);
     // this.initializeNpc("Petrucci",0,-1,0.5);
   }
 
