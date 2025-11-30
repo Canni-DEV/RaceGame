@@ -1,4 +1,9 @@
 import * as THREE from 'three'
+import { Sky } from 'three/examples/jsm/objects/Sky'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass'
+import { LUTPass } from 'three/examples/jsm/postprocessing/LUTPass'
 import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
 import { GameStateStore } from '../state/GameStateStore'
@@ -23,6 +28,10 @@ export class SceneManager {
   private readonly playerListOverlay: PlayerListOverlay
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
+  private readonly sunPosition = new THREE.Vector3()
+  private composer: EffectComposer | null = null
+  private bloomPass: UnrealBloomPass | null = null
+  private cloudMaterial: THREE.ShaderMaterial | null = null
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
@@ -33,19 +42,21 @@ export class SceneManager {
 
   constructor(container: HTMLElement) {
     this.container = container
-    this.renderer = new THREE.WebGLRenderer({ antialias: true })
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
     this.renderer.setSize(container.clientWidth, container.clientHeight)
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.renderer.setClearColor(0x05070f)
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.2
+    this.renderer.toneMappingExposure = 1.35
     this.renderer.physicallyCorrectLights = true
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
 
     this.scene = new THREE.Scene()
+    this.scene.fog = new THREE.FogExp2(new THREE.Color('#0b1024'), 0.00135)
     this.setupEnvironment()
 
     const aspect = container.clientWidth / container.clientHeight
@@ -58,6 +69,8 @@ export class SceneManager {
     this.audioManager = new AudioManager(this.camera)
 
     this.setupLights()
+
+    this.composer = this.setupPostProcessing()
 
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
@@ -106,16 +119,17 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const hemisphere = new THREE.HemisphereLight(0x6fa5ff, 0x7a552d, 0.35)
+    const hemisphere = new THREE.HemisphereLight(0x3c5d88, 0x1a0f2b, 0.55)
+    hemisphere.intensity = 0.85
     this.scene.add(hemisphere)
 
-    const keyLight = new THREE.DirectionalLight(0xffe2b3, 1.15)
-    keyLight.position.set(60, 120, 80)
+    const keyLight = new THREE.DirectionalLight(0xffc68a, 1.25)
+    keyLight.position.set(120, 65, 30)
     keyLight.castShadow = true
     keyLight.shadow.mapSize.width = 4096
     keyLight.shadow.mapSize.height = 4096
-    keyLight.shadow.bias = -0.00035
-    keyLight.shadow.normalBias = 0.015
+    keyLight.shadow.bias = -0.00028
+    keyLight.shadow.normalBias = 0.012
     keyLight.shadow.camera.near = 1
     keyLight.shadow.camera.far = 600
     keyLight.shadow.camera.left = -150
@@ -125,14 +139,14 @@ export class SceneManager {
     this.scene.add(keyLight)
     this.scene.add(keyLight.target)
 
-    const fillLight = new THREE.DirectionalLight(0xd5e3ff, 0.35)
-    fillLight.position.set(-140, 80, 40)
+    const fillLight = new THREE.DirectionalLight(0x7bc6ff, 0.42)
+    fillLight.position.set(-110, 55, 60)
     fillLight.castShadow = false
     this.scene.add(fillLight)
     this.scene.add(fillLight.target)
 
-    const rimLight = new THREE.DirectionalLight(0x9ecbff, 0.5)
-    rimLight.position.set(100, 50, -160)
+    const rimLight = new THREE.DirectionalLight(0x8ee1ff, 0.6)
+    rimLight.position.set(80, 40, -140)
     rimLight.castShadow = false
     this.scene.add(rimLight)
     this.scene.add(rimLight.target)
@@ -141,32 +155,173 @@ export class SceneManager {
   }
 
   private setupEnvironment(): void {
-    const width = 1024
-    const height = 512
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')
-    if (!context) {
-      return
-    }
+    const sky = new Sky()
+    sky.scale.setScalar(480)
 
-    const gradient = context.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#182c47')
-    gradient.addColorStop(1, '#0f0c17')
-    context.fillStyle = gradient
-    context.fillRect(0, 0, width, height)
+    const uniforms = sky.material.uniforms
+    uniforms['turbidity'].value = 11
+    uniforms['rayleigh'].value = 1.15
+    uniforms['mieCoefficient'].value = 0.0095
+    uniforms['mieDirectionalG'].value = 0.87
 
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.colorSpace = THREE.SRGBColorSpace
-    texture.mapping = THREE.EquirectangularReflectionMapping
+    const phi = THREE.MathUtils.degToRad(70)
+    const theta = THREE.MathUtils.degToRad(225)
+    this.sunPosition.setFromSphericalCoords(1, phi, theta)
+    uniforms['sunPosition'].value.copy(this.sunPosition)
+
+    this.scene.add(sky)
 
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer)
-    const envMap = pmremGenerator.fromEquirectangular(texture).texture
+    const envMap = pmremGenerator.fromScene(sky).texture
+    this.scene.environment = envMap
     pmremGenerator.dispose()
 
-    this.scene.background = texture
-    this.scene.environment = envMap
+    this.scene.background = new THREE.Color('#060b18')
+
+    const cloudLayer = this.createCloudLayer()
+    if (cloudLayer) {
+      this.scene.add(cloudLayer)
+    }
+  }
+
+  private setupPostProcessing(): EffectComposer {
+    const composer = new EffectComposer(this.renderer)
+    composer.setSize(this.container.clientWidth, this.container.clientHeight)
+
+    const renderPass = new RenderPass(this.scene, this.camera)
+    composer.addPass(renderPass)
+
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(this.container.clientWidth, this.container.clientHeight),
+      0.85,
+      0.6,
+      0.02,
+    )
+    bloomPass.threshold = 0.18
+    bloomPass.strength = 0.65
+    bloomPass.radius = 0.45
+    composer.addPass(bloomPass)
+
+    const lutTexture = this.createFilmLutTexture()
+    const lutPass = new LUTPass({ lut: lutTexture, intensity: 0.85 })
+    composer.addPass(lutPass)
+
+    this.bloomPass = bloomPass
+
+    return composer
+  }
+
+  private createFilmLutTexture(): THREE.Data3DTexture {
+    const size = 16
+    const data = new Uint8Array(size * size * size * 4)
+
+    let pointer = 0
+    for (let b = 0; b < size; b++) {
+      for (let g = 0; g < size; g++) {
+        for (let r = 0; r < size; r++) {
+          const red = r / (size - 1)
+          const green = g / (size - 1)
+          const blue = b / (size - 1)
+
+          const luma = red * 0.299 + green * 0.587 + blue * 0.114
+          const warmHighlights = 0.08 * luma
+          const coolShadows = 0.06 * (1 - luma)
+
+          const gradedR = THREE.MathUtils.clamp(red + warmHighlights, 0, 1)
+          const gradedG = THREE.MathUtils.clamp(green + warmHighlights * 0.6, 0, 1)
+          const gradedB = THREE.MathUtils.clamp(blue + coolShadows - warmHighlights * 0.2, 0, 1)
+
+          data[pointer++] = Math.round(gradedR * 255)
+          data[pointer++] = Math.round(gradedG * 255)
+          data[pointer++] = Math.round(gradedB * 255)
+          data[pointer++] = 255
+        }
+      }
+    }
+
+    const texture = new THREE.Data3DTexture(data, size, size, size)
+    texture.format = THREE.RGBAFormat
+    texture.type = THREE.UnsignedByteType
+    texture.colorSpace = THREE.SRGBColorSpace
+    texture.minFilter = THREE.LinearFilter
+    texture.magFilter = THREE.LinearFilter
+    texture.unpackAlignment = 1
+    texture.needsUpdate = true
+    return texture
+  }
+
+  private createCloudLayer(): THREE.Mesh | null {
+    const geometry = new THREE.SphereGeometry(420, 64, 32)
+    const material = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      transparent: true,
+      depthWrite: false,
+      uniforms: {
+        uTime: { value: 0 },
+        uTint: { value: new THREE.Color('#7dc7ff') },
+        uFog: { value: new THREE.Color('#060b18') },
+        uIntensity: { value: 0.55 },
+      },
+      vertexShader: /* glsl */ `
+        varying vec3 vWorldPosition;
+
+        void main() {
+          vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+          vWorldPosition = worldPosition.xyz;
+          gl_Position = projectionMatrix * viewMatrix * worldPosition;
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        varying vec3 vWorldPosition;
+        uniform float uTime;
+        uniform vec3 uTint;
+        uniform vec3 uFog;
+        uniform float uIntensity;
+
+        float hash(vec2 p) {
+          return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+        }
+
+        float noise(vec2 p) {
+          vec2 i = floor(p);
+          vec2 f = fract(p);
+          float a = hash(i);
+          float b = hash(i + vec2(1.0, 0.0));
+          float c = hash(i + vec2(0.0, 1.0));
+          float d = hash(i + vec2(1.0, 1.0));
+          vec2 u = f * f * (3.0 - 2.0 * f);
+          return mix(a, b, u.x) + (c - a) * u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+        }
+
+        float fbm(vec2 p) {
+          float value = 0.0;
+          float amplitude = 0.5;
+          for (int i = 0; i < 5; i++) {
+            value += amplitude * noise(p);
+            p = p * 2.03 + vec2(7.1, 5.3);
+            amplitude *= 0.55;
+          }
+          return value;
+        }
+
+        void main() {
+          vec3 dir = normalize(vWorldPosition);
+          float altitude = smoothstep(-0.2, 0.6, dir.y);
+
+          vec2 uv = dir.xz * 3.4 + uTime * 0.03;
+          float clouds = fbm(uv);
+          float mask = smoothstep(0.55, 0.78, clouds) * altitude;
+
+          vec3 color = mix(uFog, uTint, mask);
+          gl_FragColor = vec4(color, mask * uIntensity);
+        }
+      `,
+    })
+
+    this.cloudMaterial = material
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.renderOrder = -1
+    return mesh
   }
 
   private readonly handleResize = (): void => {
@@ -175,6 +330,12 @@ export class SceneManager {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
+    if (this.composer) {
+      this.composer.setSize(width, height)
+    }
+    if (this.bloomPass) {
+      this.bloomPass.setSize(width, height)
+    }
   }
 
   private readonly animate = (): void => {
@@ -182,7 +343,17 @@ export class SceneManager {
     const delta = this.clock.getDelta()
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
-    this.renderer.render(this.scene, this.camera)
+    if (this.cloudMaterial) {
+      const uniform = this.cloudMaterial.uniforms.uTime
+      if (uniform && typeof uniform.value === 'number') {
+        uniform.value += delta
+      }
+    }
+    if (this.composer) {
+      this.composer.render()
+    } else {
+      this.renderer.render(this.scene, this.camera)
+    }
   }
 
   private readonly preventContextMenu = (event: Event): void => {

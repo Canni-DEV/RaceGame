@@ -18,6 +18,14 @@ declare module 'three' {
     lengthSq(): number
     distanceTo(v: Vector3): number
     applyQuaternion(q: Quaternion): this
+    setFromSphericalCoords(radius: number, phi: number, theta: number): this
+  }
+
+  export class Vector2 {
+    constructor(x?: number, y?: number)
+    x: number
+    y: number
+    set(x: number, y: number): this
   }
 
   export class Euler {
@@ -67,6 +75,7 @@ declare module 'three' {
   export class Scene extends Object3D {
     background: Color | Texture | null
     environment: Texture | null
+    fog?: FogExp2 | null
   }
 
   export class Color {
@@ -104,7 +113,7 @@ declare module 'three' {
   }
 
   export class WebGLRenderer {
-    constructor(params?: { antialias?: boolean })
+    constructor(params?: { antialias?: boolean; powerPreference?: string })
     domElement: HTMLCanvasElement
     shadowMap: { enabled: boolean; type: number }
     outputColorSpace: number
@@ -113,6 +122,7 @@ declare module 'three' {
     physicallyCorrectLights: boolean
     setPixelRatio(ratio: number): void
     setSize(width: number, height: number): void
+    setClearColor(color: number | Color): void
     render(scene: Scene, camera: PerspectiveCamera): void
   }
 
@@ -150,6 +160,13 @@ declare module 'three' {
 
   export class HemisphereLight extends Object3D {
     constructor(skyColor?: number | string, groundColor?: number | string, intensity?: number)
+    intensity: number
+  }
+
+  export class FogExp2 {
+    constructor(color?: Color | number | string, density?: number)
+    color: Color
+    density: number
   }
 
   export class Group extends Object3D {
@@ -188,6 +205,10 @@ declare module 'three' {
     translate(x: number, y: number, z: number): this
   }
 
+  export class SphereGeometry extends BufferGeometry {
+    constructor(radius?: number, widthSegments?: number, heightSegments?: number)
+  }
+
   export class CylinderGeometry extends BufferGeometry {
     constructor(radiusTop?: number, radiusBottom?: number, height?: number, radialSegments?: number)
     rotateZ(angle: number): this
@@ -218,6 +239,16 @@ declare module 'three' {
     dispose(): void
   }
 
+  export class ShaderMaterial extends Material {
+    constructor(parameters?: Record<string, unknown>)
+    uniforms: Record<string, { value: unknown }>
+    vertexShader: string
+    fragmentShader: string
+    transparent?: boolean
+    depthWrite?: boolean
+    side?: number
+  }
+
   export class MeshStandardMaterial extends Material {
     constructor(parameters?: Record<string, unknown>)
     color: Color
@@ -230,6 +261,7 @@ declare module 'three' {
     constructor(geometry?: TGeometry, material?: Material | Material[])
     receiveShadow: boolean
     castShadow: boolean
+    renderOrder: number
     name: string
     geometry: TGeometry
     material: Material | Material[]
@@ -248,9 +280,23 @@ declare module 'three' {
     constructor(canvas: HTMLCanvasElement)
   }
 
+  export class Data3DTexture extends Texture {
+    constructor(data: ArrayBufferView, width: number, height: number, depth: number)
+    format: number
+    type: number
+    minFilter: number
+    magFilter: number
+    wrapS: number
+    wrapT: number
+    wrapR: number
+    unpackAlignment: number
+    needsUpdate: boolean
+  }
+
   export class PMREMGenerator {
     constructor(renderer: WebGLRenderer)
     fromEquirectangular(texture: Texture): { texture: Texture }
+    fromScene(scene: Object3D, sigma?: number, near?: number, far?: number): { texture: Texture }
     dispose(): void
   }
 
@@ -275,8 +321,13 @@ declare module 'three' {
   }
 
   export const EquirectangularReflectionMapping: number
+  export const ClampToEdgeWrapping: number
   export const SRGBColorSpace: number
   export const ACESFilmicToneMapping: number
+  export const BackSide: number
+  export const LinearFilter: number
+  export const UnsignedByteType: number
+  export const RGBAFormat: number
 }
 
 declare module 'three/examples/jsm/loaders/GLTFLoader.js' {
@@ -295,4 +346,53 @@ declare module 'three/examples/jsm/utils/SkeletonUtils.js' {
   import type { Object3D } from 'three'
 
   export function clone<T extends Object3D>(source: T): T
+}
+
+declare module 'three/examples/jsm/objects/Sky' {
+  import type { Object3D } from 'three'
+
+  export class Sky extends Object3D {
+    material: { uniforms: Record<string, { value: any }> }
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/EffectComposer' {
+  import type { WebGLRenderer } from 'three'
+
+  export class EffectComposer {
+    constructor(renderer: WebGLRenderer)
+    addPass(pass: any): void
+    setSize(width: number, height: number): void
+    render(): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/RenderPass' {
+  import type { Scene, Camera } from 'three'
+
+  export class RenderPass {
+    constructor(scene: Scene, camera: Camera)
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/UnrealBloomPass' {
+  import type { Vector2 } from 'three'
+
+  export class UnrealBloomPass {
+    constructor(resolution: Vector2, strength?: number, radius?: number, threshold?: number)
+    threshold: number
+    strength: number
+    radius: number
+    setSize(width: number, height: number): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/LUTPass' {
+  import type { Data3DTexture } from 'three'
+
+  export class LUTPass {
+    constructor(options?: { lut?: Data3DTexture | null; intensity?: number })
+    lut: Data3DTexture | null
+    intensity: number
+  }
 }
