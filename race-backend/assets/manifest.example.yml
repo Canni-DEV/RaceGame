@@ -28,101 +28,61 @@
 # - fillCellSize    : tamaño de celda (metros) para el relleno de huecos.
 
 assets:
-  # Vegetación base con dispersión natural
-  - mesh: procedural-tree
-    id: trees-bg
-    placement: filler
-    placementTier: 0
-    density: 180
-    minSpacing: 5
-    minDistance: 0.9
-    maxDistance: 2.6
-    spreadMode: random-outer
-    offsetJitter: 6
-    rotationJitter: 0.2
-    clusterSize: 2
-    clusterRadius: 4
-    seed: 10
-
-  - file: treeLarge.glb
-    id: trees-large
-    placement: filler
-    placementTier: 1
-    density: 200
-    minSpacing: 12
-    offset: 26
-    spreadMode: band
-    offsetJitter: 6
-    side: both
-    minSize: 10
-    maxSize: 16
-    clusterSize: 2
-    clusterRadius: 5
-    rotationJitter: 0.35
-    seed: 11
-
-  - file: treeSmall.glb
-    id: trees-small
-    placement: filler
-    placementTier: 1
-    density: 120
-    minSpacing: 6
-    offset: 24
-    spreadMode: band
-    offsetJitter: 5
-    side: both
-    minSize: 6
-    maxSize: 11
-    clusterSize: 3
-    clusterRadius: 6
-    seed: 12
-
-  # Iluminación y cartelería con lookAt estable
+    # Iluminación y cartelería con lookAt estable
   - file: lightPost_exclusive.glb
-    id: lights-straight
+    id: lights-straight1
     placement: required
-    placementTier: 2
-    every: 5            # cada 5 segmentos
-    oncePerSegment: true
-    minSpacing: 20
-    side: both
+    placementTier: 0
+    every: 6            # cada 5 segmentos
+    minSpacing: 60
+    side: left
     lookAtTrack: true
     alignToTrack: false
-    baseRotation: 270       # en grados, corrige forward del modelo si apunta al eje Z
+    baseRotation: 0       # en grados, corrige forward del modelo si apunta al eje Z
     size: 12
 
-  - file: billboardLow.glb
-    id: billboards
-    placement: optional
-    placementTier: 3
-    density: 22
-    minSpacing: 20
-    offset: 14
-    side: both
+  - file: lightPost_exclusive.glb
+    id: lights-straight2
+    placement: required
+    placementTier: 0
+    every: 7           # cada 5 segmentos
+    minSpacing: 60
+    side: right
     lookAtTrack: true
     alignToTrack: false
-    rotationOffset: -90      # grados
-    rotationJitter: 1
-    minSize: 10
-    maxSize: 13
+    baseRotation: 0       # en grados, corrige forward del modelo si apunta al eje Z
+    size: 12
 
   # Gradas en rectas mirando hacia la pista
   - file: grandStand.glb
     id: grandstands-left
-    placement: optional
+    placement: required
+    placementTier: 0
+    every: 5
+    oncePerSegment: true
+    minSpacing: 50
+    offset: 10
+    side: left
+    lookAtTrack: true
+    alignToTrack: false
+    baseRotation: 0
+    size: 18
+
+  - file: grandStand.glb
+    id: grandstands-right
+    placement: required
     placementTier: 0
     every: 6
     oncePerSegment: true
-    minSpacing: 60
+    minSpacing: 50
     offset: 10
-    side: left
-    zone: outer
+    side: right
     lookAtTrack: true
     alignToTrack: false
-    baseRotation: 270
+    baseRotation: 0
     size: 18
 
-  # Meta / salida
+    # Meta / salida
   - file: overheadRoundColored.glb
     id: start-arch
     placement: required
@@ -131,7 +91,7 @@ assets:
     offsetMode: centerline
     allowOnTrack: true
     alignToTrack: true
-    baseRotation: 90
+    baseRotation: 0
     size: 35
 
   # Boxes compactos
@@ -144,9 +104,72 @@ assets:
     side: right
     alignToTrack: true
     lookAtTrack: true
-    baseRotation: 270        # grados
+    baseRotation: 0        # grados
     size: 12
     seed: 40
+
+  # Vegetación base con dispersión natural
+  - mesh: procedural-tree
+    id: trees-bg
+    placement: filler
+    placementTier: 1
+    density: 200
+    minSpacing: 5
+    minDistance: 0.9
+    maxDistance: 2.6
+    spreadMode: random-outer
+    offsetJitter: 6
+    rotationJitter: 0.2
+    clusterSize: 2
+    clusterRadius: 4
+    minSize: 0.1
+    maxSize: 0.7
+
+  - file: treeLarge.glb
+    id: trees-large
+    placement: filler
+    placementTier: 2
+    density: 200
+    minSpacing: 12
+    offset: 26
+    spreadMode: band
+    offsetJitter: 6
+    side: both
+    minSize: 10
+    maxSize: 16
+    clusterSize: 2
+    clusterRadius: 5
+    rotationJitter: 0.35
+
+  - file: treeSmall.glb
+    id: trees-small
+    placement: filler
+    placementTier: 2
+    density: 600
+    minSpacing: 6
+    offset: 24
+    spreadMode: band
+    offsetJitter: 0.2
+    side: both
+    minSize: 6
+    maxSize: 11
+    clusterSize: 3
+    clusterRadius: 6
+
+  - file: billboardLow.glb
+    id: billboards
+    placement: optional
+    placementTier: 3
+    density: 20
+    minSpacing: 20
+    offset: 14
+    side: both
+    lookAtTrack: true
+    alignToTrack: false
+    rotationOffset: 0      # grados
+    rotationJitter: 0.2
+    minSize: 10
+    maxSize: 15
 
   # Relleno de huecos (grilla) con césped
   - file: tent.glb
@@ -154,13 +177,12 @@ assets:
     placement: filler
     placementTier: 4
     fillEmpty: true
-    fillCellSize: 22
+    fillCellSize: 30
     density: 120
-    minSpacing: 8
+    minSpacing: 10
     offset: 10
     spreadMode: band
     offsetJitter: 6
     side: both
     minSize: 4
     maxSize: 7
-    seed: 50

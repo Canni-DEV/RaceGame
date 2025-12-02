@@ -550,29 +550,29 @@ function resolveRotation(
   const jitter = sampleRotationJitter(descriptor, random);
 
   if (descriptor.lookAtTrack) {
-    // Face the anchor point on the centerline (local segment) instead of relying on nearest segment sampling.
-    const toAnchor = { x: anchor.x - position.x, z: anchor.z - position.z };
-    const magnitudeSq = toAnchor.x * toAnchor.x + toAnchor.z * toAnchor.z;
-    const desired =
-      magnitudeSq > 1e-9
-        ? toAnchor
-        : {
-            // Fallback: use frame normal oriented toward track based on side
-            x: side === 0 ? frame.normal.x : frame.normal.x * side,
-            z: side === 0 ? frame.normal.z : frame.normal.z * side
-          };
+    // Look straight to the anchor used for placement (centerline point of the segment).
+    const primary = { x: anchor.x - position.x, z: anchor.z - position.z };
+    let desired = primary;
+    let magnitudeSq = primary.x * primary.x + primary.z * primary.z;
 
-    const desiredDir = normalize(desired);
-    let rotation = Math.atan2(desiredDir.z, desiredDir.x) + baseRotation + rotationOffset + jitter;
-
-    // Safety: if after applying model baseRotation we still point away from the track, flip 180°
-    const forward = { x: Math.cos(rotation), z: Math.sin(rotation) };
-    const alignment = forward.x * desiredDir.x + forward.z * desiredDir.z;
-    if (alignment < 0) {
-      rotation = rotation + Math.PI;
+    // If degenerate (very rare), fall back to the true nearest track point.
+    if (magnitudeSq < 1e-9 && segments.length > 0) {
+      const closest = closestTrackPoint(position, segments).point;
+      desired = { x: closest.x - position.x, z: closest.z - position.z };
+      magnitudeSq = desired.x * desired.x + desired.z * desired.z;
     }
 
-    return normalizeAngle(rotation);
+    // Final fallback: push toward the lane center based on the sampled frame/side.
+    if (magnitudeSq < 1e-9) {
+      desired = {
+        x: frame.normal.x * (side === 0 ? -1 : side),
+        z: frame.normal.z * (side === 0 ? -1 : side)
+      };
+    }
+
+    const desiredDir = normalize(desired);
+    const desiredAngle = Math.atan2(desiredDir.z, desiredDir.x);
+    return normalizeAngle(desiredAngle + baseRotation + rotationOffset + jitter);
   }
 
   if (descriptor.mesh === "gltf" && descriptor.alignToTrack !== false) {

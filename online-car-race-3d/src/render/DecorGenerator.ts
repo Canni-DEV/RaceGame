@@ -4,6 +4,12 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
 import { resolveServerAssetUrl } from '../config'
 
+// Backend rotations use the game angle convention (0 = +X). Three.js yaw expects 0 = +Z,
+// so we convert to the same mapping cars/missiles use.
+function toRendererYaw(angle: number): number {
+  return Math.atan2(Math.cos(angle), Math.sin(angle))
+}
+
 interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
   readonly type: TInstruction['type']
   apply(
@@ -123,7 +129,7 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
       clone.userData.isTrackAsset = true
       clone.name = `decor-asset-${assetUrl}-${index}`
       clone.position.set(instance.position.x, 0, instance.position.z)
-      clone.rotation.y = instance.rotation
+      clone.rotation.y = toRendererYaw(instance.rotation)
       clone.scale.setScalar(instance.scale)
       root.add(clone)
     }
@@ -144,7 +150,7 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     const dummy = new THREE.Object3D()
     instances.forEach((instance, index) => {
       dummy.position.set(instance.position.x, 0, instance.position.z)
-      dummy.rotation.set(0, instance.rotation, 0)
+      dummy.rotation.set(0, toRendererYaw(instance.rotation), 0)
       dummy.scale.setScalar(instance.scale)
       dummy.updateMatrix()
       mesh.setMatrixAt(index, dummy.matrix)
