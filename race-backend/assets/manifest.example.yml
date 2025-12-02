@@ -82,6 +82,34 @@ assets:
     baseRotation: 0
     size: 18
 
+  - file: grandStandAwning.glb
+    id: grandstands-right-2
+    placement: required
+    placementTier: 0
+    every: 8
+    oncePerSegment: true
+    minSpacing: 50
+    offset: 10
+    side: right
+    lookAtTrack: true
+    alignToTrack: false
+    baseRotation: 0
+    size: 18
+
+  - file: grandStandCovered.glb
+    id: grandstands-right-3
+    placement: required
+    placementTier: 0
+    every: 7
+    oncePerSegment: true
+    minSpacing: 50
+    offset: 10
+    side: left
+    lookAtTrack: true
+    alignToTrack: false
+    baseRotation: 0
+    size: 18
+
     # Meta / salida
   - file: overheadRoundColored.glb
     id: start-arch
@@ -186,3 +214,33 @@ assets:
     side: both
     minSize: 4
     maxSize: 7
+
+  - file: bannerTowerGreen.glb
+    id: grass-gaps1
+    placement: filler
+    placementTier: 4
+    fillEmpty: true
+    fillCellSize: 30
+    density: 30
+    minSpacing: 10
+    offset: 15
+    spreadMode: band
+    offsetJitter: 6
+    side: both
+    minSize: 8
+    maxSize: 8
+
+  - file: bannerTowerRed.glb
+    id: grass-gaps2
+    placement: filler
+    placementTier: 4
+    fillEmpty: true
+    fillCellSize: 30
+    density: 30
+    minSpacing: 10
+    offset: 15
+    spreadMode: band
+    offsetJitter: 6
+    side: both
+    minSize: 8
+    maxSize: 8
