@@ -61,6 +61,8 @@ export class ProceduralSky {
       fragmentShader: `
         varying vec3 vWorldPosition;
 
+        uniform vec3 cameraPosition;
+
         uniform vec3 topColor;
         uniform vec3 middleColor;
         uniform vec3 bottomColor;
@@ -150,7 +152,7 @@ export class ProceduralSky {
         }
 
         void main() {
-          vec3 direction = normalize(vWorldPosition);
+          vec3 direction = normalize(vWorldPosition - cameraPosition);
           vec3 skyColor = computeSkyGradient(direction);
 
           vec2 uv = sampleSkyUv(direction);
@@ -166,9 +168,13 @@ export class ProceduralSky {
 
     this.mesh = new THREE.Mesh(geometry, this.material)
     this.mesh.name = 'procedural-sky'
+    this.mesh.frustumCulled = false
   }
 
-  update(deltaTime: number): void {
+  update(deltaTime: number, cameraPosition?: THREE.Vector3): void {
+    if (cameraPosition) {
+      this.mesh.position.copy(cameraPosition)
+    }
     this.uniforms.time.value += deltaTime
   }
 

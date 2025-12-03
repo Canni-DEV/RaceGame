@@ -254,6 +254,7 @@ declare module 'three' {
     constructor(geometry?: TGeometry, material?: Material | Material[])
     receiveShadow: boolean
     castShadow: boolean
+    frustumCulled: boolean
     name: string
     geometry: TGeometry
     material: Material | Material[]
