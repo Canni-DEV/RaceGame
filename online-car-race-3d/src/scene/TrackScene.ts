@@ -155,6 +155,7 @@ export class TrackScene {
     for (const state of states) {
       active.add(state.playerId)
       const entity = this.getOrCreateCar(state)
+      entity.setNameLabelVisible(this.shouldShowLabelFor(state.playerId))
       entity.setTargetState(state)
     }
 
@@ -194,6 +195,7 @@ export class TrackScene {
         this.carModelLoader,
         color,
         this.audioManager,
+        this.shouldShowLabelFor(state.playerId),
       )
       this.cars.set(state.playerId, car)
     }
@@ -323,5 +325,9 @@ export class TrackScene {
     } else {
       this.requestedFollowId = this.playerId
     }
+  }
+
+  private shouldShowLabelFor(playerId: string): boolean {
+    return !this.playerId || playerId !== this.playerId
   }
 }

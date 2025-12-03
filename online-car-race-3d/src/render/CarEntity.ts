@@ -14,6 +14,7 @@ export class CarEntity {
   private readonly scene: THREE.Scene
   private readonly loader: CarModelLoader
   private readonly color: THREE.Color
+  private showNameLabel: boolean
   private username: string
   private object: THREE.Object3D | null = null
   private readonly engineSound: EngineSound | null
@@ -36,12 +37,14 @@ export class CarEntity {
     loader: CarModelLoader,
     color: THREE.Color,
     audioManager: AudioManager | null,
+    showNameLabel = true,
   ) {
     this.id = id
     this.username = username
     this.scene = scene
     this.loader = loader
     this.color = color
+    this.showNameLabel = showNameLabel
     this.engineSound = audioManager ? audioManager.createEngineSound() : null
     void this.spawn()
   }
@@ -144,10 +147,7 @@ export class CarEntity {
     }
 
     this.engineSound?.dispose()
-    if (this.nameTexture) {
-      this.nameTexture.dispose()
-      this.nameTexture = null
-    }
+    this.destroyNameLabel()
   }
 
   private setUsername(username: string): void {
@@ -155,8 +155,21 @@ export class CarEntity {
     this.updateNameLabel()
   }
 
+  setNameLabelVisible(visible: boolean): void {
+    if (this.showNameLabel === visible) {
+      return
+    }
+    this.showNameLabel = visible
+    this.updateNameLabel()
+  }
+
   private updateNameLabel(): void {
     if (!this.object) {
+      return
+    }
+
+    if (!this.showNameLabel) {
+      this.destroyNameLabel()
       return
     }
 
@@ -232,5 +245,17 @@ export class CarEntity {
     const sprite = new THREE.Sprite(material)
     sprite.renderOrder = 2
     return sprite
+  }
+
+  private destroyNameLabel(): void {
+    if (this.nameSprite) {
+      this.nameSprite.removeFromParent()
+      this.nameSprite.material.dispose()
+      this.nameSprite = null
+    }
+    if (this.nameTexture) {
+      this.nameTexture.dispose()
+      this.nameTexture = null
+    }
   }
 }
