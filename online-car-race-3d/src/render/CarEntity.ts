@@ -14,6 +14,7 @@ export class CarEntity {
   private readonly scene: THREE.Scene
   private readonly loader: CarModelLoader
   private readonly color: THREE.Color
+  private username: string
   private object: THREE.Object3D | null = null
   private readonly engineSound: EngineSound | null
   private readonly currentPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
@@ -25,15 +26,19 @@ export class CarEntity {
   private hasReceivedState = false
   private disposed = false
   private impactSpinTimeLeft = 0
+  private nameSprite: THREE.Sprite | null = null
+  private nameTexture: THREE.CanvasTexture | null = null
 
   constructor(
     id: string,
+    username: string,
     scene: THREE.Scene,
     loader: CarModelLoader,
     color: THREE.Color,
     audioManager: AudioManager | null,
   ) {
     this.id = id
+    this.username = username
     this.scene = scene
     this.loader = loader
     this.color = color
@@ -55,12 +60,17 @@ export class CarEntity {
     this.scene.add(object)
     this.object = object
 
+    this.updateNameLabel()
+
     if (this.engineSound) {
       this.engineSound.attachTo(object)
     }
   }
 
   setTargetState(state: CarState): void {
+    if (state.username && state.username !== this.username) {
+      this.setUsername(state.username)
+    }
     this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT + 0.75, state.z)
     this.impactSpinTimeLeft = Math.max(0, state.impactSpinTimeLeft ?? 0)
     if (!this.hasReceivedState) {
@@ -134,5 +144,93 @@ export class CarEntity {
     }
 
     this.engineSound?.dispose()
+    if (this.nameTexture) {
+      this.nameTexture.dispose()
+      this.nameTexture = null
+    }
+  }
+
+  private setUsername(username: string): void {
+    this.username = username
+    this.updateNameLabel()
+  }
+
+  private updateNameLabel(): void {
+    if (!this.object) {
+      return
+    }
+
+    const sprite = this.nameSprite ?? this.createNameSprite()
+
+    const texture = this.renderNameTexture(this.username)
+    sprite.material.map = texture
+    sprite.material.needsUpdate = true
+    const aspect = texture.image.width / texture.image.height
+    const height = 1.25
+    sprite.scale.set(height * aspect, height, 1)
+    sprite.position.set(0, 3.25, 0)
+    texture.needsUpdate = true
+    this.nameTexture?.dispose()
+    this.nameTexture = texture
+    this.nameSprite = sprite
+    if (!sprite.parent) {
+      this.object.add(sprite)
+    }
+  }
+
+  private renderNameTexture(text: string): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas')
+    canvas.width = 512
+    canvas.height = 160
+    const context = canvas.getContext('2d')
+    if (!context) {
+      return this.nameTexture ?? new THREE.CanvasTexture(canvas)
+    }
+
+    context.clearRect(0, 0, canvas.width, canvas.height)
+    context.fillStyle = 'rgba(15, 23, 42, 0.7)'
+    const borderColor = this.color.clone().lerp(new THREE.Color('#ffffff'), 0.18)
+    context.strokeStyle = borderColor.getStyle()
+    context.lineWidth = 8
+    context.lineJoin = 'round'
+
+    const radius = 32
+    context.beginPath()
+    context.moveTo(radius, 0)
+    context.lineTo(canvas.width - radius, 0)
+    context.quadraticCurveTo(canvas.width, 0, canvas.width, radius)
+    context.lineTo(canvas.width, canvas.height - radius)
+    context.quadraticCurveTo(canvas.width, canvas.height, canvas.width - radius, canvas.height)
+    context.lineTo(radius, canvas.height)
+    context.quadraticCurveTo(0, canvas.height, 0, canvas.height - radius)
+    context.lineTo(0, radius)
+    context.quadraticCurveTo(0, 0, radius, 0)
+    context.closePath()
+    context.fill()
+    context.stroke()
+
+    context.font = '700 64px "Inter", system-ui, sans-serif'
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.fillStyle = '#f8fafc'
+    context.shadowColor = 'rgba(0,0,0,0.35)'
+    context.shadowBlur = 12
+    context.fillText(text, canvas.width / 2, canvas.height / 2)
+
+    const texture = new THREE.CanvasTexture(canvas)
+    texture.colorSpace = THREE.SRGBColorSpace
+    return texture
+  }
+
+  private createNameSprite(): THREE.Sprite {
+    const material = new THREE.SpriteMaterial({
+      map: this.nameTexture ?? undefined,
+      depthWrite: false,
+      depthTest: false,
+      transparent: true,
+    })
+    const sprite = new THREE.Sprite(material)
+    sprite.renderOrder = 2
+    return sprite
   }
 }

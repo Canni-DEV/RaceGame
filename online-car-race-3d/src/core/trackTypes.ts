@@ -30,6 +30,7 @@ export type TrackDecoration = InstancedDecoration
 
 export interface CarState {
   playerId: string
+  username?: string
   x: number
   z: number
   angle: number
@@ -69,6 +70,7 @@ export type RacePhase = 'lobby' | 'countdown' | 'race' | 'postrace'
 
 export interface LeaderboardEntry {
   playerId: string
+  username?: string
   position: number
   lap: number
   totalDistance: number
@@ -81,6 +83,7 @@ export interface LeaderboardEntry {
 
 export interface RacePlayerState {
   playerId: string
+  username?: string
   lap: number
   progressOnLap: number
   totalDistance: number

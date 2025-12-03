@@ -2,6 +2,7 @@ import type { PlayerRole, TrackData, RoomState } from '../core/trackTypes'
 
 export interface PlayerSummary {
   playerId: string
+  username: string
   isNpc?: boolean
 }
 
@@ -17,4 +18,10 @@ export type StateMessage = RoomState
 
 export interface ErrorMessage {
   message: string
+}
+
+export interface PlayerEventMessage {
+  roomId: string
+  playerId: string
+  username: string
 }

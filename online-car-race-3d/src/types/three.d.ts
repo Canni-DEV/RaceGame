@@ -48,6 +48,7 @@ declare module 'three' {
     matrix: Matrix4
     parent: Object3D | null
     userData: Record<string, any>
+    renderOrder: number
     add(...objects: Object3D[]): this
     remove(...objects: Object3D[]): this
     removeFromParent(): this
@@ -58,10 +59,21 @@ declare module 'three' {
     clone(): this
   }
 
+  export class Material {
+    needsUpdate: boolean
+    dispose(): void
+  }
+
   export class Texture {
     colorSpace: number
     mapping: number
+    image: { width: number; height: number }
+    needsUpdate: boolean
     dispose(): void
+  }
+
+  export class CanvasTexture extends Texture {
+    constructor(canvas: HTMLCanvasElement)
   }
 
   export class Scene extends Object3D {
@@ -73,8 +85,20 @@ declare module 'three' {
     constructor(hex?: ColorRepresentation)
     setHSL(h: number, s: number, l: number): this
     getHex(): number
+    getStyle(): string
     lerp(color: Color, alpha: number): this
     clone(): Color
+  }
+
+  export class SpriteMaterial extends Material {
+    constructor(params?: { map?: Texture; depthWrite?: boolean; depthTest?: boolean; transparent?: boolean })
+    map: Texture | null
+  }
+
+  export class Sprite extends Object3D {
+    constructor(material?: SpriteMaterial)
+    material: SpriteMaterial
+    scale: Vector3
   }
 
   export type ColorRepresentation = number | string | Color

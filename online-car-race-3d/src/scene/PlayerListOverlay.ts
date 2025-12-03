@@ -71,7 +71,11 @@ export class PlayerListOverlay {
       this.playerSpeeds.set(car.playerId, Math.abs(car.speed))
       this.turboCharges.set(car.playerId, car.turboCharges ?? 0)
       this.missileCharges.set(car.playerId, car.missileCharges ?? 0)
-      playersInRace.push({ playerId: car.playerId, isNpc: car.isNpc })
+      playersInRace.push({
+        playerId: car.playerId,
+        username: car.username ?? car.playerId,
+        isNpc: car.isNpc,
+      })
       if (car.playerId === this.localPlayerId) {
         this.localHasCar = true
       }
@@ -119,7 +123,8 @@ export class PlayerListOverlay {
 
       const name = document.createElement('div')
       name.className = 'player-list-overlay__name'
-      name.textContent = player.isNpc ? `${player.playerId} · NPC` : player.playerId
+      const displayName = this.getDisplayName(player)
+      name.textContent = player.isNpc ? `${displayName} · NPC` : displayName
       content.appendChild(name)
 
       const speedValue = this.playerSpeeds.get(player.playerId)
@@ -175,5 +180,9 @@ export class PlayerListOverlay {
       return
     }
     this.onSelectPlayer(playerId)
+  }
+
+  private getDisplayName(player: PlayerSummary): string {
+    return player.username || player.playerId
   }
 }

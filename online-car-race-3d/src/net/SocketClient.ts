@@ -1,4 +1,4 @@
-import type { ErrorMessage, RoomInfoMessage, StateMessage } from './messages'
+import type { ErrorMessage, PlayerEventMessage, RoomInfoMessage, StateMessage } from './messages'
 import { SERVER_URL } from '../config'
 
 const SOCKET_SCRIPT_PATH = '/socket.io/socket.io.js'
@@ -7,6 +7,7 @@ type RoomInfoCallback = (info: RoomInfoMessage) => void
 type StateCallback = (state: StateMessage) => void
 type ErrorCallback = (message: string) => void
 type ConnectCallback = () => void
+type PlayerUpdateCallback = (player: PlayerEventMessage) => void
 
 type SocketLike = {
   on(event: string, listener: (...args: unknown[]) => void): SocketLike
@@ -86,6 +87,7 @@ export class SocketClient {
   private readonly stateListeners = new Set<StateCallback>()
   private readonly errorListeners = new Set<ErrorCallback>()
   private readonly connectListeners = new Set<ConnectCallback>()
+  private readonly playerUpdateListeners = new Set<PlayerUpdateCallback>()
 
   constructor(options?: SocketClientOptions, url?: string) {
     this.url = url ?? SERVER_URL
@@ -153,6 +155,13 @@ export class SocketClient {
     }
   }
 
+  onPlayerUpdate(callback: PlayerUpdateCallback): () => void {
+    this.playerUpdateListeners.add(callback)
+    return () => {
+      this.playerUpdateListeners.delete(callback)
+    }
+  }
+
   setJoinPayload(payload: Record<string, unknown>): void {
     this.joinPayload = sanitizeJoinPayload(payload)
     if (this.socket?.connected) {
@@ -193,6 +202,16 @@ export class SocketClient {
         listener(payload)
       }
     })
+
+    const dispatchPlayerUpdate = (event: unknown) => {
+      const payload = event as PlayerEventMessage
+      for (const listener of this.playerUpdateListeners) {
+        listener(payload)
+      }
+    }
+
+    socket.on('player_updated', dispatchPlayerUpdate)
+    socket.on('player_joined', dispatchPlayerUpdate)
 
     socket.on('error_message', (error: unknown) => {
       const payload = error as ErrorMessage

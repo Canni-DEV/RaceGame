@@ -11,7 +11,7 @@ export interface RoomInfoMessage {
   playerId: string;
   role: PlayerRole;
   track: TrackData;
-  players: { playerId: string; isNpc?: boolean }[];
+  players: { playerId: string; username: string; isNpc?: boolean }[];
 }
 
 export interface InputMessage {
@@ -36,4 +36,11 @@ export interface ErrorMessage {
 export interface PlayerEventMessage {
   roomId: string;
   playerId: string;
+  username: string;
+}
+
+export interface UsernameUpdateMessage {
+  roomId: string;
+  playerId: string;
+  username: string;
 }

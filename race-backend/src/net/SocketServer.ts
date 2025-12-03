@@ -5,7 +5,8 @@ import {
   InputMessage,
   JoinRoomRequest,
   PlayerEventMessage,
-  RoomInfoMessage
+  RoomInfoMessage,
+  UsernameUpdateMessage
 } from "../types/messages";
 import { RoomState } from "../types/trackTypes";
 import { RoomManager } from "../game/RoomManager";
@@ -34,6 +35,10 @@ export class SocketServer {
 
     socket.on("input", (payload: InputMessage) => {
       this.handleInput(socket, payload);
+    });
+
+    socket.on("update_username", (payload: UsernameUpdateMessage) => {
+      this.handleUsernameUpdate(socket, payload);
     });
 
     socket.on("disconnect", () => {
@@ -79,7 +84,8 @@ export class SocketServer {
         if (result.playerCreated) {
           const joinMessage: PlayerEventMessage = {
             roomId: result.room.roomId,
-            playerId: result.playerId
+            playerId: result.playerId,
+            username: result.username
           };
           this.io.to(result.room.roomId).emit("player_joined", joinMessage);
         }
@@ -111,12 +117,33 @@ export class SocketServer {
     }
   }
 
+  private handleUsernameUpdate(socket: Socket, payload: UsernameUpdateMessage): void {
+    if (!payload) {
+      this.emitError(socket, "Invalid username payload");
+      return;
+    }
+
+    try {
+      const result = this.roomManager.handleUsernameUpdate(socket.id, payload);
+      const updateMessage: PlayerEventMessage = {
+        roomId: result.room.roomId,
+        playerId: result.playerId,
+        username: result.username
+      };
+      this.io.to(result.room.roomId).emit("player_updated", updateMessage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      this.emitError(socket, message);
+    }
+  }
+
   private handleDisconnect(socket: Socket): void {
     const result = this.roomManager.handleDisconnect(socket.id);
     for (const player of result.removedPlayers) {
       const message: PlayerEventMessage = {
         roomId: player.roomId,
-        playerId: player.playerId
+        playerId: player.playerId,
+        username: player.username
       };
       this.io.to(player.roomId).emit("player_left", message);
     }

@@ -189,6 +189,7 @@ export class TrackScene {
       const color = this.getColorForState(state)
       car = new CarEntity(
         state.playerId,
+        state.username ?? state.playerId,
         this.scene,
         this.carModelLoader,
         color,
