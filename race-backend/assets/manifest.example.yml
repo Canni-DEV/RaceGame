@@ -53,6 +53,20 @@ assets:
     baseRotation: 0       # en grados, corrige forward del modelo si apunta al eje Z
     size: 12
 
+      # Boxes compactos
+  - file: pitsGarage.glb
+    id: pits-garage
+    placement: required
+    placementTier: 0
+    nodes: [1, 2, 3]
+    offset: 10
+    side: right
+    alignToTrack: true
+    lookAtTrack: true
+    baseRotation: 0        # grados
+    size: 12
+    seed: 40
+
   # Gradas en rectas mirando hacia la pista
   - file: grandStand.glb
     id: grandstands-left
@@ -122,19 +136,7 @@ assets:
     baseRotation: 0
     size: 35
 
-  # Boxes compactos
-  - file: pitsGarage.glb
-    id: pits-garage
-    placement: required
-    placementTier: 0
-    nodes: [1, 2, 3]
-    offset: 10
-    side: right
-    alignToTrack: true
-    lookAtTrack: true
-    baseRotation: 0        # grados
-    size: 12
-    seed: 40
+
 
   # Vegetación base con dispersión natural
   - mesh: procedural-tree
@@ -206,8 +208,8 @@ assets:
     placementTier: 4
     fillEmpty: true
     fillCellSize: 30
-    density: 120
-    minSpacing: 10
+    density: 130
+    minSpacing: 12
     offset: 10
     spreadMode: band
     offsetJitter: 6
@@ -222,7 +224,7 @@ assets:
     fillEmpty: true
     fillCellSize: 30
     density: 30
-    minSpacing: 10
+    minSpacing: 12
     offset: 15
     spreadMode: band
     offsetJitter: 6
@@ -237,7 +239,7 @@ assets:
     fillEmpty: true
     fillCellSize: 30
     density: 30
-    minSpacing: 10
+    minSpacing: 12
     offset: 15
     spreadMode: band
     offsetJitter: 6
