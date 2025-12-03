@@ -103,12 +103,6 @@ export class ProceduralSky {
           return value;
         }
 
-        vec2 sampleSkyUv(vec3 direction) {
-          float phi = atan(direction.z, direction.x);
-          float theta = asin(clamp(direction.y, -1.0, 1.0));
-          return vec2(phi / (2.0 * 3.14159265) + 0.5, 0.5 - theta / 3.14159265);
-        }
-
         vec3 computeSkyGradient(vec3 direction) {
           float h = clamp(direction.y * 0.5 + 0.5, 0.0, 1.0);
           float curved = pow(h, horizonExponent);
@@ -126,12 +120,14 @@ export class ProceduralSky {
           return gradient;
         }
 
-        vec4 computeClouds(vec2 uv) {
+        vec4 computeClouds(vec3 direction) {
           vec2 drift = vec2(time * cloudSpeed, time * cloudSpeed * 0.35);
           float variation = sin(time * 0.05) * 0.03;
           float coverage = clamp(cloudCoverage + variation, 0.05, 0.95);
 
-          vec2 noiseCoord = uv * vec2(3.5, 1.85) + drift;
+          vec2 wrapped = normalize(direction.xz + vec2(1e-4, 1e-4));
+          float heightBand = clamp(direction.y * 0.5 + 0.5, 0.0, 1.0);
+          vec2 noiseCoord = wrapped * vec2(2.8, 1.85) + drift + vec2(0.0, heightBand * 0.65);
           float primary = fbm(noiseCoord);
           float detail = valueNoise(noiseCoord * 2.0 + 13.37) * 0.25;
           float combined = clamp(primary * 0.85 + detail, 0.0, 1.0);
@@ -152,8 +148,7 @@ export class ProceduralSky {
           vec3 direction = normalize(vWorldPosition - cameraPosition);
           vec3 skyColor = computeSkyGradient(direction);
 
-          vec2 uv = sampleSkyUv(direction);
-          vec4 cloudData = computeClouds(uv);
+          vec4 cloudData = computeClouds(direction);
           float cloudAlpha = cloudData.x;
           vec3 cloudColor = cloudData.yzw;
 
