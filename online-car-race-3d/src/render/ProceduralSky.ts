@@ -61,8 +61,6 @@ export class ProceduralSky {
       fragmentShader: `
         varying vec3 vWorldPosition;
 
-        uniform vec3 cameraPosition;
-
         uniform vec3 topColor;
         uniform vec3 middleColor;
         uniform vec3 bottomColor;
