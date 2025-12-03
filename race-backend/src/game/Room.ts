@@ -37,7 +37,7 @@ import {
 } from "../config";
 import { updateCarsForRoom } from "./Physics";
 import { NpcControllerState, updateNpcControllers } from "./NpcController";
-import { TrackGeometry } from "./TrackGeometry";
+import { TrackBoundaryCollision, TrackGeometry } from "./TrackGeometry";
 import { ProjectedProgress, TrackNavigator } from "./TrackNavigator";
 
 export interface PlayerInput {
@@ -1138,6 +1138,10 @@ export class Room {
 
   isOnTrack(position: { x: number; z: number }): boolean {
     return this.trackGeometry.isPointOnTrack(position);
+  }
+
+  resolveTrackBoundaryCollision(position: Vec2, radius: number, offset: number): TrackBoundaryCollision | null {
+    return this.trackGeometry.resolveBoundaryCollision(position, radius, offset);
   }
 
   private initializeNpc(name:string, mistakeCooldown:number,mistakeDirection:number, mistakeDuration:number): void {

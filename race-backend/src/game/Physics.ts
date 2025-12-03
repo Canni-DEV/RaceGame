@@ -4,7 +4,9 @@ import {
   FRICTION,
   MAX_SPEED,
   OFF_TRACK_SPEED_MULTIPLIER,
-  STEER_SENSITIVITY
+  STEER_SENSITIVITY,
+  TRACK_BOUNDARY_OFFSET,
+  TRACK_BOUNDARY_RESTITUTION
 } from "../config";
 import { Room, PlayerInput } from "./Room";
 
@@ -16,6 +18,7 @@ const CAR_LENGTH = 4.6;
 const CAR_WIDTH = 2.0;
 const HALF_LENGTH = CAR_LENGTH * 0.5;
 const HALF_WIDTH = CAR_WIDTH * 0.5;
+const CAR_BOUNDARY_RADIUS = HALF_WIDTH;
 const COLLISION_RESTITUTION = 0.35;
 
 interface Vec2 {
@@ -71,6 +74,24 @@ export function updateCarsForRoom(room: Room, dt: number): void {
 
     car.x += velocity.x * dt;
     car.z += velocity.z * dt;
+
+    const boundaryCollision = room.resolveTrackBoundaryCollision(
+      { x: car.x, z: car.z },
+      CAR_BOUNDARY_RADIUS,
+      TRACK_BOUNDARY_OFFSET,
+    );
+
+    if (boundaryCollision) {
+      car.x -= boundaryCollision.normal.x * boundaryCollision.penetration;
+      car.z -= boundaryCollision.normal.z * boundaryCollision.penetration;
+
+      const velAlongNormal = velocity.x * boundaryCollision.normal.x + velocity.z * boundaryCollision.normal.z;
+      if (velAlongNormal > 0) {
+        const impulse = (1 + TRACK_BOUNDARY_RESTITUTION) * velAlongNormal;
+        velocity.x -= impulse * boundaryCollision.normal.x;
+        velocity.z -= impulse * boundaryCollision.normal.z;
+      }
+    }
 
     collisionBodies.push({
       playerId,

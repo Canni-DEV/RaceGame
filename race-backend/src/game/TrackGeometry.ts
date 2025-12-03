@@ -30,6 +30,58 @@ export class TrackGeometry {
   resolveSpeedMultiplier(position: Vec2, offTrackPenalty: number): number {
     return this.isPointOnTrack(position) ? 1 : Math.max(0, 1 - offTrackPenalty);
   }
+
+  resolveBoundaryCollision(position: Vec2, radius: number, offset: number): TrackBoundaryCollision | null {
+    if (this.segments.length === 0 || this.halfWidth === 0) {
+      return null;
+    }
+
+    const targetDistance = this.halfWidth + Math.max(0, offset);
+
+    let bestDistanceSq = Number.POSITIVE_INFINITY;
+    let bestDeltaX = 0;
+    let bestDeltaZ = 0;
+    let bestDirection: Vec2 | null = null;
+
+    for (const segment of this.segments) {
+      const dx = position.x - segment.start.x;
+      const dz = position.z - segment.start.z;
+      const projection = dx * segment.direction.x + dz * segment.direction.z;
+      const clamped = clamp(projection, 0, segment.length);
+      const closestX = segment.start.x + segment.direction.x * clamped;
+      const closestZ = segment.start.z + segment.direction.z * clamped;
+      const offsetX = position.x - closestX;
+      const offsetZ = position.z - closestZ;
+      const distanceSq = offsetX * offsetX + offsetZ * offsetZ;
+
+      if (distanceSq < bestDistanceSq) {
+        bestDistanceSq = distanceSq;
+        bestDeltaX = offsetX;
+        bestDeltaZ = offsetZ;
+        bestDirection = segment.direction;
+      }
+    }
+
+    const distance = Math.sqrt(bestDistanceSq);
+    const effectiveDistance = distance + radius;
+    if (effectiveDistance <= targetDistance) {
+      return null;
+    }
+
+    const penetration = effectiveDistance - targetDistance;
+    const baseNormal = distance > 1e-6
+      ? { x: bestDeltaX / distance, z: bestDeltaZ / distance }
+      : bestDirection
+        ? { x: -bestDirection.z, z: bestDirection.x }
+        : { x: 1, z: 0 };
+
+    return { normal: baseNormal, penetration };
+  }
+}
+
+export interface TrackBoundaryCollision {
+  normal: Vec2;
+  penetration: number;
 }
 
 function buildSegments(centerline: Vec2[]): TrackSegment[] {

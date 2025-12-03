@@ -45,6 +45,12 @@ export const OFF_TRACK_SPEED_PENALTY = clamp(
   0.95
 );
 export const OFF_TRACK_SPEED_MULTIPLIER = 1 - OFF_TRACK_SPEED_PENALTY;
+export const TRACK_BOUNDARY_OFFSET = clamp(Number(process.env.TRACK_BOUNDARY_OFFSET ?? 12), 0, 200);
+export const TRACK_BOUNDARY_RESTITUTION = clamp(
+  Number(process.env.TRACK_BOUNDARY_RESTITUTION ?? 0.25),
+  0,
+  1,
+);
 export const MISSILE_MAX_CHARGES = clamp(Number(process.env.MISSILE_MAX_CHARGES ?? 3), 0, 99);
 export const MISSILE_RECHARGE_SECONDS = clamp(Number(process.env.MISSILE_RECHARGE_SECONDS ?? 30), 1, 3600);
 export const MISSILE_SPEED_MULTIPLIER = clamp(Number(process.env.MISSILE_SPEED_MULTIPLIER ?? 3), 0.1, 20);
