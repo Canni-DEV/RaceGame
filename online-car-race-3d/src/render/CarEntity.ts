@@ -237,11 +237,13 @@ export class CarEntity {
 
   private createNameSprite(): THREE.Sprite {
     const material = new THREE.SpriteMaterial({
-      map: this.nameTexture ?? undefined,
       depthWrite: false,
       depthTest: false,
       transparent: true,
     })
+    if (this.nameTexture) {
+      material.map = this.nameTexture
+    }
     const sprite = new THREE.Sprite(material)
     sprite.renderOrder = 2
     return sprite
