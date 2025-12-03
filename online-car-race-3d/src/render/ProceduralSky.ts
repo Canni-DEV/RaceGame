@@ -43,7 +43,6 @@ export class ProceduralSky {
     }
 
     const geometry = new THREE.SphereGeometry(radius, 64, 32)
-    geometry.scale(-1, 1, 1)
 
     this.material = new THREE.ShaderMaterial({
       side: THREE.BackSide,
