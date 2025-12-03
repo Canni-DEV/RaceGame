@@ -45,7 +45,7 @@ export const OFF_TRACK_SPEED_PENALTY = clamp(
   0.95
 );
 export const OFF_TRACK_SPEED_MULTIPLIER = 1 - OFF_TRACK_SPEED_PENALTY;
-export const TRACK_BOUNDARY_OFFSET = clamp(Number(process.env.TRACK_BOUNDARY_OFFSET ?? 2), 0, 200);
+export const TRACK_BOUNDARY_OFFSET = clamp(Number(process.env.TRACK_BOUNDARY_OFFSET ?? 12), 0, 200);
 export const TRACK_BOUNDARY_RESTITUTION = clamp(
   Number(process.env.TRACK_BOUNDARY_RESTITUTION ?? 0.25),
   0,
