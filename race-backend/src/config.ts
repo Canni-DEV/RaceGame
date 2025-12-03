@@ -73,12 +73,14 @@ export interface TrackGenerationOptions {
   mode: TrackGenerationMode;
   seedOverride?: number;
   debugTrackId: string;
+  dailyVariance: number;
 }
 
 export const TRACK_GENERATION: TrackGenerationOptions = {
   mode: (process.env.TRACK_MODE as TrackGenerationMode) ?? "daily", //set en daily
   seedOverride: process.env.TRACK_SEED ? Number(process.env.TRACK_SEED) : undefined, //set en undefined
-  debugTrackId: "sample-track"
+  debugTrackId: "sample-track",
+  dailyVariance: 1
 };
 
 export interface ProceduralTrackSettings {
