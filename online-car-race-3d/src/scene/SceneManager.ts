@@ -8,6 +8,7 @@ import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
 import { RaceHud } from './RaceHud'
+import { ProceduralSky } from '../render/ProceduralSky'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -17,6 +18,7 @@ export class SceneManager {
   private readonly cameraRig: CameraRig
   private readonly clock: THREE.Clock
   private readonly trackScene: TrackScene
+  private readonly sky: ProceduralSky
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
@@ -46,6 +48,17 @@ export class SceneManager {
     this.container.appendChild(this.renderer.domElement)
 
     this.scene = new THREE.Scene()
+    this.sky = new ProceduralSky({
+      topColor: '#6d9eff',
+      middleColor: '#9ccfff',
+      bottomColor: '#f6e5d6',
+      horizonExponent: 1.35,
+      timeOfDay: 0.25,
+      cloudSpeed: 0.012,
+      cloudCoverage: 0.4,
+      cloudOpacity: 0.6,
+    })
+    this.scene.add(this.sky.mesh)
     this.setupEnvironment()
 
     const aspect = container.clientWidth / container.clientHeight
@@ -165,7 +178,6 @@ export class SceneManager {
     const envMap = pmremGenerator.fromEquirectangular(texture).texture
     pmremGenerator.dispose()
 
-    this.scene.background = texture
     this.scene.environment = envMap
   }
 
@@ -180,6 +192,13 @@ export class SceneManager {
   private readonly animate = (): void => {
     requestAnimationFrame(this.animate)
     const delta = this.clock.getDelta()
+    const dayPhase = THREE.MathUtils.clamp(
+      0.25 + Math.sin(this.clock.getElapsedTime() * 0.05) * 0.22,
+      0,
+      1,
+    )
+    this.sky.setTimeOfDay(dayPhase)
+    this.sky.update(delta, this.camera.position)
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
     this.renderer.render(this.scene, this.camera)

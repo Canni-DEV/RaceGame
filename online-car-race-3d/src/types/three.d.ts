@@ -70,11 +70,16 @@ declare module 'three' {
   }
 
   export class Color {
-    constructor(hex?: number | string)
+    constructor(hex?: ColorRepresentation)
     setHSL(h: number, s: number, l: number): this
     getHex(): number
     lerp(color: Color, alpha: number): this
     clone(): Color
+  }
+
+  export type ColorRepresentation = number | string | Color
+  export interface IUniform {
+    value: any
   }
 
   export class PerspectiveCamera extends Object3D {
@@ -117,10 +122,13 @@ declare module 'three' {
   }
 
   export const PCFSoftShadowMap: number
+  export const BackSide: number
 
   export class Clock {
     constructor()
     getDelta(): number
+    getElapsedTime(): number
+    elapsedTime: number
   }
 
   export class PositionalAudio extends Object3D {
@@ -171,6 +179,11 @@ declare module 'three' {
     computeBoundingBox(): void
     boundingBox?: Box3 | null
     dispose(): void
+  }
+
+  export class SphereGeometry extends BufferGeometry {
+    constructor(radius?: number, widthSegments?: number, heightSegments?: number)
+    scale(x: number, y: number, z: number): this
   }
 
   export class PlaneGeometry extends BufferGeometry {
@@ -226,10 +239,22 @@ declare module 'three' {
     clone(): MeshStandardMaterial
   }
 
+  export class ShaderMaterial extends Material {
+    constructor(parameters?: {
+      uniforms?: Record<string, IUniform>
+      vertexShader?: string
+      fragmentShader?: string
+      side?: number
+      depthWrite?: boolean
+    })
+    uniforms: Record<string, IUniform>
+  }
+
   export class Mesh<TGeometry extends BufferGeometry = BufferGeometry> extends Object3D {
     constructor(geometry?: TGeometry, material?: Material | Material[])
     receiveShadow: boolean
     castShadow: boolean
+    frustumCulled: boolean
     name: string
     geometry: TGeometry
     material: Material | Material[]
