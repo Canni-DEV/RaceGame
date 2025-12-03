@@ -198,9 +198,9 @@ export class SceneManager {
       1,
     )
     this.sky.setTimeOfDay(dayPhase)
-    this.sky.update(delta, this.camera.position)
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
+    this.sky.update(delta, this.camera.position)
     this.renderer.render(this.scene, this.camera)
   }
 
