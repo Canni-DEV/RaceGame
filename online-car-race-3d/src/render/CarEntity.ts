@@ -29,6 +29,12 @@ export class CarEntity {
   private impactSpinTimeLeft = 0
   private nameSprite: THREE.Sprite | null = null
   private nameTexture: THREE.CanvasTexture | null = null
+  private nameLabelAspect = 1
+  private readonly baseNameHeight = 1
+  private readonly minNameScale = 0.8
+  private readonly maxNameScale = 6
+  private readonly distanceScaleFactor = 0.01
+  private currentNameScale = 1
 
   constructor(
     id: string,
@@ -179,9 +185,9 @@ export class CarEntity {
     sprite.material.map = texture
     sprite.material.needsUpdate = true
     const aspect = texture.image.width / texture.image.height
-    const height = 1.25
-    sprite.scale.set(height * aspect, height, 1)
-    sprite.position.set(0, 3.25, 0)
+    this.nameLabelAspect = aspect
+    this.applyNameScale(sprite)
+    sprite.position.set(0, 2, 0)
     texture.needsUpdate = true
     this.nameTexture?.dispose()
     this.nameTexture = texture
@@ -247,6 +253,24 @@ export class CarEntity {
     const sprite = new THREE.Sprite(material)
     sprite.renderOrder = 2
     return sprite
+  }
+
+  updateNameLabelScale(camera: THREE.Camera): void {
+    if (!this.nameSprite || !this.object || !this.showNameLabel) {
+      return
+    }
+    const distance = camera.position.distanceTo(this.object.position)
+    this.currentNameScale = THREE.MathUtils.clamp(
+      distance * this.distanceScaleFactor,
+      this.minNameScale,
+      this.maxNameScale,
+    )
+    this.applyNameScale(this.nameSprite)
+  }
+
+  private applyNameScale(sprite: THREE.Sprite): void {
+    const height = this.baseNameHeight * this.currentNameScale
+    sprite.scale.set(height * this.nameLabelAspect, height, 1)
   }
 
   private destroyNameLabel(): void {

@@ -13,6 +13,7 @@ import { MissileEntity } from '../render/MissileEntity'
 
 export class TrackScene {
   private readonly scene: THREE.Scene
+  private readonly camera: THREE.PerspectiveCamera
   private readonly cameraRig: CameraRig
   private readonly store: GameStateStore
   private readonly carModelLoader: CarModelLoader
@@ -37,6 +38,7 @@ export class TrackScene {
     audioManager: AudioManager | null,
   ) {
     this.scene = scene
+    this.camera = camera
     camera.up.set(0, 1, 0)
     this.cameraRig = cameraRig
     this.store = store
@@ -78,6 +80,7 @@ export class TrackScene {
     this.syncMissiles(missileStates, ownerNpcMap)
     for (const entity of this.cars.values()) {
       entity.update(dt)
+      entity.updateNameLabelScale(this.camera)
     }
     for (const missile of this.missiles.values()) {
       missile.update(dt)
