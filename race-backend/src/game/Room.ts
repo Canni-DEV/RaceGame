@@ -103,6 +103,8 @@ interface SpinState {
   angularVelocity: number;
 }
 
+const MAX_USERNAME_LENGTH = 24;
+
 export class Room {
   public serverTime = 0;
   public cars: Map<string, CarState> = new Map();
@@ -119,6 +121,7 @@ export class Room {
   private missiles: Map<string, MissileRuntime> = new Map();
   private npcIds: Set<string> = new Set();
   private npcStates: Map<string, NpcControllerState> = new Map();
+  private playerProfiles: Map<string, { username: string }> = new Map();
   private readonly trackGeometry: TrackGeometry;
   private readonly trackNavigator: TrackNavigator;
   private readonly trackLength: number;
@@ -170,6 +173,30 @@ export class Room {
     return false;
   }
 
+  private sanitizeUsername(username: string, fallback: string): string {
+    const normalized = username.trim().slice(0, MAX_USERNAME_LENGTH);
+    return normalized.length > 0 ? normalized : fallback;
+  }
+
+  private setUsername(playerId: string, username: string): string {
+    const normalized = this.sanitizeUsername(username, playerId);
+    this.playerProfiles.set(playerId, { username: normalized });
+    return normalized;
+  }
+
+  getUsername(playerId: string): string {
+    return this.playerProfiles.get(playerId)?.username ?? playerId;
+  }
+
+  updateUsername(playerId: string, username: string): string {
+    const normalized = this.setUsername(playerId, username);
+    const car = this.cars.get(playerId);
+    if (car) {
+      car.username = normalized;
+    }
+    return normalized;
+  }
+
   isPlayerIdTaken(playerId: string): boolean {
     if (this.cars.has(playerId)) {
       return true;
@@ -183,6 +210,8 @@ export class Room {
     const nextPoint = this.track.centerline[(spawnIndex + 1) % this.track.centerline.length];
     const angle = Math.atan2(nextPoint.z - spawnPoint.z, nextPoint.x - spawnPoint.x);
 
+    const username = this.setUsername(playerId, playerId);
+
     const spawn: SpawnPoint = {
       position: { x: spawnPoint.x, z: spawnPoint.z },
       angle
@@ -190,6 +219,7 @@ export class Room {
 
     const car: CarState = {
       playerId,
+      username,
       x: spawn.position.x,
       z: spawn.position.z,
       angle: spawn.angle,
@@ -221,6 +251,7 @@ export class Room {
       this.missileCharges.delete(playerId);
       this.npcIds.delete(playerId);
       this.npcStates.delete(playerId);
+      this.playerProfiles.delete(playerId);
       return undefined;
     }
 
@@ -232,6 +263,7 @@ export class Room {
     this.raceProgress.delete(playerId);
     this.raceParticipants.delete(playerId);
     this.removeMissilesForPlayer(playerId);
+    this.playerProfiles.delete(playerId);
     const controllerSocket = this.playerToController.get(playerId);
     if (controllerSocket) {
       this.controllers.delete(controllerSocket);
@@ -1037,9 +1069,10 @@ export class Room {
     return true;
   }
 
-  getPlayers(): { playerId: string; isNpc: boolean }[] {
+  getPlayers(): { playerId: string; username: string; isNpc: boolean }[] {
     return Array.from(this.cars.keys()).map((playerId) => ({
       playerId,
+      username: this.getUsername(playerId),
       isNpc: this.npcIds.has(playerId)
     }));
   }
@@ -1067,6 +1100,7 @@ export class Room {
 
     const leaderboard: LeaderboardEntry[] = entries.map((entry, index) => ({
       playerId: entry.playerId,
+      username: this.getUsername(entry.playerId),
       position: index + 1,
       lap: entry.lap,
       totalDistance: entry.totalDistance,
@@ -1090,6 +1124,7 @@ export class Room {
       leaderboard,
       players: entries.map((entry) => ({
         playerId: entry.playerId,
+        username: this.getUsername(entry.playerId),
         lap: entry.lap,
         progressOnLap: lapLength > 0 ? entry.totalDistance % lapLength : 0,
         totalDistance: entry.totalDistance,
@@ -1106,7 +1141,10 @@ export class Room {
       roomId: this.roomId,
       trackId: this.track.id,
       serverTime: this.serverTime,
-      cars: Array.from(this.cars.values()).map((car) => ({ ...car })),
+      cars: Array.from(this.cars.values()).map((car) => ({
+        ...car,
+        username: this.getUsername(car.playerId)
+      })),
       missiles: Array.from(this.missiles.values()).map((missile) => ({
         id: missile.id,
         ownerId: missile.ownerId,
@@ -1154,8 +1192,11 @@ export class Room {
     const nextPoint = this.track.centerline[1 % this.track.centerline.length];
     const angle = Math.atan2(nextPoint.z - spawnPoint.z, nextPoint.x - spawnPoint.x);
 
+    const username = this.setUsername(npcId, npcId);
+
     const car: CarState = {
       playerId: npcId,
+      username,
       x: spawnPoint.x,
       z: spawnPoint.z,
       angle,

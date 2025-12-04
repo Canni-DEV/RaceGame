@@ -137,7 +137,8 @@ export class RaceHud {
 
       const name = document.createElement('div')
       name.className = 'race-hud__col race-hud__col--name'
-      name.textContent = entry.isNpc ? `${entry.playerId} · NPC` : entry.playerId
+      const displayName = entry.username ?? entry.playerId
+      name.textContent = entry.isNpc ? `${displayName} · NPC` : displayName
       row.appendChild(name)
 
       const lap = document.createElement('div')

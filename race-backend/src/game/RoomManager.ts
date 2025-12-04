@@ -3,7 +3,7 @@ import {
   DEFAULT_ROOM_PREFIX,
   MAX_PLAYERS_PER_ROOM
 } from "../config";
-import { JoinRoomRequest } from "../types/messages";
+import { JoinRoomRequest, UsernameUpdateMessage } from "../types/messages";
 import { PlayerRole } from "../types/trackTypes";
 import { trackRepository } from "./TrackRepository";
 import { Room, PlayerInput } from "./Room";
@@ -19,10 +19,11 @@ interface ControllerJoinResult {
   room: Room;
   playerId: string;
   playerCreated: boolean;
+  username: string;
 }
 
 interface DisconnectResult {
-  removedPlayers: { roomId: string; playerId: string }[];
+  removedPlayers: { roomId: string; playerId: string; username: string }[];
   deletedRooms: string[];
 }
 
@@ -111,7 +112,8 @@ export class RoomManager {
     return {
       room,
       playerId: payload.playerId,
-      playerCreated
+      playerCreated,
+      username: room.getUsername(payload.playerId)
     };
   }
 
@@ -127,10 +129,34 @@ export class RoomManager {
     room.applyInput(playerId, input);
   }
 
+  handleUsernameUpdate(
+    socketId: string,
+    payload: UsernameUpdateMessage
+  ): { room: Room; playerId: string; username: string } {
+    const role = this.socketRoles.get(socketId);
+    const roomId = this.socketToRoom.get(socketId);
+    const boundPlayerId = this.controllerSocketToPlayer.get(socketId);
+
+    if (role !== "controller" || !roomId || !boundPlayerId) {
+      throw new Error("Solo el controlador puede actualizar el username");
+    }
+    if (payload.roomId !== roomId || payload.playerId !== boundPlayerId) {
+      throw new Error("Sesión de controlador no vinculada con el jugador");
+    }
+
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      throw new Error("Room not found");
+    }
+
+    const username = room.updateUsername(boundPlayerId, payload.username);
+    return { room, playerId: boundPlayerId, username };
+  }
+
   handleDisconnect(socketId: string): DisconnectResult {
     const roomId = this.socketToRoom.get(socketId);
     const role = this.socketRoles.get(socketId);
-    const removedPlayers: { roomId: string; playerId: string }[] = [];
+    const removedPlayers: { roomId: string; playerId: string; username: string }[] = [];
 
     if (!roomId || !role) {
       return { removedPlayers, deletedRooms: [] };
@@ -144,6 +170,7 @@ export class RoomManager {
 
     if (role === "viewer") {
       const playerId = this.viewerSocketToPlayer.get(socketId);
+      const username = playerId ? room.getUsername(playerId) : "";
       const removedPlayerId = room.removeViewer(socketId);
       this.viewerSocketToPlayer.delete(socketId);
       if (playerId && removedPlayerId === playerId) {
@@ -152,7 +179,7 @@ export class RoomManager {
           this.controllerSocketToPlayer.delete(controllerSocket);
           this.cleanupSocket(controllerSocket);
         }
-        removedPlayers.push({ roomId, playerId });
+        removedPlayers.push({ roomId, playerId, username: username || playerId });
       }
     } else if (role === "controller") {
       room.detachController(socketId);

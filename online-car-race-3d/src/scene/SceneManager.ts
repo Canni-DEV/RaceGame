@@ -101,6 +101,13 @@ export class SceneManager {
     this.socketClient.onState((state) => {
       this.gameStateStore.updateState(state)
     })
+    this.socketClient.onPlayerUpdate((player) => {
+      this.gameStateStore.updatePlayer({
+        playerId: player.playerId,
+        username: player.username,
+        isNpc: false,
+      })
+    })
     this.socketClient.onError((message) => {
       console.error(`[SceneManager] ${message}`)
     })

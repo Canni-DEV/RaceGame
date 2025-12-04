@@ -3,6 +3,7 @@ import { ControllerInputStore } from './ControllerInputStore'
 import { ControllerSocketClient } from './ControllerSocketClient'
 import { OrientationManager } from './OrientationManager'
 import type { RaceState } from '../core/trackTypes'
+import type { PlayerSummary } from '../net/messages'
 
 const INPUT_SEND_INTERVAL_MS = 100
 const SENSOR_PULSE_TIMEOUT_MS = 2000
@@ -36,6 +37,10 @@ export class ControllerApp {
   private readonly overlayMessage: HTMLElement
   private readonly overlayDetails: HTMLElement
   private readonly permissionButton: HTMLButtonElement
+  private usernameForm: HTMLElement | null = null
+  private usernameInput: HTMLInputElement | null = null
+  private usernameButton: HTMLButtonElement | null = null
+  private usernameStatus: HTMLElement | null = null
   private readonly statusText: HTMLElement
   private steeringStatus!: HTMLElement
   private steeringHint!: HTMLElement
@@ -43,7 +48,9 @@ export class ControllerApp {
   private raceStatus!: HTMLElement
   private lastRaceState: RaceState | null = null
   private raceInputBlocked = false
+  private readonly roomId: string
   private readonly playerId: string
+  private playerUsername: string
   private overlayAction: 'permission' | 'refresh' | null = null
   private hasRoomInfo = false
 
@@ -86,6 +93,8 @@ export class ControllerApp {
     this.container.appendChild(this.root)
     this.disableContextInteractions()
 
+    this.playerUsername = ''
+
     const layout = createElement('div', 'controller-layout')
     this.root.appendChild(layout)
 
@@ -112,12 +121,17 @@ export class ControllerApp {
     this.overlay.appendChild(this.overlayMessage)
     this.overlay.appendChild(this.overlayDetails)
     this.overlay.appendChild(this.permissionButton)
+    this.usernameForm = this.createUsernameForm()
+    this.overlay.appendChild(this.usernameForm)
     this.root.appendChild(this.overlay)
 
     const params = new URLSearchParams(window.location.search)
     const roomId = params.get('roomId') ?? ''
     const playerId = params.get('playerId') ?? ''
+    this.roomId = roomId
     this.playerId = playerId
+    this.playerUsername = playerId
+    this.syncUsernameInput(true)
     const serverUrl = params.get('serverUrl') ?? params.get('server') ?? undefined
     this.hasRoomParameters = Boolean(roomId && playerId)
 
@@ -127,7 +141,7 @@ export class ControllerApp {
     steeringZone.appendChild(this.raceStatus)
 
     if (this.hasRoomParameters) {
-      this.statusText.textContent = `Room ${roomId} · Player ${playerId}`
+      this.statusText.textContent = `Room ${roomId} · ${this.playerUsername}`
       this.socketClient = new ControllerSocketClient({ roomId, playerId, serverUrl })
       this.socketClient.onError((message) => {
         this.errorMessage = message
@@ -137,15 +151,26 @@ export class ControllerApp {
       this.socketClient.onRoomInfo((info) => {
         this.errorMessage = null
         this.hasRoomInfo = true
-        this.statusText.textContent = `Room ${info.roomId} · Player ${info.playerId}`
+        this.playerUsername = this.resolveUsername(info.players, info.playerId)
+        this.syncUsernameInput(true)
+        this.statusText.textContent = `Room ${info.roomId} · ${this.playerUsername}`
         this.updateOverlay()
       })
       this.socketClient.onState((state) => {
         this.lastRaceState = state.race
         this.updateRaceStatus()
       })
+      this.socketClient.onPlayerUpdate((event) => {
+        if (event.playerId !== this.playerId) {
+          return
+        }
+        this.playerUsername = event.username
+        this.syncUsernameInput(true)
+        this.statusText.textContent = `Room ${this.roomId} · ${this.playerUsername}`
+      })
       this.socketClient.onConnect(() => {
         this.errorMessage = null
+        this.syncUsernameInput()
         this.updateOverlay()
       })
       this.socketClient.connect()
@@ -186,6 +211,7 @@ export class ControllerApp {
     this.updateSteeringVisual()
     this.updateSensorStatus()
     this.updateOverlay()
+    this.syncUsernameInput()
   }
 
   private disableContextInteractions(): void {
@@ -352,6 +378,47 @@ export class ControllerApp {
     return bar
   }
 
+  private createUsernameForm(): HTMLElement {
+    const container = createElement('div', 'controller-username')
+    container.hidden = true
+
+    const label = createElement('label', 'controller-username__label')
+    const inputId = 'controller-username-input'
+    label.textContent = 'Nombre en la partida'
+    label.setAttribute('for', inputId)
+
+    const input = document.createElement('input')
+    input.className = 'controller-username__input'
+    input.id = inputId
+    input.type = 'text'
+    input.maxLength = 24
+    input.placeholder = 'Player'
+    input.value = this.playerUsername
+    input.addEventListener('input', () => this.syncUsernameInput())
+
+    const button = createElement('button', 'controller-username__button') as HTMLButtonElement
+    button.type = 'button'
+    button.textContent = 'Actualizar nombre'
+    button.addEventListener('click', (event) => {
+      event.preventDefault()
+      this.handleUsernameSubmit()
+    })
+
+    const status = createElement('div', 'controller-username__status')
+
+    container.appendChild(label)
+    container.appendChild(input)
+    container.appendChild(button)
+    container.appendChild(status)
+
+    this.usernameInput = input
+    this.usernameButton = button
+    this.usernameStatus = status
+    this.syncUsernameInput(true)
+
+    return container
+  }
+
   private createSteeringZone(): HTMLElement {
     const zone = createElement('div', 'controller-zone controller-zone--steering')
 
@@ -498,7 +565,7 @@ export class ControllerApp {
       this.overlayAction = 'refresh'
     } else if (!this.isLandscape) {
       message = 'Girá el teléfono'
-      details = 'Usa el controlador en orientación horizontal.'
+      details = 'Usa el controlador en orientación horizontal. En vertical puedes editar tu nombre.'
     } else if (!this.permissionGranted) {
       message = 'Permite el acceso a los sensores'
       details = 'Necesitamos leer la orientación del dispositivo para el volante.'
@@ -522,6 +589,8 @@ export class ControllerApp {
       this.overlayDetails.textContent = ''
     }
 
+    this.updateUsernameFormVisibility()
+
     if (showButton) {
       if (this.overlayAction === 'refresh') {
         this.permissionButton.textContent = 'Actualizar'
@@ -532,6 +601,74 @@ export class ControllerApp {
     } else {
       this.permissionButton.classList.add('is-hidden')
     }
+  }
+
+  private shouldShowUsernameForm(): boolean {
+    return this.hasRoomParameters && !this.isLandscape
+  }
+
+  private updateUsernameFormVisibility(): void {
+    if (!this.usernameForm) {
+      return
+    }
+    const visible = this.shouldShowUsernameForm()
+    this.usernameForm.hidden = !visible
+    this.usernameForm.classList.toggle('is-visible', visible)
+    if (visible) {
+      this.syncUsernameInput()
+    }
+  }
+
+  private handleUsernameSubmit(): void {
+    if (!this.usernameInput || !this.usernameStatus) {
+      return
+    }
+    const desired = this.usernameInput.value.trim()
+    if (!desired) {
+      this.usernameStatus.textContent = 'Ingresa un nombre válido.'
+      return
+    }
+    if (desired === this.playerUsername) {
+      this.usernameStatus.textContent = 'Ya estás usando ese nombre.'
+      return
+    }
+    if (!this.socketClient || !this.socketClient.isConnected()) {
+      this.usernameStatus.textContent = 'Conectando con el servidor...'
+      return
+    }
+
+    this.usernameStatus.textContent = 'Actualizando nombre...'
+    this.socketClient.updateUsername(desired)
+  }
+
+  private syncUsernameInput(forceValue = false): void {
+    if (!this.usernameInput || !this.usernameButton || !this.usernameStatus) {
+      return
+    }
+
+    if (forceValue) {
+      this.usernameInput.value = this.playerUsername
+    }
+    const proposed = this.usernameInput.value.trim()
+    const connected = this.socketClient?.isConnected() ?? false
+    const ready = connected && this.hasRoomParameters
+
+    this.usernameButton.disabled = !ready || !proposed || proposed === this.playerUsername
+
+    if (!ready) {
+      this.usernameStatus.textContent = 'Conectando con el servidor...'
+    } else if (!proposed) {
+      this.usernameStatus.textContent = 'Ingresa un nombre para mostrarlo en la carrera.'
+    } else if (proposed === this.playerUsername) {
+      this.usernameStatus.textContent = 'Este es tu nombre actual.'
+    } else {
+      this.usernameStatus.textContent = 'Toca actualizar para compartir tu nombre.'
+    }
+  }
+
+  private resolveUsername(players: PlayerSummary[], fallback: string): string {
+    const current = players.find((player) => player.playerId === this.playerId)
+    return current?.username ?? fallback
   }
 
   private isRaceBlockedError(message: string): boolean {

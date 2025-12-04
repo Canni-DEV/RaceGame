@@ -1,5 +1,5 @@
 import { SocketClient } from '../net/SocketClient'
-import type { RoomInfoMessage, StateMessage } from '../net/messages'
+import type { PlayerEventMessage, RoomInfoMessage, StateMessage } from '../net/messages'
 import type { ControllerInput } from './ControllerInputStore'
 
 type ControllerSocketOptions = {
@@ -13,6 +13,8 @@ type RoomInfoCallback = (info: RoomInfoMessage) => void
 type ErrorCallback = (message: string) => void
 
 type ConnectCallback = () => void
+
+type PlayerUpdateCallback = (event: PlayerEventMessage) => void
 
 export class ControllerSocketClient {
   private readonly client: SocketClient
@@ -55,6 +57,14 @@ export class ControllerSocketClient {
     return this.client.onState(callback)
   }
 
+  isConnected(): boolean {
+    return this.client.isConnected()
+  }
+
+  onPlayerUpdate(callback: PlayerUpdateCallback): () => void {
+    return this.client.onPlayerUpdate(callback)
+  }
+
   sendInput(input: ControllerInput): void {
     if (!this.roomId || !this.playerId) {
       return
@@ -69,6 +79,17 @@ export class ControllerSocketClient {
       throttle: input.throttle,
       brake: input.brake,
       actions: input.actions,
+    })
+  }
+
+  updateUsername(username: string): void {
+    if (!this.client.isConnected()) {
+      return
+    }
+    this.client.emit('update_username', {
+      roomId: this.roomId,
+      playerId: this.playerId,
+      username,
     })
   }
 }
