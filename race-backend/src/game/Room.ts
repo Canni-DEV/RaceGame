@@ -149,7 +149,8 @@ export class Room {
       : 0;
     this.countdownTotal = RACE_COUNTDOWN_SECONDS;
     this.initializeNpc("Garburator",0,1,0);
-    // this.initializeNpc("Petrucci",0,-1,0.5);
+    this.initializeNpc("Petrucci",0,-1,0.5);
+    this.initializeNpc("Arthur Morgan",0,-1,0.5);
   }
 
   addViewer(socketId: string, playerId: string): void {

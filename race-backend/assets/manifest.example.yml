@@ -186,6 +186,23 @@ assets:
     clusterSize: 3
     clusterRadius: 6
 
+  - file: treeLarge.glb
+    id: treeLargeFull
+    placement: filler
+    placementTier: 4
+    fillEmpty: true
+    fillCellSize: 20
+    density: 250
+    minSpacing: 15
+    offset: 50
+    spreadMode: band
+    offsetJitter: 6
+    side: right
+    minSize: 8
+    maxSize: 14
+    clusterSize: 1
+    clusterRadius: 6
+
   - file: billboardLow.glb
     id: billboards
     placement: optional
@@ -211,6 +228,36 @@ assets:
     density: 130
     minSpacing: 12
     offset: 10
+    spreadMode: band
+    offsetJitter: 6
+    side: both
+    minSize: 4
+    maxSize: 7
+
+  - file: tentLong.glb
+    id: tentLong
+    placement: filler
+    placementTier: 4
+    fillEmpty: true
+    fillCellSize: 30
+    density: 50
+    minSpacing: 12
+    offset: 10
+    spreadMode: band
+    offsetJitter: 6
+    side: both
+    minSize: 4
+    maxSize: 7
+
+  - file: tentClosed.glb
+    id: tentClosed-gaps
+    placement: filler
+    placementTier: 4
+    fillEmpty: true
+    fillCellSize: 20
+    density: 115
+    minSpacing: 12
+    offset: 8
     spreadMode: band
     offsetJitter: 6
     side: both
@@ -246,3 +293,18 @@ assets:
     side: both
     minSize: 8
     maxSize: 8
+
+  - file: pylon.glb
+    id: pylon
+    placement: filler
+    placementTier: 4
+    fillEmpty: true
+    fillCellSize: 10
+    density: 150
+    minSpacing: 12
+    offset: 8
+    spreadMode: band
+    offsetJitter: 6
+    side: both
+    minSize: 4
+    maxSize: 7
