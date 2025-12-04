@@ -1,29 +1,57 @@
 import { MAX_SPEED } from "../config";
 import { Room, PlayerInput } from "./Room";
 
+export interface NpcBehaviorConfig {
+  minTargetThreshold: number;
+  targetThresholdFactor: number;
+  minLookahead: number;
+  maxLookahead: number;
+  lookaheadSpeedFactor: number;
+  baseThrottle: number;
+  minThrottle: number;
+  throttleCornerPenalty: number;
+  recoveryBrakeAngle: number;
+  offTrackThrottleScale: number;
+  offTrackBrake: number;
+  steerResponse: number;
+  mistakeSteerBias: number;
+  mistakeTriggerChance: number;
+  mistakeDurationRange: [number, number];
+  mistakeCooldownRange: [number, number];
+  approachThrottleScale: number;
+  approachBrake: number;
+  approachDistanceRatio: number;
+}
+
 export interface NpcControllerState {
   targetIndex: number;
   mistakeCooldown: number;
   mistakeDuration: number;
   mistakeDirection: number;
+  config: NpcBehaviorConfig;
 }
 
-const MIN_TARGET_THRESHOLD = 4;
-const TARGET_THRESHOLD_FACTOR = 0.3;
-const MIN_LOOKAHEAD = 6;
-const MAX_LOOKAHEAD = 48;
-const LOOKAHEAD_SPEED_FACTOR = 0.7;
-const BASE_THROTTLE = 0.82;
-const MIN_THROTTLE = 0.32;
-const THROTTLE_CORNER_PENALTY = 0.55;
-const RECOVERY_BRAKE_ANGLE = (Math.PI * 3) / 4;
-const OFF_TRACK_THROTTLE_SCALE = 0.65;
-const OFF_TRACK_BRAKE = 0.35;
-const STEER_RESPONSE = Math.PI / 3; // radians for full steer input
-const MISTAKE_STEER_BIAS = Math.PI / 12;
-const MISTAKE_TRIGGER_CHANCE = 0.35;
-const MISTAKE_DURATION_RANGE: [number, number] = [0.35, 0.95];
-const MISTAKE_COOLDOWN_RANGE: [number, number] = [1.5, 5.5];
+const DEFAULT_NPC_CONFIG: NpcBehaviorConfig = {
+  minTargetThreshold: 4,
+  targetThresholdFactor: 0.3,
+  minLookahead: 6,
+  maxLookahead: 48,
+  lookaheadSpeedFactor: 0.7,
+  baseThrottle: 0.82,
+  minThrottle: 0.32,
+  throttleCornerPenalty: 0.55,
+  recoveryBrakeAngle: (Math.PI * 3) / 4,
+  offTrackThrottleScale: 0.65,
+  offTrackBrake: 0.35,
+  steerResponse: Math.PI / 3,
+  mistakeSteerBias: Math.PI / 12,
+  mistakeTriggerChance: 0.35,
+  mistakeDurationRange: [0.35, 0.95],
+  mistakeCooldownRange: [1.5, 5.5],
+  approachThrottleScale: 0.65,
+  approachBrake: 0.2,
+  approachDistanceRatio: 0.75
+};
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -60,7 +88,7 @@ function pickTargetIndex(
   startIndex: number,
   lookaheadDistance: number
 ): number {
-  let remaining = Math.max(lookaheadDistance, MIN_LOOKAHEAD);
+  let remaining = lookaheadDistance;
   let index = startIndex;
   while (remaining > 0) {
     const nextIndex = (index + 1) % centerline.length;
@@ -77,19 +105,20 @@ function pickTargetIndex(
 }
 
 function resolveMistakeBias(state: NpcControllerState, dt: number): number {
+  const config = state.config;
   if (state.mistakeDuration > 0) {
     state.mistakeDuration = Math.max(0, state.mistakeDuration - dt);
-    return state.mistakeDirection * MISTAKE_STEER_BIAS;
+    return state.mistakeDirection * config.mistakeSteerBias;
   }
 
   state.mistakeCooldown -= dt;
   if (state.mistakeCooldown <= 0) {
-    const shouldSlip = Math.random() < MISTAKE_TRIGGER_CHANCE;
+    const shouldSlip = Math.random() < config.mistakeTriggerChance;
     if (shouldSlip) {
       state.mistakeDirection = Math.random() < 0.5 ? -1 : 1;
-      state.mistakeDuration = randomInRange(...MISTAKE_DURATION_RANGE);
+      state.mistakeDuration = randomInRange(...config.mistakeDurationRange);
     }
-    state.mistakeCooldown = randomInRange(...MISTAKE_COOLDOWN_RANGE);
+    state.mistakeCooldown = randomInRange(...config.mistakeCooldownRange);
   }
 
   return 0;
@@ -97,6 +126,25 @@ function resolveMistakeBias(state: NpcControllerState, dt: number): number {
 
 function randomInRange(min: number, max: number): number {
   return min + Math.random() * (max - min);
+}
+
+export function createNpcBehaviorConfig(overrides: Partial<NpcBehaviorConfig> = {}): NpcBehaviorConfig {
+  return {
+    ...DEFAULT_NPC_CONFIG,
+    ...overrides,
+    mistakeDurationRange: overrides.mistakeDurationRange ?? [...DEFAULT_NPC_CONFIG.mistakeDurationRange],
+    mistakeCooldownRange: overrides.mistakeCooldownRange ?? [...DEFAULT_NPC_CONFIG.mistakeCooldownRange]
+  };
+}
+
+export function createNpcState(config: NpcBehaviorConfig, startIndex: number): NpcControllerState {
+  return {
+    targetIndex: startIndex,
+    mistakeCooldown: randomInRange(...config.mistakeCooldownRange),
+    mistakeDuration: 0,
+    mistakeDirection: 0,
+    config
+  };
 }
 
 export function updateNpcControllers(
@@ -115,12 +163,14 @@ export function updateNpcControllers(
       continue;
     }
 
+    const config = controller.config ?? DEFAULT_NPC_CONFIG;
+
     const onTrack = room.isOnTrack(car);
     const closestIndex = findClosestIndex(centerline, car);
     const lookahead = clamp(
-      room.track.width * TARGET_THRESHOLD_FACTOR + MIN_LOOKAHEAD + car.speed * LOOKAHEAD_SPEED_FACTOR,
-      MIN_LOOKAHEAD,
-      MAX_LOOKAHEAD
+      room.track.width * config.targetThresholdFactor + config.minLookahead + car.speed * config.lookaheadSpeedFactor,
+      config.minLookahead,
+      config.maxLookahead
     );
     const targetIndex = pickTargetIndex(centerline, closestIndex, lookahead);
     const targetPoint = centerline[targetIndex];
@@ -132,34 +182,34 @@ export function updateNpcControllers(
     let angleDiff = normalizeAngle(desiredAngle - car.angle);
     angleDiff += resolveMistakeBias(controller, dt);
 
-    const steer = clamp(angleDiff / STEER_RESPONSE, -1, 1);
+    const steer = clamp(angleDiff / config.steerResponse, -1, 1);
 
     const steeringDemand = Math.min(1, Math.abs(angleDiff) / Math.PI);
     const speedRatio = car.speed / Math.max(1, MAX_SPEED);
     let throttle = clamp(
-      BASE_THROTTLE * (1 - THROTTLE_CORNER_PENALTY * steeringDemand) + (1 - speedRatio) * 0.25,
-      MIN_THROTTLE,
+      config.baseThrottle * (1 - config.throttleCornerPenalty * steeringDemand) + (1 - speedRatio) * 0.25,
+      config.minThrottle,
       1
     );
     let brake = 0;
 
-    if (Math.abs(angleDiff) > RECOVERY_BRAKE_ANGLE && car.speed > MAX_SPEED * 0.35) {
+    if (Math.abs(angleDiff) > config.recoveryBrakeAngle && car.speed > MAX_SPEED * 0.35) {
       brake = 0.6;
       throttle *= 0.6;
     }
 
     if (!onTrack) {
-      throttle *= OFF_TRACK_THROTTLE_SCALE;
+      throttle *= config.offTrackThrottleScale;
       if (car.speed > MAX_SPEED * 0.25) {
-        brake = Math.max(brake, OFF_TRACK_BRAKE);
+        brake = Math.max(brake, config.offTrackBrake);
       }
     }
 
     const distance = Math.hypot(dx, dz);
-    const threshold = Math.max(MIN_TARGET_THRESHOLD, room.track.width * TARGET_THRESHOLD_FACTOR);
-    if (distance < threshold * 0.75 && car.speed > MAX_SPEED * 0.6) {
-      throttle = Math.min(throttle, BASE_THROTTLE * 0.65);
-      brake = Math.max(brake, 0.2);
+    const threshold = Math.max(config.minTargetThreshold, room.track.width * config.targetThresholdFactor);
+    if (distance < threshold * config.approachDistanceRatio && car.speed > MAX_SPEED * 0.6) {
+      throttle = Math.min(throttle, config.baseThrottle * config.approachThrottleScale);
+      brake = Math.max(brake, config.approachBrake);
     }
 
     const input: PlayerInput = {
