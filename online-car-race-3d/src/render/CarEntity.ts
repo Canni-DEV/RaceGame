@@ -31,8 +31,8 @@ export class CarEntity {
   private nameTexture: THREE.CanvasTexture | null = null
   private nameLabelAspect = 1
   private readonly baseNameHeight = 1
-  private readonly minNameScale = 0.8
-  private readonly maxNameScale = 6
+  private readonly minNameScale = 0.4
+  private readonly maxNameScale = 8
   private readonly distanceScaleFactor = 0.01
   private currentNameScale = 1
 

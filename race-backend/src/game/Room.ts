@@ -36,7 +36,13 @@ import {
   RACE_START_SEGMENT_INDEX
 } from "../config";
 import { updateCarsForRoom } from "./Physics";
-import { NpcControllerState, updateNpcControllers } from "./NpcController";
+import {
+  NpcBehaviorConfig,
+  NpcControllerState,
+  createNpcBehaviorConfig,
+  createNpcState,
+  updateNpcControllers
+} from "./NpcController";
 import { TrackBoundaryCollision, TrackGeometry } from "./TrackGeometry";
 import { ProjectedProgress, TrackNavigator } from "./TrackNavigator";
 
@@ -77,6 +83,11 @@ export interface MovementMultipliers {
   accelerationMultiplier: number;
   maxSpeedMultiplier: number;
   turboActive: boolean;
+}
+
+interface NpcProfile {
+  name: string;
+  behavior: NpcBehaviorConfig;
 }
 
 interface PlayerRaceProgress {
@@ -148,9 +159,47 @@ export class Room {
       ? this.trackNavigator.project(track.centerline[this.startSegmentIndex % track.centerline.length]).distanceAlongTrack
       : 0;
     this.countdownTotal = RACE_COUNTDOWN_SECONDS;
-    this.initializeNpc("Garburator",0,1,0);
-    this.initializeNpc("Petrucci",0,-1,0.5);
-    this.initializeNpc("Arthur Morgan",0,-1,0.5);
+
+    const npcProfiles: NpcProfile[] = [
+      {
+        name: "Garburator",
+        behavior: createNpcBehaviorConfig({
+          baseThrottle: 0.86,
+          lookaheadSpeedFactor: 0.8,
+          mistakeTriggerChance: 0.28,
+          mistakeCooldownRange: [2, 5]
+        })
+      },
+      {
+        name: "Petrucci",
+        behavior: createNpcBehaviorConfig({
+          baseThrottle: 0.78,
+          minThrottle: 0.38,
+          throttleCornerPenalty: 0.45,
+          steerResponse: Math.PI / 3.4,
+          lookaheadSpeedFactor: 0.95,
+          mistakeTriggerChance: 0.18,
+          mistakeDurationRange: [0.25, 0.6],
+          mistakeCooldownRange: [2.5, 6.5]
+        })
+      },
+      {
+        name: "Arthur Morgan",
+        behavior: createNpcBehaviorConfig({
+          baseThrottle: 0.9,
+          throttleCornerPenalty: 0.65,
+          steerResponse: Math.PI / 2.8,
+          offTrackThrottleScale: 0.6,
+          offTrackBrake: 0.45,
+          mistakeSteerBias: Math.PI / 10,
+          mistakeTriggerChance: 0.45,
+          approachThrottleScale: 0.6,
+          approachBrake: 0.25
+        })
+      }
+    ];
+
+    npcProfiles.forEach((profile) => this.initializeNpc(profile));
   }
 
   addViewer(socketId: string, playerId: string): void {
@@ -1183,12 +1232,12 @@ export class Room {
     return this.trackGeometry.resolveBoundaryCollision(position, radius, offset);
   }
 
-  private initializeNpc(name:string, mistakeCooldown:number,mistakeDirection:number, mistakeDuration:number): void {
+  private initializeNpc(profile: NpcProfile): void {
     if (this.track.centerline.length < 2) {
       return;
     }
 
-    const npcId = name;
+    const npcId = profile.name;
     const spawnPoint = this.track.centerline[0];
     const nextPoint = this.track.centerline[1 % this.track.centerline.length];
     const angle = Math.atan2(nextPoint.z - spawnPoint.z, nextPoint.x - spawnPoint.x);
@@ -1208,12 +1257,7 @@ export class Room {
     this.cars.set(npcId, car);
     this.latestInputs.set(npcId, { steer: 0, throttle: 1, brake: 0 });
     this.npcIds.add(npcId);
-    this.npcStates.set(npcId, {
-      targetIndex: 1 % this.track.centerline.length,
-      mistakeCooldown: mistakeCooldown,
-      mistakeDuration: mistakeDuration,
-      mistakeDirection: mistakeDirection
-    });
+    this.npcStates.set(npcId, createNpcState(profile.behavior, 1 % this.track.centerline.length));
     this.ensureRaceProgress(npcId, car);
   }
 }
