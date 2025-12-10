@@ -836,6 +836,8 @@ export class Room {
       return;
     }
 
+    const finishDistance = this.trackLength * this.lapsRequired;
+
     for (const [playerId, car] of this.cars.entries()) {
       const progress = this.ensureRaceProgress(playerId, car);
       const projection = this.trackNavigator.project({ x: car.x, z: car.z });
@@ -843,20 +845,24 @@ export class Room {
       const currentDistance = this.normalizeDistance(projection.distanceAlongTrack);
       const delta = this.computeSignedDelta(previousDistance, currentDistance);
       const worldDistance = Math.hypot(car.x - progress.lastWorldPosition.x, car.z - progress.lastWorldPosition.z);
+      const acceptsAdvance = this.shouldAcceptAdvance(delta, worldDistance);
 
-      if (!this.shouldAcceptAdvance(delta, worldDistance)) {
+      progress.progress = projection;
+      progress.lastWorldPosition = { x: car.x, z: car.z };
+
+      if (!acceptsAdvance || progress.isFinished) {
         continue;
       }
 
       const clampedDelta = delta >= 0 ? delta : Math.max(delta, -RACE_BACKTRACK_TOLERANCE);
-      progress.totalDistance = Math.max(0, progress.totalDistance + clampedDelta);
-      const lapsCompleted = Math.floor(progress.totalDistance / this.trackLength);
+      progress.totalDistance += clampedDelta;
+      const lapsCompleted = Math.floor(Math.max(0, progress.totalDistance) / this.trackLength);
       progress.lap = Math.max(progress.lap, lapsCompleted);
-      progress.progress = projection;
-      progress.lastWorldPosition = { x: car.x, z: car.z };
 
       if (this.racePhase === "race" && !progress.isFinished && progress.lap >= this.lapsRequired) {
         progress.isFinished = true;
+        progress.lap = this.lapsRequired;
+        progress.totalDistance = finishDistance;
         progress.finishTime = this.serverTime - (this.raceStartTime ?? 0);
         if (this.firstFinishTime === null) {
           this.firstFinishTime = this.serverTime;
@@ -924,7 +930,7 @@ export class Room {
       progress.isFinished = false;
       progress.finishTime = undefined;
       progress.lap = 0;
-      progress.totalDistance = 0;
+      progress.totalDistance = this.initialTotalDistance(progress.progress);
     }
   }
 
@@ -994,8 +1000,8 @@ export class Room {
       this.latestInputs.set(car.playerId, NEUTRAL_INPUT);
       const progress = this.ensureRaceProgress(car.playerId, car);
       progress.lap = 0;
-      progress.totalDistance = 0;
       progress.progress = this.trackNavigator.project(position);
+      progress.totalDistance = this.initialTotalDistance(progress.progress);
       progress.lastWorldPosition = { ...position };
       progress.isFinished = false;
       progress.finishTime = undefined;
@@ -1059,7 +1065,7 @@ export class Room {
       progress = {
         playerId,
         lap: 0,
-        totalDistance: this.normalizeDistance(projection.distanceAlongTrack),
+        totalDistance: this.initialTotalDistance(projection),
         progress: projection,
         lastWorldPosition: reference ? { x: reference.x, z: reference.z } : { x: 0, z: 0 },
         ready: this.npcIds.has(playerId),
@@ -1119,6 +1125,48 @@ export class Room {
     return true;
   }
 
+  private initialTotalDistance(projection: ProjectedProgress): number {
+    const offset = this.computeSignedDelta(this.startDistance, projection.distanceAlongTrack);
+    return Math.abs(offset) < this.trackLength * 0.5 ? offset : 0;
+  }
+
+  private compareRaceProgress(
+    a: PlayerRaceProgress,
+    b: PlayerRaceProgress,
+    lapLength: number
+  ): number {
+    if (a.isFinished && b.isFinished) {
+      const timeA = a.finishTime ?? Number.POSITIVE_INFINITY;
+      const timeB = b.finishTime ?? Number.POSITIVE_INFINITY;
+      if (timeA !== timeB) {
+        return timeA - timeB;
+      }
+      return a.playerId.localeCompare(b.playerId);
+    }
+
+    if (a.isFinished !== b.isFinished) {
+      return a.isFinished ? -1 : 1;
+    }
+
+    const clampedLapA = Math.min(a.lap, this.lapsRequired);
+    const clampedLapB = Math.min(b.lap, this.lapsRequired);
+    if (clampedLapA !== clampedLapB) {
+      return clampedLapB - clampedLapA;
+    }
+
+    const progressA = lapLength > 0 ? a.totalDistance % lapLength : 0;
+    const progressB = lapLength > 0 ? b.totalDistance % lapLength : 0;
+    if (progressA !== progressB) {
+      return progressB - progressA;
+    }
+
+    if (a.totalDistance !== b.totalDistance) {
+      return b.totalDistance - a.totalDistance;
+    }
+
+    return a.playerId.localeCompare(b.playerId);
+  }
+
   getPlayers(): { playerId: string; username: string; isNpc: boolean }[] {
     return Array.from(this.cars.keys()).map((playerId) => ({
       playerId,
@@ -1128,38 +1176,45 @@ export class Room {
   }
 
   private toRaceState(): RaceState {
-    const lapLength = this.trackLength || 1;
+    const lapLength = this.trackLength > 0 ? this.trackLength : 1;
+    const finishDistance = lapLength * this.lapsRequired;
     const entries = Array.from(this.raceProgress.values()).filter((entry) => this.cars.has(entry.playerId));
-    entries.sort((a, b) => {
-      if (a.totalDistance !== b.totalDistance) {
-        return b.totalDistance - a.totalDistance;
+    entries.sort((a, b) => this.compareRaceProgress(a, b, lapLength));
+
+    const leader = entries[0];
+    const leaderDistance = leader
+      ? leader.isFinished
+        ? finishDistance
+        : leader.totalDistance
+      : 0;
+    const leaderFinishTime = leader?.finishTime;
+
+    const leaderboard: LeaderboardEntry[] = entries.map((entry, index) => {
+      const clampedLap = Math.min(entry.lap, this.lapsRequired);
+      const distanceForGap = entry.isFinished ? finishDistance : entry.totalDistance;
+      let gapToFirst: number | null = null;
+
+      if (index > 0) {
+        if (leader?.isFinished && entry.isFinished && leaderFinishTime !== undefined && entry.finishTime !== undefined) {
+          gapToFirst = Math.max(0, entry.finishTime - leaderFinishTime);
+        } else {
+          gapToFirst = Math.max(0, leaderDistance - distanceForGap);
+        }
       }
-      if (a.finishTime !== undefined && b.finishTime !== undefined) {
-        return a.finishTime - b.finishTime;
-      }
-      if (a.finishTime !== undefined) {
-        return -1;
-      }
-      if (b.finishTime !== undefined) {
-        return 1;
-      }
-      return a.playerId.localeCompare(b.playerId);
+
+      return {
+        playerId: entry.playerId,
+        username: this.getUsername(entry.playerId),
+        position: index + 1,
+        lap: clampedLap,
+        totalDistance: entry.totalDistance,
+        gapToFirst,
+        isFinished: entry.isFinished,
+        isNpc: entry.isNpc,
+        ready: entry.ready,
+        finishTime: entry.finishTime
+      };
     });
-
-    const firstTotal = entries[0]?.totalDistance ?? 0;
-
-    const leaderboard: LeaderboardEntry[] = entries.map((entry, index) => ({
-      playerId: entry.playerId,
-      username: this.getUsername(entry.playerId),
-      position: index + 1,
-      lap: entry.lap,
-      totalDistance: entry.totalDistance,
-      gapToFirst: index === 0 ? null : Math.max(0, firstTotal - entry.totalDistance),
-      isFinished: entry.isFinished,
-      isNpc: entry.isNpc,
-      ready: entry.ready,
-      finishTime: entry.finishTime
-    }));
 
     return {
       phase: this.racePhase,
@@ -1175,8 +1230,8 @@ export class Room {
       players: entries.map((entry) => ({
         playerId: entry.playerId,
         username: this.getUsername(entry.playerId),
-        lap: entry.lap,
-        progressOnLap: lapLength > 0 ? entry.totalDistance % lapLength : 0,
+        lap: Math.min(entry.lap, this.lapsRequired),
+        progressOnLap: lapLength > 0 ? Math.max(0, entry.totalDistance) % lapLength : 0,
         totalDistance: entry.totalDistance,
         ready: entry.ready,
         isFinished: entry.isFinished,
