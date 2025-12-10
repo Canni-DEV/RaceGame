@@ -59,11 +59,6 @@ declare module 'three' {
     clone(): this
   }
 
-  export class Material {
-    needsUpdate: boolean
-    dispose(): void
-  }
-
   export class Texture {
     colorSpace: number
     mapping: number
@@ -252,6 +247,8 @@ declare module 'three' {
     constructor(parameters?: Record<string, unknown>)
     clone(): this
     needsUpdate: boolean
+    opacity: number
+    transparent: boolean
     dispose(): void
   }
 
@@ -260,7 +257,18 @@ declare module 'three' {
     color: Color
     metalness: number
     roughness: number
+    emissive: Color
+    emissiveIntensity: number
     clone(): MeshStandardMaterial
+  }
+
+  export class MeshPhysicalMaterial extends MeshStandardMaterial {
+    constructor(parameters?: Record<string, unknown>)
+    transmission: number
+    ior: number
+    thickness: number
+    clearcoat: number
+    clearcoatRoughness: number
   }
 
   export class ShaderMaterial extends Material {

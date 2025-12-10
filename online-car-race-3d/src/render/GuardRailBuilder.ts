@@ -15,16 +15,27 @@ const DEFAULT_OPTIONS: GuardRailOptions = {
 }
 
 export class GuardRailBuilder {
-  private readonly material: THREE.MeshStandardMaterial
   private readonly options: GuardRailOptions
+  private readonly materials: Record<'left' | 'right', THREE.MeshStandardMaterial>
 
   constructor(options?: Partial<GuardRailOptions>) {
     this.options = { ...DEFAULT_OPTIONS, ...options }
-    this.material = new THREE.MeshStandardMaterial({
-      color: 0xc2c5cf,
-      metalness: 0.7,
-      roughness: 0.35,
-    })
+    this.materials = {
+      left: new THREE.MeshStandardMaterial({
+        color: new THREE.Color('#00f5ff'),
+        emissive: new THREE.Color('#13f5ff'),
+        emissiveIntensity: 3.2,
+        metalness: 0.15,
+        roughness: 0.25,
+      }),
+      right: new THREE.MeshStandardMaterial({
+        color: new THREE.Color('#ff3bd9'),
+        emissive: new THREE.Color('#ff3fe6'),
+        emissiveIntensity: 3.4,
+        metalness: 0.15,
+        roughness: 0.25,
+      }),
+    }
   }
 
   build(track: TrackBuildResult, trackWidth: number): THREE.Group | null {
@@ -73,7 +84,7 @@ export class GuardRailBuilder {
     pushSegment()
 
     for (const segment of segments) {
-      const mesh = this.createRailMesh(segment.points)
+      const mesh = this.createRailMesh(segment.points, segment.side)
       if (!mesh) {
         continue
       }
@@ -84,7 +95,10 @@ export class GuardRailBuilder {
     return group.children.length > 0 ? group : null
   }
 
-  private createRailMesh(points: THREE.Vector3[]): THREE.Mesh | null {
+  private createRailMesh(
+    points: THREE.Vector3[],
+    side: 'left' | 'right',
+  ): THREE.Mesh | null {
     if (points.length < 2) {
       return null
     }
@@ -97,9 +111,9 @@ export class GuardRailBuilder {
       6,
       false,
     )
-    const mesh = new THREE.Mesh(geometry, this.material)
-    mesh.castShadow = true
-    mesh.receiveShadow = true
+    const mesh = new THREE.Mesh(geometry, this.materials[side])
+    mesh.castShadow = false
+    mesh.receiveShadow = false
     return mesh
   }
 

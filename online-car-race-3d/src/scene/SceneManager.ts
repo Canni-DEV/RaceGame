@@ -8,7 +8,7 @@ import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
 import { RaceHud } from './RaceHud'
-import { ProceduralSky } from '../render/ProceduralSky'
+import { SpaceSky } from '../render/SpaceSky'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -18,7 +18,7 @@ export class SceneManager {
   private readonly cameraRig: CameraRig
   private readonly clock: THREE.Clock
   private readonly trackScene: TrackScene
-  private readonly sky: ProceduralSky
+  private readonly sky: SpaceSky
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
@@ -48,15 +48,14 @@ export class SceneManager {
     this.container.appendChild(this.renderer.domElement)
 
     this.scene = new THREE.Scene()
-    this.sky = new ProceduralSky({
-      topColor: '#6d9eff',
-      middleColor: '#9ccfff',
-      bottomColor: '#f6e5d6',
-      horizonExponent: 1.35,
-      timeOfDay: 0.25,
-      cloudSpeed: 0.012,
-      cloudCoverage: 0.4,
-      cloudOpacity: 0.6,
+    this.scene.background = new THREE.Color('#04060f')
+    this.sky = new SpaceSky({
+      baseColor: '#03040c',
+      nebulaPrimary: '#0a2655',
+      nebulaSecondary: '#3b0c41',
+      starColor: '#8df5ff',
+      starDensity: 240,
+      twinkleSpeed: 0.35,
     })
     this.scene.add(this.sky.mesh)
     this.setupEnvironment()
@@ -126,36 +125,18 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const hemisphere = new THREE.HemisphereLight(0x6fa5ff, 0x7a552d, 0.35)
+    const ambient = new THREE.AmbientLight(0x0a1633, 0.25)
+    this.scene.add(ambient)
+
+    const hemisphere = new THREE.HemisphereLight(0x1d2f61, 0x05060a, 0.18)
+    hemisphere.position.set(0, 120, 0)
     this.scene.add(hemisphere)
 
-    const keyLight = new THREE.DirectionalLight(0xffe2b3, 1.15)
-    keyLight.position.set(60, 120, 80)
-    keyLight.castShadow = true
-    keyLight.shadow.mapSize.width = 4096
-    keyLight.shadow.mapSize.height = 4096
-    keyLight.shadow.bias = -0.00035
-    keyLight.shadow.normalBias = 0.015
-    keyLight.shadow.camera.near = 1
-    keyLight.shadow.camera.far = 600
-    keyLight.shadow.camera.left = -150
-    keyLight.shadow.camera.right = 150
-    keyLight.shadow.camera.top = 150
-    keyLight.shadow.camera.bottom = -150
+    const keyLight = new THREE.DirectionalLight(0x1e6b9f, 0.28)
+    keyLight.position.set(50, 160, 70)
+    keyLight.castShadow = false
     this.scene.add(keyLight)
     this.scene.add(keyLight.target)
-
-    const fillLight = new THREE.DirectionalLight(0xd5e3ff, 0.35)
-    fillLight.position.set(-140, 80, 40)
-    fillLight.castShadow = false
-    this.scene.add(fillLight)
-    this.scene.add(fillLight.target)
-
-    const rimLight = new THREE.DirectionalLight(0x9ecbff, 0.5)
-    rimLight.position.set(100, 50, -160)
-    rimLight.castShadow = false
-    this.scene.add(rimLight)
-    this.scene.add(rimLight.target)
 
     this.keyLight = keyLight
   }
@@ -172,8 +153,8 @@ export class SceneManager {
     }
 
     const gradient = context.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#182c47')
-    gradient.addColorStop(1, '#0f0c17')
+    gradient.addColorStop(0, '#0a1130')
+    gradient.addColorStop(1, '#050812')
     context.fillStyle = gradient
     context.fillRect(0, 0, width, height)
 
@@ -199,12 +180,6 @@ export class SceneManager {
   private readonly animate = (): void => {
     requestAnimationFrame(this.animate)
     const delta = this.clock.getDelta()
-    const dayPhase = THREE.MathUtils.clamp(
-      0.25 + Math.sin(this.clock.getElapsedTime() * 0.05) * 0.22,
-      0,
-      1,
-    )
-    this.sky.setTimeOfDay(dayPhase)
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
     this.sky.update(delta, this.camera.position)
