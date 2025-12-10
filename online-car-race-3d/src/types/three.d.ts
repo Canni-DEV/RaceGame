@@ -43,8 +43,10 @@ declare module 'three' {
   export class Quaternion {
     set(x: number, y: number, z: number, w: number): this
     copy(q: Quaternion): this
+    multiply(q: Quaternion): this
     slerp(q: Quaternion, t: number): this
     setFromEuler(euler: Euler): this
+    setFromAxisAngle(axis: Vector3, angle: number): this
   }
 
   export class Object3D {
