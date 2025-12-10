@@ -39,6 +39,31 @@ assets:
     baseRotation: 0
     size: 35
 
+  - file: pitsGarage.glb
+    id: pits-garage
+    placement: required
+    placementTier: 0
+    nodes: [1, 2, 3]
+    offset: 10
+    side: right
+    alignToTrack: true
+    lookAtTrack: true
+    baseRotation: 0        # grados
+    size: 12
+    seed: 40
+
+  - file: flagCheckers.glb
+    id: start-arch-flag
+    placement: required
+    placementTier: 0
+    oncePerSegment: true
+    node: 4
+    minSpacing: 20
+    offsetMode: edge
+    allowOnTrack: true
+    alignToTrack: true
+    size: 35
+
   - file: overheadRoundColored.glb
     id: start-arch
     placement: required
@@ -49,7 +74,7 @@ assets:
     offsetMode: centerline
     allowOnTrack: true
     alignToTrack: true
-    baseRotation: 0
+    baseRotation: 180
     size: 35
 
     # Iluminación y cartelería con lookAt estable
@@ -78,18 +103,7 @@ assets:
     size: 12
 
       # Boxes compactos
-  - file: pitsGarage.glb
-    id: pits-garage
-    placement: required
-    placementTier: 0
-    nodes: [1, 2, 3]
-    offset: 10
-    side: right
-    alignToTrack: true
-    lookAtTrack: true
-    baseRotation: 0        # grados
-    size: 12
-    seed: 40
+  
 
   # Gradas en rectas mirando hacia la pista
   - file: grandStand.glb
@@ -260,6 +274,23 @@ assets:
     side: both
     minSize: 4
     maxSize: 7
+
+  - file: tentRoofDouble.glb
+    id: tentClosed-gaps-double
+    placement: filler
+    placementTier: 4
+    fillEmpty: true
+    fillCellSize: 15
+    lookAtTrack: true
+    alignToTrack: false
+    density: 25
+    minSpacing: 15
+    offset: 10
+    spreadMode: band
+    offsetJitter: 6
+    side: both
+    minSize: 5
+    maxSize: 8
 
   - file: tentClosed.glb
     id: tentClosed-gaps
