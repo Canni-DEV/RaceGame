@@ -35,6 +35,7 @@ export class CarEntity {
   private readonly maxNameScale = 2
   private readonly distanceScaleFactor = 0.015
   private currentNameScale = 1
+  private isVisible = true
 
   constructor(
     id: string,
@@ -66,6 +67,7 @@ export class CarEntity {
     }
     object.position.copy(this.currentPosition)
     object.quaternion.copy(this.orientation)
+    object.visible = this.isVisible
     this.scene.add(object)
     this.object = object
 
@@ -139,6 +141,13 @@ export class CarEntity {
 
   getObject(): THREE.Object3D | null {
     return this.object
+  }
+
+  setVisible(visible: boolean): void {
+    this.isVisible = visible
+    if (this.object) {
+      this.object.visible = visible
+    }
   }
 
   isImpactSpinning(): boolean {

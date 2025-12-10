@@ -47,6 +47,7 @@ declare module 'three' {
     quaternion: Quaternion
     scale: Vector3
     matrix: Matrix4
+    visible: boolean
     parent: Object3D | null
     userData: Record<string, any>
     renderOrder: number

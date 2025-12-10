@@ -27,7 +27,7 @@ export class CameraRig {
   private followDistance = 26
   private followHeight = 14
   private firstPersonHeight = 1.5
-  private firstPersonForwardOffset = 9.5
+  private firstPersonForwardOffset = 6
   private firstPersonLookAhead = 30
   private followRotationLocked = false
   private readonly followForward = new THREE.Vector3(0, 0, 1)

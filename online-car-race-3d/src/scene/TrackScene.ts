@@ -28,6 +28,7 @@ export class TrackScene {
   private playerId: string | null = null
   private cameraMode: 'overview' | 'follow' | 'firstPerson' = 'overview'
   private requestedFollowId: string | null = null
+  private firstPersonHiddenId: string | null = null
 
   constructor(
     scene: THREE.Scene,
@@ -168,6 +169,9 @@ export class TrackScene {
       if (!active.has(playerId)) {
         entity.dispose()
         this.cars.delete(playerId)
+        if (this.firstPersonHiddenId === playerId) {
+          this.firstPersonHiddenId = null
+        }
       }
     }
   }
@@ -285,11 +289,13 @@ export class TrackScene {
 
   private updateCameraFollow(): void {
     if (this.cameraMode === 'overview') {
+      this.updateFirstPersonVisibility(null)
       this.cameraRig.follow(null)
       return
     }
 
     const followEntity = this.resolveFollowEntity()
+    this.updateFirstPersonVisibility(followEntity)
     const followObject = followEntity?.getObject() ?? null
     if (!followObject) {
       this.cameraRig.follow(null)
@@ -348,5 +354,23 @@ export class TrackScene {
 
   private shouldShowLabelFor(playerId: string): boolean {
     return !this.playerId || playerId !== this.playerId
+  }
+
+  private updateFirstPersonVisibility(followEntity: CarEntity | null): void {
+    if (this.cameraMode === 'firstPerson' && followEntity) {
+      if (this.firstPersonHiddenId && this.firstPersonHiddenId !== followEntity.id) {
+        const previous = this.cars.get(this.firstPersonHiddenId)
+        previous?.setVisible(true)
+      }
+      followEntity.setVisible(false)
+      this.firstPersonHiddenId = followEntity.id
+      return
+    }
+
+    if (this.firstPersonHiddenId) {
+      const previous = this.cars.get(this.firstPersonHiddenId)
+      previous?.setVisible(true)
+      this.firstPersonHiddenId = null
+    }
   }
 }
