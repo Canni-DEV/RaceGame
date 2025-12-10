@@ -28,13 +28,37 @@
 # - fillCellSize    : tamaño de celda (metros) para el relleno de huecos.
 
 assets:
+  - file: overhead.glb
+    id: start-over
+    placement: required
+    placementTier: 0
+    node: 4
+    offsetMode: centerline
+    allowOnTrack: true
+    alignToTrack: true
+    baseRotation: 0
+    size: 35
+
+  - file: overheadRoundColored.glb
+    id: start-arch
+    placement: required
+    placementTier: 0
+    oncePerSegment: true
+    every: 15
+    minSpacing: 40
+    offsetMode: centerline
+    allowOnTrack: true
+    alignToTrack: true
+    baseRotation: 0
+    size: 35
+
     # Iluminación y cartelería con lookAt estable
   - file: lightPost_exclusive.glb
     id: lights-straight1
     placement: required
     placementTier: 0
     every: 6            # cada 5 segmentos
-    minSpacing: 60
+    minSpacing: 50
     side: left
     lookAtTrack: true
     alignToTrack: false
@@ -46,7 +70,7 @@ assets:
     placement: required
     placementTier: 0
     every: 7           # cada 5 segmentos
-    minSpacing: 60
+    minSpacing: 50
     side: right
     lookAtTrack: true
     alignToTrack: false
@@ -123,18 +147,6 @@ assets:
     alignToTrack: false
     baseRotation: 0
     size: 18
-
-    # Meta / salida
-  - file: overheadRoundColored.glb
-    id: start-arch
-    placement: required
-    placementTier: 0
-    node: 5
-    offsetMode: centerline
-    allowOnTrack: true
-    alignToTrack: true
-    baseRotation: 0
-    size: 35
 
 
 
