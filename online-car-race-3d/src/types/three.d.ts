@@ -1,4 +1,12 @@
 declare module 'three' {
+  export class Vector2 {
+    constructor(x?: number, y?: number)
+    x: number
+    y: number
+    set(x: number, y: number): this
+    clone(): Vector2
+  }
+
   export class Vector3 {
     constructor(x?: number, y?: number, z?: number)
     x: number
@@ -205,7 +213,13 @@ declare module 'three' {
     computeVertexNormals(): void
     computeBoundingBox(): void
     boundingBox?: Box3 | null
+    translate(x: number, y: number, z: number): this
     dispose(): void
+  }
+
+  export class Shape {
+    constructor(points?: Vector2[])
+    getPoints(divisions?: number): Vector2[]
   }
 
   export class SphereGeometry extends BufferGeometry {
@@ -229,8 +243,25 @@ declare module 'three' {
   }
 
   export class CylinderGeometry extends BufferGeometry {
-    constructor(radiusTop?: number, radiusBottom?: number, height?: number, radialSegments?: number)
+    constructor(
+      radiusTop?: number,
+      radiusBottom?: number,
+      height?: number,
+      radialSegments?: number,
+      heightSegments?: number,
+      openEnded?: boolean,
+      thetaStart?: number,
+      thetaLength?: number,
+    )
     rotateZ(angle: number): this
+  }
+
+  export class TorusGeometry extends BufferGeometry {
+    constructor(radius?: number, tube?: number, radialSegments?: number, tubularSegments?: number)
+  }
+
+  export class CapsuleGeometry extends BufferGeometry {
+    constructor(radius?: number, length?: number, capSegments?: number, radialSegments?: number)
   }
 
   export class TubeGeometry extends BufferGeometry {
@@ -245,6 +276,15 @@ declare module 'three' {
 
   export class Curve<T> {
     getPoint(t: number): T
+  }
+
+  export interface ExtrudeGeometryOptions {
+    depth?: number
+    bevelEnabled?: boolean
+  }
+
+  export class ExtrudeGeometry extends BufferGeometry {
+    constructor(shapes?: Shape | Shape[], options?: ExtrudeGeometryOptions)
   }
 
   export class CatmullRomCurve3 extends Curve<Vector3> {
