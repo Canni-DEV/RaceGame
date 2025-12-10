@@ -6,6 +6,7 @@ export class CameraRig {
   private readonly smoothedTarget: THREE.Vector3
   private readonly desiredPosition: THREE.Vector3
   private readonly currentPosition: THREE.Vector3
+  private readonly lookTarget: THREE.Vector3
   private baseOrbitRadius = 85
   private baseHeight = 60
   private minOrbitRadius = 40
@@ -22,8 +23,12 @@ export class CameraRig {
   private autoOrbitEnabled = false
   private manualOrbitActive = false
   private followTarget: THREE.Object3D | null = null
+  private followMode: 'chase' | 'firstPerson' = 'chase'
   private followDistance = 26
   private followHeight = 14
+  private firstPersonHeight = 1.5
+  private firstPersonForwardOffset = 9.5
+  private firstPersonLookAhead = 30
   private followRotationLocked = false
   private readonly followForward = new THREE.Vector3(0, 0, 1)
   private readonly tempForward = new THREE.Vector3(0, 0, 1)
@@ -34,6 +39,7 @@ export class CameraRig {
     this.smoothedTarget = new THREE.Vector3(0, 0, 0)
     this.desiredPosition = new THREE.Vector3()
     this.currentPosition = new THREE.Vector3()
+    this.lookTarget = new THREE.Vector3()
     this.configureCamera()
     this.smoothedTarget.copy(this.manualTarget)
   }
@@ -99,7 +105,7 @@ export class CameraRig {
     this.groundLevel = bounds.min.y
     const distanceToTarget = Math.hypot(this.baseHeight, this.baseOrbitRadius)
     const boundsDiagonal = size.length()
-    this.camera.near = Math.max(0.5, distanceToTarget * 0.01)
+    this.camera.near = Math.max(0.1, distanceToTarget * 0.001)
     this.camera.far = distanceToTarget + boundsDiagonal * 0.75
     this.camera.updateProjectionMatrix()
     this.followDistance = Math.max(maxHorizontal * 0.05, 24)
@@ -115,12 +121,19 @@ export class CameraRig {
     this.smoothedTarget.copy(this.manualTarget)
   }
 
-  follow(object: THREE.Object3D | null, options?: { lockRotation?: boolean }): void {
+  follow(
+    object: THREE.Object3D | null,
+    options?: { lockRotation?: boolean; mode?: 'chase' | 'firstPerson' },
+  ): void {
     if (object !== this.followTarget && object) {
       this.followForward.copy(this.getTargetForward(object))
     }
     this.followTarget = object
+    this.followMode = options?.mode ?? 'chase'
     this.followRotationLocked = object ? Boolean(options?.lockRotation) : false
+    if (!object) {
+      this.followMode = 'chase'
+    }
   }
 
   isFollowing(): boolean {
@@ -129,20 +142,33 @@ export class CameraRig {
 
   update(_dt: number): void {
     const dt = Math.max(_dt, 0.016)
-    const targetLerp = 1 - Math.exp(-dt * 3.5)
+    const targetLerpSpeed = this.followMode === 'firstPerson' ? 6 : 3.5
+    const targetLerp = 1 - Math.exp(-dt * targetLerpSpeed)
+    this.lookTarget.copy(this.smoothedTarget)
+
     if (this.followTarget) {
       this.smoothedTarget.lerp(this.followTarget.position, targetLerp)
       if (!this.followRotationLocked) {
         const targetForward = this.getTargetForward(this.followTarget)
         if (targetForward.lengthSq() > 1e-6) {
-          const forwardLerp = 1 - Math.exp(-dt * 6)
+          const forwardLerpSpeed = this.followMode === 'firstPerson' ? 10 : 6
+          const forwardLerp = 1 - Math.exp(-dt * forwardLerpSpeed)
           this.followForward.lerp(targetForward, forwardLerp)
           this.followForward.normalize()
         }
       }
       this.desiredPosition.copy(this.smoothedTarget)
-      this.desiredPosition.addScaledVector(this.followForward, -this.followDistance)
-      this.desiredPosition.y = this.smoothedTarget.y + this.followHeight
+      if (this.followMode === 'firstPerson') {
+        this.desiredPosition.addScaledVector(this.followForward, this.firstPersonForwardOffset)
+        this.desiredPosition.y = this.smoothedTarget.y + this.firstPersonHeight
+        this.lookTarget
+          .copy(this.smoothedTarget)
+          .addScaledVector(this.followForward, this.firstPersonLookAhead)
+      } else {
+        this.desiredPosition.addScaledVector(this.followForward, -this.followDistance)
+        this.desiredPosition.y = this.smoothedTarget.y + this.followHeight
+        this.lookTarget.copy(this.smoothedTarget)
+      }
     } else {
       this.smoothedTarget.lerp(this.manualTarget, targetLerp)
       if (!this.manualOrbitActive && this.autoOrbitEnabled) {
@@ -161,12 +187,13 @@ export class CameraRig {
         this.smoothedTarget.y + height,
         this.smoothedTarget.z + Math.sin(this.azimuth) * radius,
       )
+      this.lookTarget.copy(this.smoothedTarget)
     }
 
     const positionLerp = 1 - Math.exp(-dt * 4.5)
     this.currentPosition.lerp(this.desiredPosition, positionLerp)
     this.camera.position.copy(this.currentPosition)
-    this.camera.lookAt(this.smoothedTarget)
+    this.camera.lookAt(this.lookTarget)
   }
 
   private configureCamera(): void {

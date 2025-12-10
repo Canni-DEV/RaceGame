@@ -26,7 +26,7 @@ export class TrackScene {
   private readonly audioManager: AudioManager | null
   private trackRoot: THREE.Group | null = null
   private playerId: string | null = null
-  private cameraMode: 'overview' | 'follow' = 'overview'
+  private cameraMode: 'overview' | 'follow' | 'firstPerson' = 'overview'
   private requestedFollowId: string | null = null
 
   constructor(
@@ -65,7 +65,9 @@ export class TrackScene {
 
   setFollowTarget(playerId: string): void {
     this.requestedFollowId = playerId
-    this.cameraMode = 'follow'
+    if (this.cameraMode === 'overview') {
+      this.cameraMode = 'follow'
+    }
   }
 
   update(dt: number): void {
@@ -276,20 +278,27 @@ export class TrackScene {
     shadowCamera.right = halfSpan
     shadowCamera.top = halfSpan
     shadowCamera.bottom = -halfSpan
-    shadowCamera.near = 1
+    shadowCamera.near = 0.1
     shadowCamera.far = distance + halfSpan + height
     shadowCamera.updateProjectionMatrix()
   }
 
   private updateCameraFollow(): void {
-    if (this.cameraMode !== 'follow') {
+    if (this.cameraMode === 'overview') {
       this.cameraRig.follow(null)
       return
     }
 
     const followEntity = this.resolveFollowEntity()
-    this.cameraRig.follow(followEntity?.getObject() ?? null, {
+    const followObject = followEntity?.getObject() ?? null
+    if (!followObject) {
+      this.cameraRig.follow(null)
+      return
+    }
+
+    this.cameraRig.follow(followObject, {
       lockRotation: followEntity?.isImpactSpinning() ?? false,
+      mode: this.cameraMode === 'firstPerson' ? 'firstPerson' : 'chase',
     })
   }
 
@@ -322,12 +331,19 @@ export class TrackScene {
     if (event.key.toLowerCase() !== 'f') {
       return
     }
-    this.cameraMode = this.cameraMode === 'overview' ? 'follow' : 'overview'
+    this.cameraMode =
+      this.cameraMode === 'overview'
+        ? 'follow'
+        : this.cameraMode === 'follow'
+          ? 'firstPerson'
+          : 'overview'
+
     if (this.cameraMode === 'overview') {
       this.cameraRig.follow(null)
-    } else {
-      this.requestedFollowId = this.playerId
+      return
     }
+
+    this.requestedFollowId = this.playerId ?? this.requestedFollowId
   }
 
   private shouldShowLabelFor(playerId: string): boolean {

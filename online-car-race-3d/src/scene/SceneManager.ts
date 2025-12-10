@@ -136,7 +136,7 @@ export class SceneManager {
     keyLight.shadow.mapSize.height = 4096
     keyLight.shadow.bias = -0.00035
     keyLight.shadow.normalBias = 0.015
-    keyLight.shadow.camera.near = 1
+    keyLight.shadow.camera.near = 0.1
     keyLight.shadow.camera.far = 600
     keyLight.shadow.camera.left = -150
     keyLight.shadow.camera.right = 150

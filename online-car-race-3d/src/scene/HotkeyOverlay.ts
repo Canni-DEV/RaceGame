@@ -7,7 +7,7 @@ export class HotkeyOverlay {
 
     this.root.appendChild(this.createEntry('S', 'Sonido'))
     this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('F', 'Pov Player'))
+    this.root.appendChild(this.createEntry('F', 'Cambiar vista'))
     this.root.appendChild(this.createDot())
     this.root.appendChild(this.createEntry('R', 'Rotacion camara'))
     this.root.appendChild(this.createDot())
