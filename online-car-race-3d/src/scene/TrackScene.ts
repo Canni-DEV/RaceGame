@@ -29,6 +29,7 @@ export class TrackScene {
   private cameraMode: 'overview' | 'follow' | 'firstPerson' = 'overview'
   private requestedFollowId: string | null = null
   private firstPersonHiddenId: string | null = null
+  private hasAutoFollowedPlayer = false
 
   constructor(
     scene: THREE.Scene,
@@ -57,9 +58,16 @@ export class TrackScene {
     window.addEventListener('keydown', this.handleKeyDown)
 
     this.store.onRoomInfo((info) => {
+      const playerChanged = info.playerId !== this.playerId
       this.playerId = info.playerId
+      if (playerChanged) {
+        this.hasAutoFollowedPlayer = false
+      }
       if (info.track) {
         this.rebuildTrack(info.track)
+      }
+      if (info.playerId && this.cars.has(info.playerId)) {
+        this.maybeActivatePlayerFollow(info.playerId)
       }
     })
   }
@@ -172,6 +180,9 @@ export class TrackScene {
         if (this.firstPersonHiddenId === playerId) {
           this.firstPersonHiddenId = null
         }
+        if (playerId === this.playerId) {
+          this.hasAutoFollowedPlayer = false
+        }
       }
     }
   }
@@ -195,6 +206,7 @@ export class TrackScene {
 
   private getOrCreateCar(state: CarState): CarEntity {
     let car = this.cars.get(state.playerId)
+    const isNewCar = !car
     if (!car) {
       const color = this.getColorForState(state)
       car = new CarEntity(
@@ -207,6 +219,9 @@ export class TrackScene {
         this.shouldShowLabelFor(state.playerId),
       )
       this.cars.set(state.playerId, car)
+    }
+    if (isNewCar) {
+      this.maybeActivatePlayerFollow(state.playerId)
     }
     return car
   }
@@ -333,6 +348,19 @@ export class TrackScene {
     return null
   }
 
+  private maybeActivatePlayerFollow(playerId: string): void {
+    if (!this.playerId || playerId !== this.playerId) {
+      return
+    }
+    if (this.hasAutoFollowedPlayer) {
+      return
+    }
+
+    this.cameraMode = 'follow'
+    this.requestedFollowId = playerId
+    this.hasAutoFollowedPlayer = true
+  }
+
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
     if (event.key.toLowerCase() !== 'f') {
       return
@@ -349,7 +377,10 @@ export class TrackScene {
       return
     }
 
-    this.requestedFollowId = this.playerId ?? this.requestedFollowId
+    const playerHasCar = this.playerId ? this.cars.has(this.playerId) : false
+    if (playerHasCar) {
+      this.requestedFollowId = this.playerId
+    }
   }
 
   private shouldShowLabelFor(playerId: string): boolean {
