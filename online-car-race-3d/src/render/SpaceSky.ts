@@ -16,12 +16,12 @@ export class SpaceSky {
 
   constructor(options: SpaceSkyOptions = {}) {
     const {
-      radius = 560,
+      radius = 620,
       baseColor = '#030711',
       nebulaPrimary = '#0b1e4a',
       nebulaSecondary = '#2d0c3f',
       starColor = '#8df5ff',
-      starDensity = 260.0,
+      starDensity = 120.0,
       twinkleSpeed = 0.2,
     } = options
 
@@ -35,7 +35,7 @@ export class SpaceSky {
       time: { value: 0 },
     }
 
-    const geometry = new THREE.SphereGeometry(radius, 64, 32)
+    const geometry = new THREE.SphereGeometry(radius, 96, 64)
     const material = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -115,11 +115,16 @@ export class SpaceSky {
         }
 
         float starfield(vec3 direction) {
-          vec3 grid = normalize(direction) * starDensity;
-          float sparkle = hash13(floor(grid));
+          vec3 ray = normalize(direction) * starDensity;
+          vec3 cell = floor(ray);
+          vec3 local = fract(ray) - 0.5;
+
+          float sparkle = hash13(cell);
           float twinkle = sin(time * twinkleSpeed + sparkle * 12.0) * 0.5 + 0.5;
-          float brightness = pow(sparkle, 12.0) * twinkle;
-          return brightness;
+          float presence = smoothstep(0.8, 1.0, sparkle);
+          float falloff = exp(-dot(local, local) * 28.0);
+
+          return presence * falloff * twinkle;
         }
 
         void main() {

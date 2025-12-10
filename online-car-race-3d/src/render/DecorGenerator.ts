@@ -20,21 +20,6 @@ interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
   ): void
 }
 
-export function createGroundPlane(size: number): THREE.Mesh {
-  const geometry = new THREE.PlaneGeometry(size, size)
-  geometry.rotateX(-Math.PI / 2)
-
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x1a2b1f,
-    roughness: 1,
-    metalness: 0,
-  })
-
-  const mesh = new THREE.Mesh(geometry, material)
-  mesh.receiveShadow = true
-  return mesh
-}
-
 class TrackAssetLoader {
   private readonly loader = new GLTFLoader()
   private readonly cache = new Map<string, Promise<THREE.Object3D | null>>()
@@ -175,11 +160,6 @@ export function applyDecorators(
   root: THREE.Object3D,
   random: () => number,
 ): void {
-  const groundSize = Math.max(200, track.width * 200)
-  const ground = createGroundPlane(groundSize)
-  ground.position.y = -0.01
-  root.add(ground)
-
   const decorations = track.decorations ?? []
   for (const decoration of decorations) {
     const decorator = decoratorRegistry[decoration.type]
