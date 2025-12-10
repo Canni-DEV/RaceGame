@@ -152,7 +152,7 @@ export class CarEntity {
       this.object.position.copy(this.currentPosition)
       this.composedOrientation.copy(this.orientation)
       if (this.currentTurboPitch !== 0) {
-        this.pitchQuaternion.setFromAxisAngle(PITCH_AXIS, this.currentTurboPitch)
+        this.pitchQuaternion.setFromAxisAngle(PITCH_AXIS, -this.currentTurboPitch)
         this.composedOrientation.multiply(this.pitchQuaternion)
       }
       this.object.quaternion.copy(this.composedOrientation)
