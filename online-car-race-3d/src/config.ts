@@ -1,14 +1,36 @@
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:|^\/\//
 
-function resolveDefaultServerUrl(): string {
+function getBrowserOrigin(): string {
   if (typeof window !== 'undefined' && window.location?.origin) {
     return window.location.origin
   }
-  return 'https://localhost:4000'
+  return ''
 }
 
-const DEFAULT_SERVER_URL = resolveDefaultServerUrl()
+function parseUrl(value: string | undefined): URL | null {
+  if (!value) {
+    return null
+  }
+  try {
+    return new URL(value)
+  } catch {
+    return null
+  }
+}
+
+function isLocalHost(hostname: string | null | undefined): boolean {
+  if (!hostname) {
+    return false
+  }
+  return (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '::1'
+  )
+}
+
 const RAW_BASE_URL = import.meta.env?.BASE_URL ?? '/'
+const RAW_ENV_SERVER_URL = (import.meta.env?.VITE_SERVER_URL ?? '').trim()
 
 function normalizeBasePath(base: string): string {
   if (!base || base === '/') {
@@ -29,7 +51,27 @@ function trimTrailingSlash(value: string): string {
 }
 
 export const SERVER_URL = trimTrailingSlash(
-  (import.meta.env?.VITE_SERVER_URL ?? DEFAULT_SERVER_URL).trim(),
+  ((): string => {
+    const origin = getBrowserOrigin()
+    const envUrl = parseUrl(RAW_ENV_SERVER_URL)
+    const originUrl = parseUrl(origin)
+
+    // Prefer explicit env; only fall back to origin when env is empty.
+    // Special case: if env points to localhost but we are served from a non-local host (e.g. tunnel),
+    // use the current origin to avoid mixed origins.
+    if (envUrl) {
+      if (originUrl && isLocalHost(envUrl.hostname) && !isLocalHost(originUrl.hostname)) {
+        return originUrl.origin
+      }
+      return RAW_ENV_SERVER_URL
+    }
+
+    if (origin) {
+      return origin
+    }
+
+    return 'https://localhost:4000'
+  })(),
 )
 
 const BASE_PATH = normalizeBasePath(RAW_BASE_URL)

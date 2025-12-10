@@ -6,6 +6,35 @@ import { resolvePublicAssetUrl } from '../config'
 const DEFAULT_MODEL_PATH = 'models/car.glb'
 const TARGET_LENGTH = 4.6
 
+type ColorWithChannels = THREE.Color & {
+  r: number
+  g: number
+  b: number
+  getHexString(): string
+  copy(color: THREE.Color): ColorWithChannels
+  set(value: THREE.ColorRepresentation): ColorWithChannels
+}
+
+type StandardMaterial = THREE.MeshStandardMaterial & {
+  map: THREE.Texture | null
+  color: ColorWithChannels
+}
+
+type TextureWithMetadata = THREE.Texture & {
+  uuid: string
+  colorSpace: unknown
+  wrapS: number
+  wrapT: number
+  offset: { copy: (value: unknown) => void }
+  repeat: { copy: (value: unknown) => void }
+  rotation: number
+  center: { copy: (value: unknown) => void }
+  flipY: boolean
+  magFilter: number
+  minFilter: number
+  generateMipmaps: boolean
+}
+
 const getConfiguredModelPath = (): string => {
   const candidate = import.meta.env?.VITE_CAR_MODEL_URL
   if (typeof candidate === 'string' && candidate.trim().length > 0) {
@@ -19,6 +48,7 @@ export class CarModelLoader {
   private readonly modelPath: string
   private baseModel: THREE.Object3D | null = null
   private loadPromise: Promise<THREE.Object3D> | null = null
+  private readonly tintedTextureCache = new Map<string, THREE.Texture>()
 
   constructor(modelPath: string = getConfiguredModelPath()) {
     this.modelPath = modelPath
@@ -160,14 +190,98 @@ export class CarModelLoader {
     meshName: string,
     color: THREE.Color,
   ): THREE.Material {
-    if ('color' in source && source instanceof THREE.MeshStandardMaterial) {
-      const material = source.clone()
-      if (!meshName.toLowerCase().includes('wheel')) {
-        material.color.lerp(color, 0.7)
+    if (
+      'color' in source &&
+      source instanceof THREE.MeshStandardMaterial &&
+      source.color instanceof THREE.Color
+    ) {
+      const material = source.clone() as StandardMaterial
+      const targetColor = color as ColorWithChannels
+      const isWheel = meshName.toLowerCase().includes('wheel')
+      if (!isWheel) {
+        const tintedMap = this.getTintedMap(material.map, targetColor)
+        if (tintedMap) {
+          material.map = tintedMap
+          material.color.set(0xffffff)
+        } else {
+          material.map = null
+          material.color.copy(targetColor)
+        }
       }
       material.needsUpdate = true
       return material
     }
     return source
+  }
+
+  private getTintedMap(original: THREE.Texture | null, color: THREE.Color): THREE.Texture | null {
+    const sourceTexture = original as TextureWithMetadata | null
+    const targetColor = color as ColorWithChannels
+    if (!sourceTexture || !sourceTexture.image) {
+      return null
+    }
+
+    const cacheKey = `${sourceTexture.uuid}:${targetColor.getHexString()}`
+    const cached = this.tintedTextureCache.get(cacheKey)
+    if (cached) {
+      return cached
+    }
+
+    const image = sourceTexture.image as TexImageSource
+    const width = (image as { width?: number }).width
+    const height = (image as { height?: number }).height
+    if (
+      typeof width !== 'number' ||
+      typeof height !== 'number' ||
+      width <= 0 ||
+      height <= 0
+    ) {
+      return null
+    }
+
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) {
+      return null
+    }
+
+    context.drawImage(image as CanvasImageSource, 0, 0, width, height)
+    const imageData = context.getImageData(0, 0, width, height)
+    const data = imageData.data
+    const r = targetColor.r
+    const g = targetColor.g
+    const b = targetColor.b
+
+    for (let i = 0; i < data.length; i += 4) {
+      const alpha = data[i + 3]
+      if (alpha === 0) {
+        continue
+      }
+      const luminance = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114
+      data[i] = Math.round(r * luminance)
+      data[i + 1] = Math.round(g * luminance)
+      data[i + 2] = Math.round(b * luminance)
+    }
+
+    context.putImageData(imageData, 0, 0)
+
+    const tinted = new THREE.CanvasTexture(canvas) as TextureWithMetadata
+    tinted.colorSpace = sourceTexture.colorSpace
+    tinted.wrapS = sourceTexture.wrapS
+    tinted.wrapT = sourceTexture.wrapT
+    tinted.offset.copy(sourceTexture.offset)
+    tinted.repeat.copy(sourceTexture.repeat)
+    tinted.rotation = sourceTexture.rotation
+    tinted.center.copy(sourceTexture.center)
+    tinted.flipY = sourceTexture.flipY
+    tinted.magFilter = sourceTexture.magFilter
+    tinted.minFilter = sourceTexture.minFilter
+    tinted.generateMipmaps = sourceTexture.generateMipmaps
+    tinted.needsUpdate = true
+
+    this.tintedTextureCache.set(cacheKey, tinted)
+    return tinted
   }
 }
