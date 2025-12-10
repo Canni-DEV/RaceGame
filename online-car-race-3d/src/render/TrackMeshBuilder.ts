@@ -29,18 +29,20 @@ export class TrackMeshBuilder {
     const metadata = this.computeEdges(smoothCenterline, track.width / 2)
     const geometry = this.buildGeometry(metadata.leftEdge, metadata.rightEdge)
     const material = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color(0x101025),
-      metalness: 0.1,
-      roughness: 0.2,
-      transmission: 0.7,
-      opacity: 0.95,
+      color: new THREE.Color(0x15183a),
+      metalness: 0.2,
+      roughness: 0.16,
+      transmission: 0.55,
+      opacity: 0.96,
       transparent: true,
+      emissive: new THREE.Color(0x0b1c3f),
+      emissiveIntensity: 0.85,
       ior: 1.2,
       thickness: 0.85,
-      clearcoat: 0.5,
-      clearcoatRoughness: 0.12,
+      clearcoat: 0.58,
+      clearcoatRoughness: 0.1,
       attenuationColor: new THREE.Color(0x00ffff),
-      attenuationDistance: 24,
+      attenuationDistance: 28,
     })
 
     const mesh = new THREE.Mesh(geometry, material)

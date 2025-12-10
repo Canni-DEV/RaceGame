@@ -46,7 +46,7 @@ export class SceneManager {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.35
+    this.renderer.toneMappingExposure = 1.55
     this.renderer.physicallyCorrectLights = true
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
@@ -133,18 +133,24 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0x400080, 0.22)
+    const ambient = new THREE.AmbientLight(0x5224a6, 0.4)
     this.scene.add(ambient)
 
-    const hemisphere = new THREE.HemisphereLight(0x400080, 0x000000, 0.52)
-    hemisphere.position.set(0, 120, 0)
+    const hemisphere = new THREE.HemisphereLight(0x6231ff, 0x050510, 1)
+    hemisphere.position.set(0, 140, 0)
     this.scene.add(hemisphere)
 
-    const keyLight = new THREE.DirectionalLight(0x70d8ff, 0.12)
-    keyLight.position.set(40, 150, 60)
+    const keyLight = new THREE.DirectionalLight(0x9ed9ff, 1.2)
+    keyLight.position.set(90, 180, 120)
     keyLight.castShadow = false
     this.scene.add(keyLight)
     this.scene.add(keyLight.target)
+
+    const rimLight = new THREE.DirectionalLight(0xff5cff, 0.9)
+    rimLight.position.set(-110, 120, -80)
+    rimLight.castShadow = false
+    this.scene.add(rimLight)
+    this.scene.add(rimLight.target)
 
     this.keyLight = keyLight
   }
@@ -161,7 +167,7 @@ export class SceneManager {
     }
 
     const gradient = context.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#0f0b2d')
+    gradient.addColorStop(0, '#131544')
     gradient.addColorStop(1, '#050510')
     context.fillStyle = gradient
     context.fillRect(0, 0, width, height)

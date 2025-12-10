@@ -38,14 +38,10 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     }
 
     const monolithMesh = this.buildMonoliths(totalMonoliths, clusters)
-    const aerialMesh = this.buildAerialStructures(clusters)
 
     const group = new THREE.Group()
     group.name = 'decor-cyberpunk-cluster'
     group.add(monolithMesh)
-    if (aerialMesh) {
-      group.add(aerialMesh)
-    }
 
     root.add(group)
   }
@@ -77,20 +73,17 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
       monoliths.push(dummy.matrix.clone())
     }
 
-    const hasAerial = random() < 0.13
-    const aerialTransform = hasAerial
-      ? this.buildAerialMatrix(position, rotation, random)
-      : null
-
-    return { monoliths, aerialTransform }
+    return { monoliths }
   }
 
   private buildMonoliths(total: number, clusters: ReturnType<typeof this.buildCluster>[]): THREE.InstancedMesh {
     const geometry = new THREE.BoxGeometry(1, 1, 1)
     const material = new THREE.MeshStandardMaterial({
-      color: 0x050510,
-      roughness: 0.9,
-      metalness: 0.08,
+      color: 0x0a0a14,
+      emissive: 0x1b1b44,
+      emissiveIntensity: 1.6,
+      roughness: 0.74,
+      metalness: 0.22,
     })
 
     const mesh = new THREE.InstancedMesh(geometry, material, total)
@@ -106,51 +99,6 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     mesh.castShadow = false
     mesh.receiveShadow = true
     return mesh
-  }
-
-  private buildAerialStructures(
-    clusters: ReturnType<typeof this.buildCluster>[],
-  ): THREE.InstancedMesh | null {
-    const transforms = clusters
-      .map((cluster) => cluster.aerialTransform)
-      .filter((transform): transform is THREE.Matrix4 => Boolean(transform))
-
-    if (transforms.length === 0) {
-      return null
-    }
-
-    const geometry = new THREE.TorusGeometry(6, 0.7, 16, 48)
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x00ffff,
-      emissive: 0x00ffff,
-      emissiveIntensity: 4.2,
-      metalness: 0.05,
-      roughness: 0.12,
-    })
-
-    const mesh = new THREE.InstancedMesh(geometry, material, transforms.length)
-    const dummy = new THREE.Object3D()
-    transforms.forEach((matrix, index) => {
-      dummy.matrix.copy(matrix)
-      mesh.setMatrixAt(index, dummy.matrix)
-    })
-    mesh.instanceMatrix.needsUpdate = true
-    mesh.castShadow = false
-    mesh.receiveShadow = false
-    mesh.userData.rotateYSpeed = 0.35
-    return mesh
-  }
-
-  private buildAerialMatrix(position: { x: number; z: number }, rotation: number, random: () => number) {
-    const dummy = new THREE.Object3D()
-    const height = THREE.MathUtils.lerp(36, 68, random())
-    const radius = THREE.MathUtils.lerp(8, 16, random())
-
-    dummy.position.set(position.x, height, position.z)
-    dummy.rotation.set(Math.PI * 0.5, rotation + random() * Math.PI * 2, 0)
-    dummy.scale.setScalar(radius * 0.09 + 1.2)
-    dummy.updateMatrix()
-    return dummy.matrix.clone()
   }
 }
 
