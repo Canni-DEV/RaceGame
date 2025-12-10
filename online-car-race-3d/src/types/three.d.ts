@@ -41,6 +41,7 @@ declare module 'three' {
 
   export class Object3D {
     name: string
+    type: string
     position: Vector3
     rotation: Euler
     quaternion: Quaternion
@@ -60,6 +61,7 @@ declare module 'three' {
   }
 
   export class Material {
+    type: string
     needsUpdate: boolean
     dispose(): void
   }
@@ -250,6 +252,7 @@ declare module 'three' {
 
   export class Material {
     constructor(parameters?: Record<string, unknown>)
+    type: string
     clone(): this
     needsUpdate: boolean
     dispose(): void

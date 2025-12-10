@@ -5,6 +5,22 @@ import { resolvePublicAssetUrl } from '../config'
 
 const DEFAULT_MODEL_PATH = 'models/car.glb'
 const TARGET_LENGTH = 4.6
+const DEBUG_MODEL_STRUCTURE =
+  typeof import.meta.env?.VITE_DEBUG_CAR_MODEL_STRUCTURE === 'string'
+    ? import.meta.env.VITE_DEBUG_CAR_MODEL_STRUCTURE === 'true'
+    : false
+const UNTINTED_PART_KEYWORDS = [
+  'wheel',
+  'tire',
+  'rim',
+  'glass',
+  'window',
+  'windshield',
+  'windscreen',
+  'mirror',
+  'wing',
+  'alero',
+]
 
 type ColorWithChannels = THREE.Color & {
   r: number
@@ -18,6 +34,10 @@ type ColorWithChannels = THREE.Color & {
 type StandardMaterial = THREE.MeshStandardMaterial & {
   map: THREE.Texture | null
   color: ColorWithChannels
+  name: string
+  transparent: boolean
+  opacity: number
+  alphaMap: THREE.Texture | null
 }
 
 type TextureWithMetadata = THREE.Texture & {
@@ -110,6 +130,10 @@ export class CarModelLoader {
     const uniformScale = TARGET_LENGTH / length
     pivot.scale.setScalar(uniformScale)
 
+    if (DEBUG_MODEL_STRUCTURE) {
+      this.logModelStructure(pivot)
+    }
+
     return pivot
   }
 
@@ -197,8 +221,7 @@ export class CarModelLoader {
     ) {
       const material = source.clone() as StandardMaterial
       const targetColor = color as ColorWithChannels
-      const isWheel = meshName.toLowerCase().includes('wheel')
-      if (!isWheel) {
+      if (this.shouldTintMaterial(meshName, material)) {
         const tintedMap = this.getTintedMap(material.map, targetColor)
         if (tintedMap) {
           material.map = tintedMap
@@ -212,6 +235,21 @@ export class CarModelLoader {
       return material
     }
     return source
+  }
+
+  private shouldTintMaterial(meshName: string, material: StandardMaterial): boolean {
+    const meshLabel = meshName.toLowerCase()
+    const materialLabel = (material.name || '').toLowerCase()
+    const shouldSkipTint = UNTINTED_PART_KEYWORDS.some(
+      (keyword) => meshLabel.includes(keyword) || materialLabel.includes(keyword),
+    )
+    if (shouldSkipTint) {
+      return false
+    }
+
+    const isTransparentMaterial =
+      material.transparent === true || material.opacity < 0.99 || !!material.alphaMap
+    return !isTransparentMaterial
   }
 
   private getTintedMap(original: THREE.Texture | null, color: THREE.Color): THREE.Texture | null {
@@ -283,5 +321,44 @@ export class CarModelLoader {
 
     this.tintedTextureCache.set(cacheKey, tinted)
     return tinted
+  }
+
+  private logModelStructure(root: THREE.Object3D): void {
+    const lines: string[] = []
+    root.traverse((child: THREE.Object3D) => {
+      const path = this.buildObjectPath(child)
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+        const materialInfo = materials
+          .map((material, index) => {
+            const baseName = (material as { name?: string }).name
+            const label = baseName && baseName.length > 0 ? baseName : `material-${index}`
+            return `${label} (${material.type})`
+          })
+          .join(', ')
+        lines.push(`${path} | materials: ${materialInfo}`)
+      } else {
+        lines.push(path)
+      }
+    })
+
+    if (typeof console.groupCollapsed === 'function') {
+      console.groupCollapsed('[CarModelLoader] Model structure')
+      lines.forEach((line) => console.log(line))
+      console.groupEnd()
+    } else {
+      lines.forEach((line) => console.log('[CarModelLoader]', line))
+    }
+  }
+
+  private buildObjectPath(object: THREE.Object3D): string {
+    const names: string[] = []
+    let current: THREE.Object3D | null = object
+    while (current) {
+      names.push(current.name || current.type)
+      current = current.parent as THREE.Object3D
+    }
+    return names.reverse().join(' > ')
   }
 }
