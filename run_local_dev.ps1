@@ -15,6 +15,9 @@ $backendErr = "$env:TEMP\backend.dev.err.log"
 $frontendOut = "$env:TEMP\frontend.dev.out.log"
 $frontendErr = "$env:TEMP\frontend.dev.err.log"
 
+$script:procs = @()
+$script:cleaned = $false
+
 $npmCmd = $null
 $npmCandidate = Get-Command npm.cmd -ErrorAction SilentlyContinue
 if ($npmCandidate) {
@@ -24,7 +27,6 @@ if ($npmCandidate) {
   $npmCmd = $npmCandidate.Source
 }
 
-$procs = @()
 function Resolve-LanHost {
   param([string]$Preferred)
 
@@ -51,8 +53,20 @@ function Resolve-LanHost {
 }
 
 function Cleanup {
+  if ($script:cleaned) { return }
+  $script:cleaned = $true
+
   Write-Host "Saliendo, matando procesos..."
-  foreach ($p in $procs) { if ($p -and !$p.HasExited) { $p.Kill() } }
+  foreach ($p in $script:procs) {
+    if ($p -and !$p.HasExited) {
+      try {
+        $p.Kill()
+        $null = $p.WaitForExit(5000)
+      } catch {
+        Write-Verbose "No se pudo terminar el proceso $($p.Id): $_"
+      }
+    }
+  }
 }
 Register-EngineEvent PowerShell.Exiting -Action { Cleanup } | Out-Null
 
@@ -61,12 +75,12 @@ if (-not $effectiveLanHost) {
   throw "No se pudo determinar una IP LAN válida. Pasa -LanHost o revisa tus interfaces de red."
 }
 
-$procs = @()
+$script:procs = @()
 
 Write-Host "Levantando backend en modo dev (hot reload)..."
 $backendProc = Start-Process $npmCmd -ArgumentList @('run','dev') -WorkingDirectory $backendDir -NoNewWindow -PassThru `
   -RedirectStandardOutput $backendOut -RedirectStandardError $backendErr
-$procs += $backendProc
+$script:procs += $backendProc
 Write-Host "Backend dev en https://$($effectiveLanHost):$($BackendPort) (escucha todas las interfaces; logs: $backendOut / $backendErr)"
 
 Write-Host "Levantando frontend en modo dev (hot reload) apuntando al backend LAN..."
@@ -74,7 +88,7 @@ $env:VITE_SERVER_URL = "https://$($effectiveLanHost):$($BackendPort)"
 $frontendProc = Start-Process $npmCmd -ArgumentList @('run','dev','--','--host','0.0.0.0','--port',"$FrontendPort") `
   -WorkingDirectory $frontendDir -NoNewWindow -PassThru `
   -RedirectStandardOutput $frontendOut -RedirectStandardError $frontendErr
-$procs += $frontendProc
+$script:procs += $frontendProc
 Write-Host "Frontend dev en https://$($effectiveLanHost):$($FrontendPort) (logs: $frontendOut / $frontendErr)"
 
 Write-Host ""
@@ -82,4 +96,11 @@ Write-Host "Listo para desarrollo local:"
 Write-Host " - Backend dev:  https://$($effectiveLanHost):$($BackendPort)"
 Write-Host " - Frontend dev: https://$($effectiveLanHost):$($FrontendPort)"
 Write-Host "Ctrl+C cierra ambos procesos."
-Wait-Process -Id ($procs | Select-Object -ExpandProperty Id)
+try {
+  Wait-Process -Id ($script:procs | Select-Object -ExpandProperty Id)
+} catch [System.Management.Automation.PipelineStoppedException] {
+  Write-Host "Interrumpido manualmente (Ctrl+C)." -ForegroundColor Yellow
+} finally {
+  Cleanup
+  Unregister-Event -SourceIdentifier PowerShell.Exiting -ErrorAction SilentlyContinue
+}

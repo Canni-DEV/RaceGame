@@ -255,6 +255,8 @@ assets:
     placementTier: 4
     fillEmpty: true
     fillCellSize: 20
+    lookAtTrack: true
+    alignToTrack: false
     density: 115
     minSpacing: 12
     offset: 8
