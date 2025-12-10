@@ -107,16 +107,24 @@ export class ProceduralSky {
           float h = clamp(direction.y * 0.5 + 0.5, 0.0, 1.0);
           float curved = pow(h, horizonExponent);
 
-          vec3 warmTint = vec3(1.0, 0.62, 0.38);
-          vec3 horizonBase = mix(bottomColor, warmTint, timeOfDay * 0.85);
-          vec3 middleBase = mix(middleColor, warmTint, timeOfDay * 0.5);
-          vec3 topBase = mix(topColor, vec3(0.86, 0.9, 1.0), timeOfDay * 0.25);
+          // Keep the warm tint locked to the horizon instead of the lower hemisphere.
+          float horizonBand = exp(-abs(direction.y) * 6.5);
+          float sunsetInfluence = horizonBand * (0.15 + timeOfDay * 0.85);
 
-          float lowerBlend = smoothstep(0.0, 0.55, curved);
+          vec3 warmTint = vec3(1.05, 0.66, 0.42);
+          vec3 horizonBase = mix(bottomColor, warmTint, sunsetInfluence * 0.9);
+          vec3 middleBase = mix(middleColor, warmTint, sunsetInfluence * 0.55);
+          vec3 topBase = mix(topColor, vec3(0.95, 0.98, 1.05), 0.4);
+
+          float lowerBlend = smoothstep(0.05, 0.6, curved);
           float upperBlend = smoothstep(0.35, 1.0, curved);
 
           vec3 gradient = mix(horizonBase, middleBase, lowerBlend);
           gradient = mix(gradient, topBase, upperBlend);
+
+          // Add a lifted glow so the sunset band stays visible slightly above the ground plane.
+          float liftedGlow = smoothstep(0.0, 0.3, h) * horizonBand;
+          gradient = mix(gradient, warmTint, liftedGlow * timeOfDay * 0.45);
           return gradient;
         }
 
