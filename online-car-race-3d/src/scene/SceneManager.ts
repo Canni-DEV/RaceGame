@@ -8,7 +8,10 @@ import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
 import { RaceHud } from './RaceHud'
-import { SpaceSky } from '../render/SpaceSky'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { StarField } from '../render/StarField'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -18,13 +21,14 @@ export class SceneManager {
   private readonly cameraRig: CameraRig
   private readonly clock: THREE.Clock
   private readonly trackScene: TrackScene
-  private readonly sky: SpaceSky
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
   private readonly playerListOverlay: PlayerListOverlay
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
+  private readonly starField: StarField
+  private readonly composer: EffectComposer
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
@@ -42,22 +46,15 @@ export class SceneManager {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.2
+    this.renderer.toneMappingExposure = 1.35
     this.renderer.physicallyCorrectLights = true
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
 
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color('#04060f')
-    this.sky = new SpaceSky({
-      baseColor: '#03040c',
-      nebulaPrimary: '#0a2655',
-      nebulaSecondary: '#3b0c41',
-      starColor: '#8df5ff',
-      starDensity: 240,
-      twinkleSpeed: 0.35,
-    })
-    this.scene.add(this.sky.mesh)
+    this.scene.background = new THREE.Color('#050510')
+    this.starField = new StarField(5600, 2000)
+    this.scene.add(this.starField.points)
     this.setupEnvironment()
 
     const aspect = container.clientWidth / container.clientHeight
@@ -70,6 +67,17 @@ export class SceneManager {
     this.audioManager = new AudioManager(this.camera)
 
     this.setupLights()
+
+    this.composer = new EffectComposer(this.renderer)
+    const renderPass = new RenderPass(this.scene, this.camera)
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(container.clientWidth, container.clientHeight),
+      2.2,
+      0.8,
+      0.1,
+    )
+    this.composer.addPass(renderPass)
+    this.composer.addPass(bloomPass)
 
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
@@ -125,15 +133,15 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0x0a1633, 0.25)
+    const ambient = new THREE.AmbientLight(0x400080, 0.22)
     this.scene.add(ambient)
 
-    const hemisphere = new THREE.HemisphereLight(0x1d2f61, 0x05060a, 0.18)
+    const hemisphere = new THREE.HemisphereLight(0x400080, 0x000000, 0.52)
     hemisphere.position.set(0, 120, 0)
     this.scene.add(hemisphere)
 
-    const keyLight = new THREE.DirectionalLight(0x1e6b9f, 0.28)
-    keyLight.position.set(50, 160, 70)
+    const keyLight = new THREE.DirectionalLight(0x70d8ff, 0.12)
+    keyLight.position.set(40, 150, 60)
     keyLight.castShadow = false
     this.scene.add(keyLight)
     this.scene.add(keyLight.target)
@@ -153,8 +161,8 @@ export class SceneManager {
     }
 
     const gradient = context.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#0a1130')
-    gradient.addColorStop(1, '#050812')
+    gradient.addColorStop(0, '#0f0b2d')
+    gradient.addColorStop(1, '#050510')
     context.fillStyle = gradient
     context.fillRect(0, 0, width, height)
 
@@ -175,6 +183,7 @@ export class SceneManager {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
+    this.composer.setSize(width, height)
   }
 
   private readonly animate = (): void => {
@@ -182,8 +191,8 @@ export class SceneManager {
     const delta = this.clock.getDelta()
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
-    this.sky.update(delta, this.camera.position)
-    this.renderer.render(this.scene, this.camera)
+    this.starField.update(delta)
+    this.composer.render()
   }
 
   private readonly preventContextMenu = (event: Event): void => {

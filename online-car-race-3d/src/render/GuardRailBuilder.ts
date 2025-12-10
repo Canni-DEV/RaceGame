@@ -22,18 +22,18 @@ export class GuardRailBuilder {
     this.options = { ...DEFAULT_OPTIONS, ...options }
     this.materials = {
       left: new THREE.MeshStandardMaterial({
-        color: new THREE.Color('#00f5ff'),
-        emissive: new THREE.Color('#13f5ff'),
-        emissiveIntensity: 3.2,
-        metalness: 0.15,
-        roughness: 0.25,
+        color: new THREE.Color(0x00ffff),
+        emissive: new THREE.Color(0x00ffff),
+        emissiveIntensity: 3.6,
+        metalness: 0.05,
+        roughness: 0.18,
       }),
       right: new THREE.MeshStandardMaterial({
-        color: new THREE.Color('#ff3bd9'),
-        emissive: new THREE.Color('#ff3fe6'),
-        emissiveIntensity: 3.4,
-        metalness: 0.15,
-        roughness: 0.25,
+        color: new THREE.Color(0xff00ff),
+        emissive: new THREE.Color(0xff00ff),
+        emissiveIntensity: 3.8,
+        metalness: 0.05,
+        roughness: 0.18,
       }),
     }
   }

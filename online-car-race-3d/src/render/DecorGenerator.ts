@@ -1,11 +1,6 @@
 import * as THREE from 'three'
-import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
-import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
-import { resolveServerAssetUrl } from '../config'
 
-// Backend rotations use the game angle convention (0 = +X). Three.js yaw expects 0 = +Z,
-// so we convert to the same mapping cars/missiles use.
 function toRendererYaw(angle: number): number {
   return Math.atan2(Math.cos(angle), Math.sin(angle))
 }
@@ -20,60 +15,6 @@ interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
   ): void
 }
 
-class TrackAssetLoader {
-  private readonly loader = new GLTFLoader()
-  private readonly cache = new Map<string, Promise<THREE.Object3D | null>>()
-
-  async createInstance(assetUrl: string): Promise<THREE.Object3D | null> {
-    const base = await this.loadBase(assetUrl)
-    if (!base) {
-      return null
-    }
-    return SkeletonUtils.clone(base) as THREE.Object3D
-  }
-
-  async loadBase(assetUrl: string): Promise<THREE.Object3D | null> {
-    if (!this.cache.has(assetUrl)) {
-      const promise = this.loader
-        .loadAsync(assetUrl)
-        .then((gltf: GLTF) => this.prepareModel(gltf.scene))
-        .catch((error: unknown) => {
-          console.warn(`[TrackAssetLoader] Failed to load asset "${assetUrl}"`, error)
-          return null
-        })
-      this.cache.set(assetUrl, promise)
-    }
-    return this.cache.get(assetUrl) as Promise<THREE.Object3D | null>
-  }
-
-  private prepareModel(scene: THREE.Object3D): THREE.Object3D {
-    const root = scene.clone()
-    root.updateMatrixWorld(true)
-
-    const bounds = new THREE.Box3().setFromObject(root)
-    const pivot = new THREE.Group()
-    pivot.name = 'decor-asset-pivot'
-
-    const recenter = bounds.getCenter(new THREE.Vector3())
-    recenter.y = bounds.min.y
-    root.position.sub(recenter)
-    root.updateMatrixWorld(true)
-
-    pivot.add(root)
-
-    pivot.traverse((child: THREE.Object3D) => {
-      if ((child as THREE.Mesh).isMesh) {
-        const mesh = child as THREE.Mesh
-        mesh.castShadow = true
-        mesh.receiveShadow = true
-      }
-    })
-    return pivot
-  }
-}
-
-const trackAssetLoader = new TrackAssetLoader()
-
 class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
   readonly type = 'instanced-decoration'
 
@@ -81,71 +22,135 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     _track: TrackData,
     instruction: InstancedDecoration,
     root: THREE.Object3D,
-    _random: () => number,
+    random: () => number,
   ): void {
-    if (instruction.mesh === 'procedural-tree') {
-      const treeGroup = this.buildTreeInstances(instruction.instances)
-      if (treeGroup) {
-        root.add(treeGroup)
+    if (instruction.instances.length === 0) {
+      return
+    }
+
+    const clusters = instruction.instances.map((instance) =>
+      this.buildCluster(instance.position, instance.rotation, random),
+    )
+
+    const totalMonoliths = clusters.reduce((sum, cluster) => sum + cluster.monoliths.length, 0)
+    if (totalMonoliths === 0) {
+      return
+    }
+
+    const monolithMesh = this.buildMonoliths(totalMonoliths, clusters)
+    const aerialMesh = this.buildAerialStructures(clusters)
+
+    const group = new THREE.Group()
+    group.name = 'decor-cyberpunk-cluster'
+    group.add(monolithMesh)
+    if (aerialMesh) {
+      group.add(aerialMesh)
+    }
+
+    root.add(group)
+  }
+
+  private buildCluster(position: { x: number; z: number }, angle: number, random: () => number) {
+    const clusterSize = 3 + Math.floor(random() * 3)
+    const monoliths: THREE.Matrix4[] = []
+    const rotation = toRendererYaw(angle)
+
+    for (let i = 0; i < clusterSize; i++) {
+      const offsetRadius = THREE.MathUtils.lerp(2.5, 9.5, random())
+      const offsetTheta = random() * Math.PI * 2
+      const offsetX = Math.cos(offsetTheta) * offsetRadius
+      const offsetZ = Math.sin(offsetTheta) * offsetRadius
+
+      const scaleY = THREE.MathUtils.lerp(15, 50, random())
+      const scaleX = THREE.MathUtils.lerp(3, 8, random())
+      const scaleZ = THREE.MathUtils.lerp(3, 8, random())
+
+      const dummy = new THREE.Object3D()
+      dummy.position.set(
+        position.x + offsetX,
+        scaleY * 0.5,
+        position.z + offsetZ,
+      )
+      dummy.rotation.set(0, rotation + random() * Math.PI * 2, 0)
+      dummy.scale.set(scaleX, scaleY, scaleZ)
+      dummy.updateMatrix()
+      monoliths.push(dummy.matrix.clone())
+    }
+
+    const hasAerial = random() < 0.13
+    const aerialTransform = hasAerial
+      ? this.buildAerialMatrix(position, rotation, random)
+      : null
+
+    return { monoliths, aerialTransform }
+  }
+
+  private buildMonoliths(total: number, clusters: ReturnType<typeof this.buildCluster>[]): THREE.InstancedMesh {
+    const geometry = new THREE.BoxGeometry(1, 1, 1)
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x050510,
+      roughness: 0.9,
+      metalness: 0.08,
+    })
+
+    const mesh = new THREE.InstancedMesh(geometry, material, total)
+    const dummy = new THREE.Object3D()
+    let index = 0
+    for (const cluster of clusters) {
+      for (const matrix of cluster.monoliths) {
+        dummy.matrix.copy(matrix)
+        mesh.setMatrixAt(index++, dummy.matrix)
       }
-      return
     }
-
-    if (!instruction.assetUrl) {
-      return
-    }
-
-    const assetUrl = resolveServerAssetUrl(instruction.assetUrl)
-    void this.buildAssetInstances(assetUrl, instruction.instances, root)
+    mesh.instanceMatrix.needsUpdate = true
+    mesh.castShadow = false
+    mesh.receiveShadow = true
+    return mesh
   }
 
-  private async buildAssetInstances(
-    assetUrl: string,
-    instances: InstancedDecoration['instances'],
-    root: THREE.Object3D,
-  ): Promise<void> {
-    const base = await trackAssetLoader.loadBase(assetUrl)
-    if (!base) {
-      return
-    }
+  private buildAerialStructures(
+    clusters: ReturnType<typeof this.buildCluster>[],
+  ): THREE.InstancedMesh | null {
+    const transforms = clusters
+      .map((cluster) => cluster.aerialTransform)
+      .filter((transform): transform is THREE.Matrix4 => Boolean(transform))
 
-    for (const [index, instance] of instances.entries()) {
-      const clone = SkeletonUtils.clone(base) as THREE.Object3D
-      clone.userData.isTrackAsset = true
-      clone.name = `decor-asset-${assetUrl}-${index}`
-      clone.position.set(instance.position.x, 0, instance.position.z)
-      clone.rotation.y = toRendererYaw(instance.rotation)
-      clone.scale.setScalar(instance.scale)
-      root.add(clone)
-    }
-  }
-
-  private buildTreeInstances(instances: InstancedDecoration['instances']): THREE.Object3D | null {
-    if (instances.length === 0) {
+    if (transforms.length === 0) {
       return null
     }
-    const geometry = new THREE.ConeGeometry(1, 4.2, 6)
-    geometry.translate(0, 2.1, 0)
-    const material = new THREE.MeshStandardMaterial({ color: 0x1f4d1a, flatShading: true })
 
-    const mesh = new THREE.InstancedMesh(geometry, material, instances.length)
-    mesh.castShadow = true
-    mesh.receiveShadow = true
+    const geometry = new THREE.TorusGeometry(6, 0.7, 16, 48)
+    const material = new THREE.MeshStandardMaterial({
+      color: 0x00ffff,
+      emissive: 0x00ffff,
+      emissiveIntensity: 4.2,
+      metalness: 0.05,
+      roughness: 0.12,
+    })
 
+    const mesh = new THREE.InstancedMesh(geometry, material, transforms.length)
     const dummy = new THREE.Object3D()
-    instances.forEach((instance, index) => {
-      dummy.position.set(instance.position.x, 0, instance.position.z)
-      dummy.rotation.set(0, toRendererYaw(instance.rotation), 0)
-      dummy.scale.setScalar(instance.scale)
-      dummy.updateMatrix()
+    transforms.forEach((matrix, index) => {
+      dummy.matrix.copy(matrix)
       mesh.setMatrixAt(index, dummy.matrix)
     })
     mesh.instanceMatrix.needsUpdate = true
+    mesh.castShadow = false
+    mesh.receiveShadow = false
+    mesh.userData.rotateYSpeed = 0.35
+    return mesh
+  }
 
-    const group = new THREE.Group()
-    group.name = 'decor-instanced-tree'
-    group.add(mesh)
-    return group
+  private buildAerialMatrix(position: { x: number; z: number }, rotation: number, random: () => number) {
+    const dummy = new THREE.Object3D()
+    const height = THREE.MathUtils.lerp(36, 68, random())
+    const radius = THREE.MathUtils.lerp(8, 16, random())
+
+    dummy.position.set(position.x, height, position.z)
+    dummy.rotation.set(Math.PI * 0.5, rotation + random() * Math.PI * 2, 0)
+    dummy.scale.setScalar(radius * 0.09 + 1.2)
+    dummy.updateMatrix()
+    return dummy.matrix.clone()
   }
 }
 

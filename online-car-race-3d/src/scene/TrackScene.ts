@@ -28,6 +28,7 @@ export class TrackScene {
   private playerId: string | null = null
   private cameraMode: 'overview' | 'follow' = 'overview'
   private requestedFollowId: string | null = null
+  private rotatingDecorators: THREE.Object3D[] = []
 
   constructor(
     scene: THREE.Scene,
@@ -85,6 +86,7 @@ export class TrackScene {
     for (const missile of this.missiles.values()) {
       missile.update(dt)
     }
+    this.updateDecoratorAnimations(dt)
     this.updateCameraFollow()
   }
 
@@ -107,6 +109,7 @@ export class TrackScene {
 
     this.scene.add(group)
     this.trackRoot = group
+    this.rotatingDecorators = this.collectRotatingDecorators(group)
     this.focusCamera(result)
     this.updateLighting(result)
   }
@@ -117,6 +120,7 @@ export class TrackScene {
     }
 
     this.scene.remove(this.trackRoot)
+    this.rotatingDecorators = []
     this.trackRoot.traverse((object) => {
       // Los assets decorativos comparten geometría/material vía la caché del loader;
       // si algún ancestro está marcado, omitimos la liberación de recursos.
@@ -279,6 +283,29 @@ export class TrackScene {
     shadowCamera.near = 1
     shadowCamera.far = distance + halfSpan + height
     shadowCamera.updateProjectionMatrix()
+  }
+
+  private collectRotatingDecorators(group: THREE.Object3D): THREE.Object3D[] {
+    const targets: THREE.Object3D[] = []
+    group.traverse((object) => {
+      if (typeof object.userData?.rotateYSpeed === 'number') {
+        targets.push(object)
+      }
+    })
+    return targets
+  }
+
+  private updateDecoratorAnimations(dt: number): void {
+    if (this.rotatingDecorators.length === 0) {
+      return
+    }
+    for (const object of this.rotatingDecorators) {
+      const speed: number = object.userData.rotateYSpeed ?? 0
+      object.rotation.y += speed * dt
+      if (object instanceof THREE.InstancedMesh) {
+        object.instanceMatrix.needsUpdate = true
+      }
+    }
   }
 
   private updateCameraFollow(): void {

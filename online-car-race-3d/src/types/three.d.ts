@@ -28,7 +28,18 @@ declare module 'three' {
     set(x: number, y: number, z: number): this
   }
 
-  export class Matrix4 {}
+  export class Matrix4 {
+    clone(): Matrix4
+    copy(matrix: Matrix4): this
+  }
+
+  export class Vector2 {
+    constructor(x?: number, y?: number)
+    x: number
+    y: number
+    set(x: number, y: number): this
+    clone(): Vector2
+  }
 
   export class Camera extends Object3D {}
 
@@ -235,6 +246,10 @@ declare module 'three' {
     )
   }
 
+  export class TorusGeometry extends BufferGeometry {
+    constructor(radius?: number, tube?: number, radialSegments?: number, tubularSegments?: number, arc?: number)
+  }
+
   export class Curve<T> {
     getPoint(t: number): T
   }
@@ -271,6 +286,15 @@ declare module 'three' {
     clearcoatRoughness: number
   }
 
+  export class PointsMaterial extends Material {
+    constructor(parameters?: Record<string, unknown>)
+    color: Color
+    size: number
+    sizeAttenuation: boolean
+    fog: boolean
+    depthWrite: boolean
+  }
+
   export class ShaderMaterial extends Material {
     constructor(parameters?: {
       uniforms?: Record<string, IUniform>
@@ -299,6 +323,12 @@ declare module 'three' {
     instanceMatrix: BufferAttribute
     dispose(): void
     isMesh: boolean
+  }
+
+  export class Points<TGeometry extends BufferGeometry = BufferGeometry> extends Object3D {
+    constructor(geometry?: TGeometry, material?: Material)
+    geometry: TGeometry
+    material: Material
   }
 
   export class CanvasTexture extends Texture {
@@ -345,6 +375,34 @@ declare module 'three/examples/jsm/loaders/GLTFLoader.js' {
 
   export class GLTFLoader {
     loadAsync(path: string): Promise<GLTF>
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/EffectComposer.js' {
+  import type { WebGLRenderer, Scene, PerspectiveCamera, Texture } from 'three'
+
+  export class EffectComposer {
+    constructor(renderer: WebGLRenderer)
+    addPass(pass: any): void
+    render(): void
+    setSize(width: number, height: number): void
+    renderTarget2?: { texture: Texture }
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/RenderPass.js' {
+  import type { Scene, PerspectiveCamera } from 'three'
+
+  export class RenderPass {
+    constructor(scene: Scene, camera: PerspectiveCamera)
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/UnrealBloomPass.js' {
+  import type { Vector2 } from 'three'
+
+  export class UnrealBloomPass {
+    constructor(resolution: Vector2, strength?: number, radius?: number, threshold?: number)
   }
 }
 
