@@ -32,8 +32,8 @@ export class CarEntity {
   private nameLabelAspect = 1
   private readonly baseNameHeight = 1
   private readonly minNameScale = 0.4
-  private readonly maxNameScale = 8
-  private readonly distanceScaleFactor = 0.01
+  private readonly maxNameScale = 2
+  private readonly distanceScaleFactor = 0.015
   private currentNameScale = 1
 
   constructor(
