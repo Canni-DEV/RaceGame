@@ -56,13 +56,13 @@ export const SERVER_URL = trimTrailingSlash(
     const envUrl = parseUrl(RAW_ENV_SERVER_URL)
     const originUrl = parseUrl(origin)
 
-    // If we were built with a stale env URL but are being served from a non-local origin
-    // (e.g. Cloudflare/Ngrok), prefer the current origin so sockets stay on the same host.
-    if (envUrl && originUrl && envUrl.host !== originUrl.host && !isLocalHost(originUrl.hostname)) {
-      return originUrl.origin
-    }
-
-    if (RAW_ENV_SERVER_URL) {
+    // Prefer explicit env; only fall back to origin when env is empty.
+    // Special case: if env points to localhost but we are served from a non-local host (e.g. tunnel),
+    // use the current origin to avoid mixed origins.
+    if (envUrl) {
+      if (originUrl && isLocalHost(envUrl.hostname) && !isLocalHost(originUrl.hostname)) {
+        return originUrl.origin
+      }
       return RAW_ENV_SERVER_URL
     }
 
