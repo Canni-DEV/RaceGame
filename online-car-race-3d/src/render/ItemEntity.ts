@@ -36,7 +36,7 @@ export class ItemEntity {
   }
 
   async setState(state: ItemState): Promise<void> {
-    this.position.set(state.x, TRACK_SURFACE_HEIGHT + 0.6, state.z)
+    this.position.set(state.x, TRACK_SURFACE_HEIGHT + 1.05, state.z)
     if (state.type !== this.targetType) {
       this.targetType = state.type
       this.clearObject()
