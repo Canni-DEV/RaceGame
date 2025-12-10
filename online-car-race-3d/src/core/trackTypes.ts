@@ -8,6 +8,7 @@ export interface TrackData {
   seed: number
   width: number
   centerline: Vec2[]
+  itemSpawns: TrackItemSpawn[]
   decorations: TrackDecoration[]
 }
 
@@ -27,6 +28,22 @@ export interface InstancedDecoration {
 }
 
 export type TrackDecoration = InstancedDecoration
+
+export type ItemType = 'nitro' | 'shoot'
+
+export interface TrackItemSpawn {
+  id: string
+  position: Vec2
+  rotation: number
+}
+
+export interface ItemState {
+  id: string
+  type: ItemType
+  x: number
+  z: number
+  angle: number
+}
 
 export interface CarState {
   playerId: string
@@ -61,6 +78,7 @@ export interface RoomState {
   serverTime: number
   cars: CarState[]
   missiles: MissileState[]
+  items: ItemState[]
   race: RaceState
 }
 

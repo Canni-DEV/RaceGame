@@ -64,6 +64,13 @@ export const MISSILE_IMPACT_SPIN_DURATION = clamp(
   0.1,
   30,
 );
+export const ITEM_SPAWN_COUNT = clamp(Number(process.env.ITEM_SPAWN_COUNT ?? 14), 0, 500);
+export const ITEM_RESPAWN_SECONDS = clamp(Number(process.env.ITEM_RESPAWN_SECONDS ?? 8), 0, 3600);
+export const ITEM_PICKUP_RADIUS = clamp(Number(process.env.ITEM_PICKUP_RADIUS ?? 4), 0, 100);
+export const ITEM_LATERAL_SPREAD = clamp(Number(process.env.ITEM_LATERAL_SPREAD ?? 8), 0, 500);
+export const ITEM_SPACING_JITTER = clamp(Number(process.env.ITEM_SPACING_JITTER ?? 12), 0, 1000);
+export const ITEM_PROB_NITRO = clamp(Number(process.env.ITEM_PROB_NITRO ?? 0.55), 0, 1);
+export const ITEM_PROB_SHOOT = clamp(Number(process.env.ITEM_PROB_SHOOT ?? 0.45), 0, 1);
 
 export const DEFAULT_ROOM_PREFIX = "room";
 
