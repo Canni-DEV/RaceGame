@@ -97,13 +97,13 @@ export class TrackScene {
 
     const group = new THREE.Group()
     group.name = 'track-root'
-    group.add(result.mesh)
+    group.add(result.mesh, result.edgeLines)
     const rails = this.guardRailBuilder.build(result, track.width)
     if (rails) {
       group.add(rails)
     }
 
-    applyDecorators(track, group, random)
+    applyDecorators(track, result, group, random)
 
     this.scene.add(group)
     this.trackRoot = group

@@ -8,7 +8,7 @@ import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
 import { RaceHud } from './RaceHud'
-import { SpaceSky } from '../render/SpaceSky'
+import { VisualManager } from '../render/VisualManager'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -18,14 +18,13 @@ export class SceneManager {
   private readonly cameraRig: CameraRig
   private readonly clock: THREE.Clock
   private readonly trackScene: TrackScene
-  private readonly sky: SpaceSky
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
   private readonly playerListOverlay: PlayerListOverlay
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
-  private keyLight: THREE.DirectionalLight | null = null
+  private readonly visualManager: VisualManager
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private lastPointerPosition: { x: number; y: number } | null = null
@@ -42,23 +41,12 @@ export class SceneManager {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.2
+    this.renderer.toneMappingExposure = 1.35
     this.renderer.physicallyCorrectLights = true
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
 
     this.scene = new THREE.Scene()
-    this.scene.background = new THREE.Color('#04060f')
-    this.sky = new SpaceSky({
-      baseColor: '#03040c',
-      nebulaPrimary: '#0a2655',
-      nebulaSecondary: '#3b0c41',
-      starColor: '#8df5ff',
-      starDensity: 240,
-      twinkleSpeed: 0.35,
-    })
-    this.scene.add(this.sky.mesh)
-    this.setupEnvironment()
 
     const aspect = container.clientWidth / container.clientHeight
     this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000)
@@ -68,8 +56,7 @@ export class SceneManager {
 
     this.cameraRig = new CameraRig(this.camera)
     this.audioManager = new AudioManager(this.camera)
-
-    this.setupLights()
+    this.visualManager = new VisualManager(this.scene, this.renderer, this.camera)
 
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
@@ -78,7 +65,7 @@ export class SceneManager {
       this.camera,
       this.cameraRig,
       this.gameStateStore,
-      this.keyLight,
+      null,
       this.audioManager,
     )
     this.controllerAccess = new ViewerControllerAccess(
@@ -124,57 +111,13 @@ export class SceneManager {
     this.animate()
   }
 
-  private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0x0a1633, 0.25)
-    this.scene.add(ambient)
-
-    const hemisphere = new THREE.HemisphereLight(0x1d2f61, 0x05060a, 0.18)
-    hemisphere.position.set(0, 120, 0)
-    this.scene.add(hemisphere)
-
-    const keyLight = new THREE.DirectionalLight(0x1e6b9f, 0.28)
-    keyLight.position.set(50, 160, 70)
-    keyLight.castShadow = false
-    this.scene.add(keyLight)
-    this.scene.add(keyLight.target)
-
-    this.keyLight = keyLight
-  }
-
-  private setupEnvironment(): void {
-    const width = 1024
-    const height = 512
-    const canvas = document.createElement('canvas')
-    canvas.width = width
-    canvas.height = height
-    const context = canvas.getContext('2d')
-    if (!context) {
-      return
-    }
-
-    const gradient = context.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#0a1130')
-    gradient.addColorStop(1, '#050812')
-    context.fillStyle = gradient
-    context.fillRect(0, 0, width, height)
-
-    const texture = new THREE.CanvasTexture(canvas)
-    texture.colorSpace = THREE.SRGBColorSpace
-    texture.mapping = THREE.EquirectangularReflectionMapping
-
-    const pmremGenerator = new THREE.PMREMGenerator(this.renderer)
-    const envMap = pmremGenerator.fromEquirectangular(texture).texture
-    pmremGenerator.dispose()
-
-    this.scene.environment = envMap
-  }
-
   private readonly handleResize = (): void => {
     const width = this.container.clientWidth
     const height = this.container.clientHeight
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
+    this.visualManager.setSize(width, height)
   }
 
   private readonly animate = (): void => {
@@ -182,8 +125,7 @@ export class SceneManager {
     const delta = this.clock.getDelta()
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
-    this.sky.update(delta, this.camera.position)
-    this.renderer.render(this.scene, this.camera)
+    this.visualManager.render()
   }
 
   private readonly preventContextMenu = (event: Event): void => {

@@ -20,6 +20,14 @@ declare module 'three' {
     applyQuaternion(q: Quaternion): this
   }
 
+  export class Vector2 {
+    constructor(x?: number, y?: number)
+    x: number
+    y: number
+    set(x: number, y: number): this
+    clone(): Vector2
+  }
+
   export class Euler {
     constructor(x?: number, y?: number, z?: number)
     x: number
@@ -74,6 +82,17 @@ declare module 'three' {
   export class Scene extends Object3D {
     background: Color | Texture | null
     environment: Texture | null
+    fog: Fog | null
+  }
+
+  export class Fog {
+    constructor(color?: ColorRepresentation, near?: number, far?: number)
+    color: Color
+  }
+
+  export class FogExp2 extends Fog {
+    constructor(color?: ColorRepresentation, density?: number)
+    density: number
   }
 
   export class Color {
@@ -137,6 +156,7 @@ declare module 'three' {
     physicallyCorrectLights: boolean
     setPixelRatio(ratio: number): void
     setSize(width: number, height: number): void
+    getSize(target: Vector2): Vector2
     render(scene: Scene, camera: PerspectiveCamera): void
   }
 
@@ -215,6 +235,14 @@ declare module 'three' {
     translate(x: number, y: number, z: number): this
   }
 
+  export class TorusGeometry extends BufferGeometry {
+    constructor(radius?: number, tube?: number, radialSegments?: number, tubularSegments?: number)
+  }
+
+  export class IcosahedronGeometry extends BufferGeometry {
+    constructor(radius?: number, detail?: number)
+  }
+
   export class BoxGeometry extends BufferGeometry {
     constructor(width?: number, height?: number, depth?: number)
     translate(x: number, y: number, z: number): this
@@ -252,6 +280,14 @@ declare module 'three' {
     dispose(): void
   }
 
+  export class MeshBasicMaterial extends Material {
+    constructor(parameters?: Record<string, unknown>)
+    color: Color
+    wireframe: boolean
+    depthWrite: boolean
+    toneMapped?: boolean
+  }
+
   export class MeshStandardMaterial extends Material {
     constructor(parameters?: Record<string, unknown>)
     color: Color
@@ -269,6 +305,13 @@ declare module 'three' {
     thickness: number
     clearcoat: number
     clearcoatRoughness: number
+  }
+
+  export class LineBasicMaterial extends Material {
+    constructor(parameters?: Record<string, unknown>)
+    color: Color
+    depthWrite: boolean
+    toneMapped?: boolean
   }
 
   export class ShaderMaterial extends Material {
@@ -297,8 +340,15 @@ declare module 'three' {
     constructor(geometry: BufferGeometry, material: Material, count: number)
     setMatrixAt(index: number, matrix: Matrix4): void
     instanceMatrix: BufferAttribute
+    count: number
     dispose(): void
     isMesh: boolean
+  }
+
+  export class LineSegments<TGeometry extends BufferGeometry = BufferGeometry> extends Object3D {
+    constructor(geometry?: TGeometry, material?: Material | Material[])
+    geometry: TGeometry
+    material: Material | Material[]
   }
 
   export class CanvasTexture extends Texture {
@@ -352,4 +402,35 @@ declare module 'three/examples/jsm/utils/SkeletonUtils.js' {
   import type { Object3D } from 'three'
 
   export function clone<T extends Object3D>(source: T): T
+}
+
+declare module 'three/examples/jsm/postprocessing/EffectComposer.js' {
+  import type { WebGLRenderer } from 'three'
+
+  export class EffectComposer {
+    constructor(renderer: WebGLRenderer)
+    addPass(pass: any): void
+    setSize(width: number, height: number): void
+    render(): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/RenderPass.js' {
+  import type { Camera, Scene } from 'three'
+
+  export class RenderPass {
+    constructor(scene: Scene, camera: Camera)
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/UnrealBloomPass.js' {
+  import type { Vector2 } from 'three'
+
+  export class UnrealBloomPass {
+    constructor(resolution?: Vector2, strength?: number, radius?: number, threshold?: number)
+    threshold: number
+    strength: number
+    radius: number
+    setSize(width: number, height: number): void
+  }
 }

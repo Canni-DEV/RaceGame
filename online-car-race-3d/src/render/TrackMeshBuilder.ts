@@ -8,6 +8,7 @@ const TRACK_BASE_HEIGHT = TRACK_SURFACE_HEIGHT - TRACK_THICKNESS
 
 export interface TrackBuildResult {
   mesh: THREE.Mesh
+  edgeLines: THREE.LineSegments
   centerline: Vec2[]
   leftEdge: Vec2[]
   rightEdge: Vec2[]
@@ -29,28 +30,31 @@ export class TrackMeshBuilder {
     const metadata = this.computeEdges(smoothCenterline, track.width / 2)
     const geometry = this.buildGeometry(metadata.leftEdge, metadata.rightEdge)
     const material = new THREE.MeshPhysicalMaterial({
-      color: new THREE.Color('#0a1021'),
-      metalness: 0.2,
-      roughness: 0.35,
-      transmission: 0.35,
-      opacity: 0.9,
+      color: new THREE.Color('#050915'),
+      metalness: 0.05,
+      roughness: 0.2,
+      transmission: 0.6,
+      opacity: 0.95,
       transparent: true,
-      ior: 1.18,
-      thickness: 0.65,
-      clearcoat: 0.65,
-      clearcoatRoughness: 0.2,
-      emissive: new THREE.Color('#0a1f4b'),
-      emissiveIntensity: 0.35,
+      ior: 1.42,
+      thickness: 1,
+      clearcoat: 0.8,
+      clearcoatRoughness: 0.12,
+      emissive: new THREE.Color('#0a0f2f'),
+      emissiveIntensity: 0.6,
     })
 
     const mesh = new THREE.Mesh(geometry, material)
     mesh.receiveShadow = true
     mesh.castShadow = true
 
+    const edgeLines = this.buildEdgeLines(metadata.leftEdge, metadata.rightEdge)
+
     const bounds = geometry.boundingBox?.clone() ?? new THREE.Box3().setFromObject(mesh)
 
     return {
       mesh,
+      edgeLines,
       centerline: smoothCenterline,
       leftEdge: metadata.leftEdge,
       rightEdge: metadata.rightEdge,
@@ -186,6 +190,38 @@ export class TrackMeshBuilder {
     geometry.computeBoundingBox()
 
     return geometry
+  }
+
+  private buildEdgeLines(leftEdge: Vec2[], rightEdge: Vec2[]): THREE.LineSegments {
+    const positions: number[] = []
+    const total = leftEdge.length
+
+    for (let i = 0; i < total; i++) {
+      const next = (i + 1) % total
+
+      const left = leftEdge[i]
+      const nextLeft = leftEdge[next]
+      positions.push(left.x, TRACK_SURFACE_HEIGHT + 0.01, left.z)
+      positions.push(nextLeft.x, TRACK_SURFACE_HEIGHT + 0.01, nextLeft.z)
+
+      const right = rightEdge[i]
+      const nextRight = rightEdge[next]
+      positions.push(right.x, TRACK_SURFACE_HEIGHT + 0.01, right.z)
+      positions.push(nextRight.x, TRACK_SURFACE_HEIGHT + 0.01, nextRight.z)
+    }
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+
+    const material = new THREE.LineBasicMaterial({
+      color: 0x00ffff,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      toneMapped: true,
+    })
+
+    return new THREE.LineSegments(geometry, material)
   }
 
   private catmullRom(p0: Vec2, p1: Vec2, p2: Vec2, p3: Vec2, t: number): Vec2 {
