@@ -1,5 +1,6 @@
 import type {
   CarState,
+  ItemState,
   MissileState,
   RaceState,
   RoomState,
@@ -74,6 +75,10 @@ export class GameStateStore {
 
   getMissilesForRender(_currentTime: number): MissileState[] {
     return this.lastState?.missiles ?? []
+  }
+
+  getItemsForRender(_currentTime: number): ItemState[] {
+    return this.lastState?.items ?? []
   }
 
   getRaceState(): RaceState | null {

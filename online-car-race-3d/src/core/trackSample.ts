@@ -51,9 +51,9 @@ export const ARCADE_SAMPLE_TRACK: TrackData = createTrack({
   ],
 })
 
-function createTrack(track: Omit<TrackData, 'decorations'>): TrackData {
+function createTrack(track: Omit<TrackData, 'decorations' | 'itemSpawns'>): TrackData {
   const decorations = buildDecorations(track.width, track.centerline, track.seed)
-  return { ...track, decorations }
+  return { ...track, itemSpawns: [], decorations }
 }
 
 function buildDecorations(width: number, centerline: TrackData['centerline'], seed: number): TrackDecoration[] {

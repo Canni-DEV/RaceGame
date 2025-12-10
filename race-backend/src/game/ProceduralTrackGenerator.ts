@@ -1,5 +1,6 @@
 import { TrackData, TrackDecoration, Vec2 } from "../types/trackTypes";
 import { planAssetDecorations } from "./TrackAssetPlanner";
+import { planTrackItems } from "./TrackItemPlanner";
 
 interface GridCell {
   x: number;
@@ -43,12 +44,14 @@ export class ProceduralTrackGenerator {
     const oriented = this.alignToStartingStraight(smoothed);
     const width = this.lerp(this.config.widthRange[0], this.config.widthRange[1], random());
     const decorations = this.createDecorations(oriented, width, seed);
+    const itemSpawns = planTrackItems(oriented, width, seed);
 
     return {
       id: `procedural-${seed}`,
       seed,
       width,
       centerline: oriented,
+      itemSpawns,
       decorations
     };
   }

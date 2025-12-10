@@ -2,6 +2,7 @@ import { PROCEDURAL_TRACK_SETTINGS, TRACK_GENERATION } from "../config";
 import { TrackData, TrackDecoration, Vec2 } from "../types/trackTypes";
 import { ProceduralTrackGenerator } from "./ProceduralTrackGenerator";
 import { planAssetDecorations } from "./TrackAssetPlanner";
+import { planTrackItems } from "./TrackItemPlanner";
 
 const SAMPLE_CENTERLINE: Vec2[] = [
   { x: 0, z: 0 },
@@ -67,6 +68,11 @@ export class TrackRepository {
     return {
       ...track,
       centerline: track.centerline.map((point) => ({ ...point })),
+      itemSpawns: track.itemSpawns.map((spawn) => ({
+        id: spawn.id,
+        position: { ...spawn.position },
+        rotation: spawn.rotation
+      })),
       decorations: track.decorations.map((decor) => cloneDecoration(decor))
     };
   }
@@ -94,6 +100,7 @@ function createDefaultTrack(): TrackData {
     seed: 1337,
     width,
     centerline: SAMPLE_CENTERLINE.map((point) => ({ ...point })),
+    itemSpawns: planTrackItems(SAMPLE_CENTERLINE, width, 1337),
     decorations
   };
 }

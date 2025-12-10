@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import type { CarState, MissileState, TrackData } from '../core/trackTypes'
+import type { CarState, ItemState, MissileState, TrackData } from '../core/trackTypes'
 import { createRandom } from '../core/random'
 import { TrackMeshBuilder, type TrackBuildResult } from '../render/TrackMeshBuilder'
 import { applyDecorators } from '../render/DecorGenerator'
@@ -10,6 +10,8 @@ import { CarEntity } from '../render/CarEntity'
 import { GuardRailBuilder } from '../render/GuardRailBuilder'
 import type { AudioManager } from '../audio/AudioManager'
 import { MissileEntity } from '../render/MissileEntity'
+import { ItemEntity } from '../render/ItemEntity'
+import { ItemModelLoader } from '../render/ItemModelLoader'
 
 export class TrackScene {
   private readonly scene: THREE.Scene
@@ -22,6 +24,7 @@ export class TrackScene {
   private readonly mainLightDistance: number
   private readonly cars: Map<string, CarEntity>
   private readonly missiles: Map<string, MissileEntity>
+  private readonly items: Map<string, ItemEntity>
   private readonly playerColors: Map<string, THREE.Color>
   private readonly audioManager: AudioManager | null
   private trackRoot: THREE.Group | null = null
@@ -30,6 +33,7 @@ export class TrackScene {
   private requestedFollowId: string | null = null
   private firstPersonHiddenId: string | null = null
   private hasAutoFollowedPlayer = false
+  private readonly itemModelLoader: ItemModelLoader
 
   constructor(
     scene: THREE.Scene,
@@ -52,8 +56,10 @@ export class TrackScene {
     this.guardRailBuilder = new GuardRailBuilder()
     this.cars = new Map()
     this.missiles = new Map()
+    this.items = new Map()
     this.playerColors = new Map()
     this.audioManager = audioManager
+    this.itemModelLoader = new ItemModelLoader()
     void this.carModelLoader.preload()
     window.addEventListener('keydown', this.handleKeyDown)
 
@@ -83,12 +89,14 @@ export class TrackScene {
     const now = performance.now()
     const carStates = this.store.getCarsForRender(now)
     const missileStates = this.store.getMissilesForRender(now)
+    const itemStates = this.store.getItemsForRender(now)
     const ownerNpcMap = new Map<string, boolean>()
     for (const state of carStates) {
       ownerNpcMap.set(state.playerId, Boolean(state.isNpc))
     }
     this.syncCars(carStates)
     this.syncMissiles(missileStates, ownerNpcMap)
+    void this.syncItems(itemStates)
     for (const entity of this.cars.values()) {
       entity.update(dt)
       entity.updateNameLabelScale(this.camera)
@@ -96,11 +104,15 @@ export class TrackScene {
     for (const missile of this.missiles.values()) {
       missile.update(dt)
     }
+    for (const item of this.items.values()) {
+      item.update(dt)
+    }
     this.updateCameraFollow()
   }
 
   private rebuildTrack(track: TrackData): void {
     this.disposeTrackRoot()
+    this.clearItems()
 
     const random = createRandom(track.seed)
     const builder = new TrackMeshBuilder()
@@ -164,6 +176,13 @@ export class TrackScene {
     this.trackRoot = null
   }
 
+  private clearItems(): void {
+    for (const item of this.items.values()) {
+      item.dispose()
+    }
+    this.items.clear()
+  }
+
   private syncCars(states: CarState[]): void {
     const active = new Set<string>()
     for (const state of states) {
@@ -204,6 +223,22 @@ export class TrackScene {
     }
   }
 
+  private async syncItems(states: ItemState[]): Promise<void> {
+    const active = new Set<string>()
+    for (const state of states) {
+      active.add(state.id)
+      const entity = await this.getOrCreateItem(state)
+      await entity.setState(state)
+    }
+
+    for (const [itemId, entity] of this.items.entries()) {
+      if (!active.has(itemId)) {
+        entity.dispose()
+        this.items.delete(itemId)
+      }
+    }
+  }
+
   private getOrCreateCar(state: CarState): CarEntity {
     let car = this.cars.get(state.playerId)
     const isNewCar = !car
@@ -234,6 +269,15 @@ export class TrackScene {
       this.missiles.set(state.id, missile)
     }
     return missile
+  }
+
+  private async getOrCreateItem(state: ItemState): Promise<ItemEntity> {
+    let item = this.items.get(state.id)
+    if (!item) {
+      item = new ItemEntity(state.id, state.type, this.scene, this.itemModelLoader)
+      this.items.set(state.id, item)
+    }
+    return item
   }
 
   private getColorForState(state: CarState): THREE.Color {

@@ -1,6 +1,8 @@
 import {
   CarState,
   LeaderboardEntry,
+  ItemType,
+  TrackItemSpawn,
   MissileState,
   RacePhase,
   RaceState,
@@ -18,6 +20,10 @@ import {
   MISSILE_MIN_SPEED,
   MISSILE_RECHARGE_SECONDS,
   MISSILE_SPEED_MULTIPLIER,
+  ITEM_PICKUP_RADIUS,
+  ITEM_PROB_NITRO,
+  ITEM_PROB_SHOOT,
+  ITEM_RESPAWN_SECONDS,
   TURBO_ACCELERATION_MULTIPLIER,
   TURBO_DURATION,
   TURBO_MAX_CHARGES,
@@ -114,7 +120,28 @@ interface SpinState {
   angularVelocity: number;
 }
 
+interface ItemRuntime {
+  spawn: TrackItemSpawn;
+  type: ItemType;
+  active: boolean;
+  respawnTimer: number;
+}
+
+function createRandom(seed: number): () => number {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x9e3779b9) | 0;
+    let t = seed ^ (seed >>> 16);
+    t = Math.imul(t, 0x21f0aaad);
+    t ^= t >>> 15;
+    t = Math.imul(t, 0x735a2d97);
+    t ^= t >>> 15;
+    return (t >>> 0) / 0x100000000;
+  };
+}
+
 const MAX_USERNAME_LENGTH = 24;
+const ITEM_PICKUP_RADIUS_SQ = ITEM_PICKUP_RADIUS * ITEM_PICKUP_RADIUS;
 
 export class Room {
   public serverTime = 0;
@@ -130,6 +157,7 @@ export class Room {
   private turboStates: Map<string, TurboState> = new Map();
   private missileCharges: Map<string, MissileChargeState> = new Map();
   private missiles: Map<string, MissileRuntime> = new Map();
+  private readonly items: Map<string, ItemRuntime> = new Map();
   private npcIds: Set<string> = new Set();
   private npcStates: Map<string, NpcControllerState> = new Map();
   private playerProfiles: Map<string, { username: string }> = new Map();
@@ -150,6 +178,7 @@ export class Room {
   private readonly startSegmentIndex = Math.max(0, Math.floor(RACE_START_SEGMENT_INDEX));
   private missileSequence = 0;
   private readonly spinStates: Map<string, SpinState> = new Map();
+  private readonly itemRandom: () => number;
 
   constructor(public readonly roomId: string, public readonly track: TrackData) {
     this.trackGeometry = new TrackGeometry(track);
@@ -159,6 +188,8 @@ export class Room {
       ? this.trackNavigator.project(track.centerline[this.startSegmentIndex % track.centerline.length]).distanceAlongTrack
       : 0;
     this.countdownTotal = RACE_COUNTDOWN_SECONDS;
+    this.itemRandom = createRandom(this.track.seed ^ 0x5a18c3);
+    this.resetItems();
 
     const npcProfiles: NpcProfile[] = [
       {
@@ -771,6 +802,84 @@ export class Room {
     }
   }
 
+  private resetItems(): void {
+    this.items.clear();
+    for (const spawn of this.track.itemSpawns) {
+      this.items.set(spawn.id, {
+        spawn,
+        type: this.rollItemType(),
+        active: true,
+        respawnTimer: 0
+      });
+    }
+  }
+
+  private rollItemType(): ItemType {
+    const total = Math.max(ITEM_PROB_NITRO + ITEM_PROB_SHOOT, 0.0001);
+    const nitroChance = ITEM_PROB_NITRO / total;
+    return this.itemRandom() < nitroChance ? "nitro" : "shoot";
+  }
+
+  private updateItems(dt: number): void {
+    for (const item of this.items.values()) {
+      if (item.active) {
+        continue;
+      }
+
+      if (item.respawnTimer > 0) {
+        item.respawnTimer = Math.max(0, item.respawnTimer - dt);
+      }
+
+      if (item.respawnTimer <= 0) {
+        item.type = this.rollItemType();
+        item.active = true;
+      }
+    }
+  }
+
+  private handleItemPickups(): void {
+    if (this.items.size === 0) {
+      return;
+    }
+
+    for (const [playerId, car] of this.cars.entries()) {
+      if (car.isNpc) {
+        continue;
+      }
+
+      for (const item of this.items.values()) {
+        if (!item.active) {
+          continue;
+        }
+        const dx = car.x - item.spawn.position.x;
+        const dz = car.z - item.spawn.position.z;
+        const distanceSq = dx * dx + dz * dz;
+        if (distanceSq <= ITEM_PICKUP_RADIUS_SQ) {
+          this.applyItemPickup(playerId, car, item);
+        }
+      }
+    }
+  }
+
+  private applyItemPickup(playerId: string, car: CarState, item: ItemRuntime): void {
+    if (!item.active) {
+      return;
+    }
+
+    if (item.type === "nitro") {
+      const turbo = this.ensureTurboState(playerId);
+      turbo.charges = Math.min(TURBO_MAX_CHARGES, turbo.charges + 1);
+      this.updateCarTurboTelemetry(playerId, car, turbo);
+    } else {
+      const missiles = this.ensureMissileChargeState(playerId);
+      missiles.charges = Math.min(MISSILE_MAX_CHARGES, missiles.charges + 1);
+      this.updateCarMissileTelemetry(playerId, car, missiles);
+    }
+
+    item.active = false;
+    item.respawnTimer = Math.max(0, ITEM_RESPAWN_SECONDS);
+  }
+
   private getSpawnPoint(playerId: string): SpawnPoint | undefined {
     const existing = this.spawnPoints.get(playerId);
     if (existing) {
@@ -791,11 +900,13 @@ export class Room {
 
   update(dt: number): void {
     this.advanceCountdown(dt);
+    this.updateItems(dt);
     this.updateTurboStates(dt);
     this.updateMissileCharges(dt);
     updateNpcControllers(this, this.npcStates, dt);
     this.applyLockedInputs();
     updateCarsForRoom(this, dt);
+    this.handleItemPickups();
     this.updateMissiles(dt);
     this.updateSpinEffects(dt);
     this.updateRaceProgress();
@@ -925,6 +1036,7 @@ export class Room {
     this.raceStartTime = null;
     this.firstFinishTime = null;
     this.raceParticipants.clear();
+    this.resetItems();
     for (const progress of this.raceProgress.values()) {
       progress.ready = progress.isNpc;
       progress.isFinished = false;
@@ -1025,6 +1137,8 @@ export class Room {
       missiles.rechargeProgress = 0;
       this.updateCarMissileTelemetry(playerId, car, missiles);
     }
+
+    this.resetItems();
   }
 
   private toggleReady(playerId: string): void {
@@ -1259,6 +1373,15 @@ export class Room {
         speed: missile.speed,
         targetId: missile.targetId
       })),
+      items: Array.from(this.items.values())
+        .filter((item) => item.active)
+        .map((item) => ({
+          id: item.spawn.id,
+          type: item.type,
+          x: item.spawn.position.x,
+          z: item.spawn.position.z,
+          angle: item.spawn.rotation
+        })),
       race: this.toRaceState()
     };
   }
