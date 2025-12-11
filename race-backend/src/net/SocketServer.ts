@@ -195,18 +195,21 @@ export class SocketServer {
       this.emitError(socket, "RoomId required for state request");
       return;
     }
+
+    const room = this.roomManager.getRoom(roomId);
+    if (room) {
+      const state = serializeRoomState(room.toRoomState());
+      this.sendFullToSocket(socket, roomId, state);
+      return;
+    }
+
     const cached = this.lastFullStates.get(roomId);
     if (cached) {
       this.sendFullToSocket(socket, roomId, cached);
       return;
     }
-    const room = this.roomManager.getRoom(roomId);
-    if (!room) {
-      this.emitError(socket, "Room not found");
-      return;
-    }
-    const state = serializeRoomState(room.toRoomState());
-    this.sendFullToSocket(socket, roomId, state);
+
+    this.emitError(socket, "Room not found");
   }
 
   private sendFull(roomId: string, state: RoomState): void {
@@ -216,7 +219,6 @@ export class SocketServer {
   }
 
   private sendFullToSocket(socket: Socket, roomId: string, state: RoomState): void {
-    this.lastFullStates.set(roomId, state);
     socket.emit("state_full", state);
     socket.emit("state", state);
   }
