@@ -29,7 +29,7 @@ export class TrackNavigator {
       : 0;
   }
 
-  project(point: Vec2): ProjectedProgress {
+  project(point: Vec2, hint?: TrackProgress): ProjectedProgress {
     if (this.segments.length === 0) {
       return this.resolveProgress(0, 0, point, { x: 1, z: 0 });
     }
@@ -37,9 +37,14 @@ export class TrackNavigator {
     let bestIndex = 0;
     let bestDistanceSq = Number.POSITIVE_INFINITY;
     let bestDistanceAlong = 0;
+    const tested = new Set<number>();
 
-    for (let i = 0; i < this.segments.length; i++) {
-      const segment = this.segments[i];
+    const checkSegment = (index: number): void => {
+      if (tested.has(index)) {
+        return;
+      }
+      tested.add(index);
+      const segment = this.segments[index];
       const px = point.x - segment.start.x;
       const pz = point.z - segment.start.z;
       const projection = px * segment.direction.x + pz * segment.direction.z;
@@ -52,8 +57,24 @@ export class TrackNavigator {
 
       if (distanceSq < bestDistanceSq) {
         bestDistanceSq = distanceSq;
-        bestIndex = i;
+        bestIndex = index;
         bestDistanceAlong = clamped;
+      }
+    };
+
+    const hintIndex = hint ? clamp(Math.floor(hint.segmentIndex), 0, this.segments.length - 1) : undefined;
+    if (hintIndex !== undefined) {
+      checkSegment(hintIndex);
+      checkSegment((hintIndex + this.segments.length - 1) % this.segments.length);
+      checkSegment((hintIndex + 1) % this.segments.length);
+    }
+
+    if (bestDistanceSq !== 0) {
+      for (let i = 0; i < this.segments.length; i++) {
+        if (tested.has(i)) {
+          continue;
+        }
+        checkSegment(i);
       }
     }
 

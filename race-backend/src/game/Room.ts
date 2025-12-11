@@ -578,7 +578,8 @@ export class Room {
       return;
     }
 
-    const progress = this.trackNavigator.project(car);
+    const previousProgress = this.raceProgress.get(playerId)?.progress;
+    const progress = this.trackNavigator.project(car, previousProgress);
     const missileId = `${playerId}-m${this.missileSequence++}`;
 
     charges.charges -= 1;
@@ -645,7 +646,7 @@ export class Room {
         let remaining = travel;
 
         if (!missile.onTrack) {
-          const snap = this.trackNavigator.project({ x: missile.x, z: missile.z });
+          const snap = this.trackNavigator.project({ x: missile.x, z: missile.z }, missile.progress);
           const dx = snap.position.x - missile.x;
           const dz = snap.position.z - missile.z;
           const distanceToTrack = Math.hypot(dx, dz);
@@ -951,7 +952,7 @@ export class Room {
 
     for (const [playerId, car] of this.cars.entries()) {
       const progress = this.ensureRaceProgress(playerId, car);
-      const projection = this.trackNavigator.project({ x: car.x, z: car.z });
+      const projection = this.trackNavigator.project({ x: car.x, z: car.z }, progress.progress);
       const previousDistance = this.normalizeDistance(progress.progress.distanceAlongTrack);
       const currentDistance = this.normalizeDistance(projection.distanceAlongTrack);
       const delta = this.computeSignedDelta(previousDistance, currentDistance);
@@ -1112,7 +1113,7 @@ export class Room {
       this.latestInputs.set(car.playerId, NEUTRAL_INPUT);
       const progress = this.ensureRaceProgress(car.playerId, car);
       progress.lap = 0;
-      progress.progress = this.trackNavigator.project(position);
+      progress.progress = this.trackNavigator.project(position, progress.progress);
       progress.totalDistance = this.initialTotalDistance(progress.progress);
       progress.lastWorldPosition = { ...position };
       progress.isFinished = false;
