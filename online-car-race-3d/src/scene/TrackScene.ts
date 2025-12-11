@@ -27,6 +27,7 @@ export class TrackScene {
   private readonly items: Map<string, ItemEntity>
   private readonly playerColors: Map<string, THREE.Color>
   private readonly audioManager: AudioManager | null
+  private readonly onPlayerAutoFollow?: () => void
   private trackRoot: THREE.Group | null = null
   private playerId: string | null = null
   private cameraMode: 'overview' | 'follow' | 'firstPerson' = 'overview'
@@ -42,6 +43,7 @@ export class TrackScene {
     store: GameStateStore,
     mainLight: THREE.DirectionalLight | null,
     audioManager: AudioManager | null,
+    onPlayerAutoFollow?: () => void,
   ) {
     this.scene = scene
     this.camera = camera
@@ -59,6 +61,7 @@ export class TrackScene {
     this.items = new Map()
     this.playerColors = new Map()
     this.audioManager = audioManager
+    this.onPlayerAutoFollow = onPlayerAutoFollow
     this.itemModelLoader = new ItemModelLoader()
     void this.carModelLoader.preload()
     window.addEventListener('keydown', this.handleKeyDown)
@@ -403,6 +406,7 @@ export class TrackScene {
     this.cameraMode = 'follow'
     this.requestedFollowId = playerId
     this.hasAutoFollowedPlayer = true
+    this.onPlayerAutoFollow?.()
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {

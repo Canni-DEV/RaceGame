@@ -38,7 +38,7 @@ export interface EngineSoundConfig {
 const DEFAULT_CONFIG: EngineSoundConfig = {
   idleRpm: 900,
   maxRpm: 8200,
-  maxSpeed: 50,
+  maxSpeed: 80,
   minVolume: 0.01,
   maxVolume: 0.20,
   refDistance: 5,

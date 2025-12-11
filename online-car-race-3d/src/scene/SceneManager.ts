@@ -81,6 +81,7 @@ export class SceneManager {
       this.gameStateStore,
       this.keyLight,
       this.audioManager,
+      this.handlePlayerAutoFollow,
     )
     this.controllerAccess = new ViewerControllerAccess(
       this.container,
@@ -248,6 +249,10 @@ export class SceneManager {
       event.preventDefault()
       event.stopPropagation()
     }
+  }
+
+  private readonly handlePlayerAutoFollow = (): void => {
+    this.controllerAccess.hide()
   }
 
   private readonly handleSelectPlayer = (playerId: string): void => {

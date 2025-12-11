@@ -57,6 +57,11 @@ export class ViewerControllerAccess {
     this.updateVisibility()
   }
 
+  hide(): void {
+    this.userHidden = true
+    this.updateVisibility()
+  }
+
   private handleRoomInfo(info: RoomInfoSnapshot): void {
     if (!info.roomId || !info.playerId) {
       this.isReady = false
