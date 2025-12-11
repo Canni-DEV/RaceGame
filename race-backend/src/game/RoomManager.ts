@@ -1,12 +1,30 @@
 import { randomBytes } from "crypto";
 import {
   DEFAULT_ROOM_PREFIX,
+  INPUT_BURST_LIMIT,
+  INPUT_BURST_WINDOW_MS,
   MAX_PLAYERS_PER_ROOM
 } from "../config";
 import { JoinRoomRequest, UsernameUpdateMessage } from "../types/messages";
 import { PlayerRole } from "../types/trackTypes";
 import { trackRepository } from "./TrackRepository";
 import { Room, PlayerInput } from "./Room";
+
+type BufferedActions = NonNullable<PlayerInput["actions"]>;
+type BufferedActionMessage = {
+  analog: { steer: number; throttle: number; brake: number };
+  actions: BufferedActions;
+};
+
+interface BufferedInputEntry {
+  analog: { steer: number; throttle: number; brake: number };
+  actionQueue: BufferedActionMessage[];
+  dirtyAnalog: boolean;
+  lastAppliedAnalog?: { steer: number; throttle: number; brake: number };
+  lastReceivedAt: number;
+  burstWindowStart: number;
+  burstCount: number;
+}
 
 interface ViewerJoinResult {
   room: Room;
@@ -33,6 +51,7 @@ export class RoomManager {
   private socketRoles: Map<string, PlayerRole> = new Map();
   private viewerSocketToPlayer: Map<string, string> = new Map();
   private controllerSocketToPlayer: Map<string, string> = new Map();
+  private readonly inputBuffers: Map<string, Map<string, BufferedInputEntry>> = new Map();
 
   handleViewerJoin(socketId: string, payload: JoinRoomRequest): ViewerJoinResult {
     const { room, isNewRoom } = this.resolveRoom(payload.roomId);
@@ -117,7 +136,7 @@ export class RoomManager {
     };
   }
 
-  handleInput(roomId: string, playerId: string, input: PlayerInput): void {
+  handleInput(socketId: string, roomId: string, playerId: string, input: PlayerInput): void {
     const room = this.rooms.get(roomId);
     if (!room) {
       throw new Error("Room not found");
@@ -126,7 +145,27 @@ export class RoomManager {
       throw new Error("Player not found in room");
     }
 
-    room.applyInput(playerId, input);
+    const buffered = this.getOrCreateBuffer(roomId, playerId);
+    this.enforceBurstLimit(buffered, socketId);
+
+    const incomingAnalog = {
+      steer: input.steer,
+      throttle: input.throttle,
+      brake: input.brake
+    };
+    const analogChanged = !this.analogEquals(buffered.analog, incomingAnalog);
+    buffered.analog = incomingAnalog;
+    buffered.dirtyAnalog = buffered.dirtyAnalog || analogChanged || !buffered.lastAppliedAnalog;
+
+    const actions = this.normalizeActions(input.actions);
+    if (actions) {
+      buffered.actionQueue.push({
+        analog: incomingAnalog,
+        actions
+      });
+    }
+
+    buffered.lastReceivedAt = Date.now();
   }
 
   handleUsernameUpdate(
@@ -175,6 +214,7 @@ export class RoomManager {
       this.viewerSocketToPlayer.delete(socketId);
       if (playerId && removedPlayerId === playerId) {
         const controllerSocket = room.removePlayer(playerId);
+        this.removeBufferedInput(roomId, playerId);
         if (controllerSocket) {
           this.controllerSocketToPlayer.delete(controllerSocket);
           this.cleanupSocket(controllerSocket);
@@ -191,10 +231,53 @@ export class RoomManager {
     let deletedRooms: string[] = [];
     if (room.isEmpty()) {
       this.rooms.delete(room.roomId);
+      this.inputBuffers.delete(room.roomId);
       deletedRooms = [room.roomId];
     }
 
     return { removedPlayers, deletedRooms };
+  }
+
+  applyBufferedInputs(): void {
+    for (const room of this.rooms.values()) {
+      const buffers = this.inputBuffers.get(room.roomId);
+      if (!buffers) {
+        continue;
+      }
+
+      for (const [playerId, entry] of buffers.entries()) {
+        if (!room.cars.has(playerId)) {
+          buffers.delete(playerId);
+          continue;
+        }
+
+        const hasActions = entry.actionQueue.length > 0;
+        const analogChanged = entry.dirtyAnalog || !this.analogEquals(entry.lastAppliedAnalog, entry.analog);
+
+        if (!hasActions && !analogChanged) {
+          continue;
+        }
+
+        if (hasActions) {
+          for (const message of entry.actionQueue) {
+            room.applyInput(playerId, {
+              ...message.analog,
+              actions: message.actions
+            });
+            entry.lastAppliedAnalog = { ...message.analog };
+          }
+          entry.actionQueue.length = 0;
+          entry.dirtyAnalog = entry.dirtyAnalog || !this.analogEquals(entry.lastAppliedAnalog, entry.analog);
+          if (!entry.dirtyAnalog) {
+            continue;
+          }
+        }
+
+        room.applyInput(playerId, entry.analog);
+        entry.lastAppliedAnalog = { ...entry.analog };
+        entry.dirtyAnalog = false;
+      }
+    }
   }
 
   getRooms(): IterableIterator<Room> {
@@ -259,5 +342,78 @@ export class RoomManager {
   private cleanupSocket(socketId: string): void {
     this.socketToRoom.delete(socketId);
     this.socketRoles.delete(socketId);
+  }
+
+  private getOrCreateBuffer(roomId: string, playerId: string): BufferedInputEntry {
+    let roomBuffers = this.inputBuffers.get(roomId);
+    if (!roomBuffers) {
+      roomBuffers = new Map();
+      this.inputBuffers.set(roomId, roomBuffers);
+    }
+
+    let entry = roomBuffers.get(playerId);
+    if (!entry) {
+      entry = {
+        analog: { steer: 0, throttle: 0, brake: 0 },
+        actionQueue: [],
+        dirtyAnalog: true,
+        lastAppliedAnalog: undefined,
+        lastReceivedAt: Date.now(),
+        burstWindowStart: Date.now(),
+        burstCount: 0
+      };
+      roomBuffers.set(playerId, entry);
+    }
+    return entry;
+  }
+
+  private removeBufferedInput(roomId: string, playerId: string): void {
+    const buffers = this.inputBuffers.get(roomId);
+    buffers?.delete(playerId);
+  }
+
+  private analogEquals(
+    first?: { steer: number; throttle: number; brake: number },
+    second?: { steer: number; throttle: number; brake: number }
+  ): boolean {
+    if (!first || !second) {
+      return false;
+    }
+    return (
+      first.steer === second.steer &&
+      first.throttle === second.throttle &&
+      first.brake === second.brake
+    );
+  }
+
+  private normalizeActions(actions?: PlayerInput["actions"]): BufferedActions | undefined {
+    if (!actions) {
+      return undefined;
+    }
+    const normalized: BufferedActions = {};
+    if (actions.turbo) {
+      normalized.turbo = true;
+    }
+    if (actions.reset) {
+      normalized.reset = true;
+    }
+    if (actions.shoot) {
+      normalized.shoot = true;
+    }
+    return Object.keys(normalized).length > 0 ? normalized : undefined;
+  }
+
+  private enforceBurstLimit(entry: BufferedInputEntry, socketId: string): void {
+    const now = Date.now();
+    if (now - entry.burstWindowStart > INPUT_BURST_WINDOW_MS) {
+      entry.burstWindowStart = now;
+      entry.burstCount = 0;
+    }
+
+    entry.burstCount += 1;
+    if (entry.burstCount > INPUT_BURST_LIMIT) {
+      console.warn(`Input burst limit exceeded by socket ${socketId}`);
+      throw new Error("Demasiados inputs en un intervalo corto");
+    }
   }
 }

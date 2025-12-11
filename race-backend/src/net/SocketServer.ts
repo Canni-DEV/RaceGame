@@ -137,7 +137,7 @@ export class SocketServer {
     }
 
     try {
-      this.roomManager.handleInput(payload.roomId, payload.playerId, {
+      this.roomManager.handleInput(socket.id, payload.roomId, payload.playerId, {
         steer: payload.steer,
         throttle: payload.throttle,
         brake: payload.brake,

@@ -57,6 +57,7 @@ export class GameLoop {
       ) {
         accumulator -= tickMs;
         broadcastAccumulator += tickMs;
+        this.roomManager.applyBufferedInputs();
         for (const room of this.roomManager.getRooms()) {
           room.update(dt);
         }
