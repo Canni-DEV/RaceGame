@@ -26,7 +26,7 @@ export class CameraRig {
   private followMode: 'chase' | 'firstPerson' = 'chase'
   private followDistance = 26
   private followHeight = 14
-  private firstPersonHeight = 1.3
+  private firstPersonHeight = 1.4
   private firstPersonForwardOffset = 7
   private firstPersonLookAhead = 30
   private followRotationLocked = false

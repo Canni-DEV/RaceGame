@@ -230,7 +230,7 @@ export class Room {
       }
     ];
 
-    //npcProfiles.forEach((profile) => this.initializeNpc(profile));
+    npcProfiles.forEach((profile) => this.initializeNpc(profile));
   }
 
   addViewer(socketId: string, playerId: string): void {
