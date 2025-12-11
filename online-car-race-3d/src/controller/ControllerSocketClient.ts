@@ -1,5 +1,5 @@
 import { SocketClient } from '../net/SocketClient'
-import type { PlayerEventMessage, RoomInfoMessage, StateMessage } from '../net/messages'
+import type { PlayerEventMessage, RoomInfoMessage, StateDeltaMessage, StateMessage } from '../net/messages'
 import type { ControllerInput } from './ControllerInputStore'
 
 type ControllerSocketOptions = {
@@ -57,6 +57,10 @@ export class ControllerSocketClient {
     return this.client.onState(callback)
   }
 
+  onStateDelta(callback: (delta: StateDeltaMessage) => void): () => void {
+    return this.client.onStateDelta(callback)
+  }
+
   isConnected(): boolean {
     return this.client.isConnected()
   }
@@ -80,6 +84,10 @@ export class ControllerSocketClient {
       brake: input.brake,
       actions: input.actions,
     })
+  }
+
+  requestStateFull(roomId?: string): void {
+    this.client.requestStateFull(roomId ?? this.roomId)
   }
 
   updateUsername(username: string): void {

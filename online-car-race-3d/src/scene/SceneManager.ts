@@ -105,6 +105,12 @@ export class SceneManager {
     this.socketClient.onState((state) => {
       this.gameStateStore.updateState(state)
     })
+    this.socketClient.onStateDelta((delta) => {
+      const applied = this.gameStateStore.applyDelta(delta)
+      if (!applied) {
+        this.socketClient.requestStateFull(this.gameStateStore.getRoomId() ?? undefined)
+      }
+    })
     this.socketClient.onPlayerUpdate((player) => {
       this.gameStateStore.updatePlayer({
         playerId: player.playerId,

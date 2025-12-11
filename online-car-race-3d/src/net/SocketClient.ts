@@ -1,10 +1,18 @@
-import type { ErrorMessage, PlayerEventMessage, RoomInfoMessage, StateMessage } from './messages'
+import type {
+  ErrorMessage,
+  PlayerEventMessage,
+  RoomInfoMessage,
+  StateDeltaMessage,
+  StateFullMessage,
+  StateMessage,
+} from './messages'
 import { SERVER_URL } from '../config'
 
 const SOCKET_SCRIPT_PATH = '/socket.io/socket.io.js'
 
 type RoomInfoCallback = (info: RoomInfoMessage) => void
 type StateCallback = (state: StateMessage) => void
+type StateDeltaCallback = (delta: StateDeltaMessage) => void
 type ErrorCallback = (message: string) => void
 type ConnectCallback = () => void
 type PlayerUpdateCallback = (player: PlayerEventMessage) => void
@@ -83,8 +91,10 @@ export class SocketClient {
   private readonly url: string
   private readonly role: string
   private joinPayload: Record<string, unknown>
+  private lastKnownRoomId: string | null = null
   private readonly roomInfoListeners = new Set<RoomInfoCallback>()
   private readonly stateListeners = new Set<StateCallback>()
+  private readonly stateDeltaListeners = new Set<StateDeltaCallback>()
   private readonly errorListeners = new Set<ErrorCallback>()
   private readonly connectListeners = new Set<ConnectCallback>()
   private readonly playerUpdateListeners = new Set<PlayerUpdateCallback>()
@@ -141,6 +151,13 @@ export class SocketClient {
     }
   }
 
+  onStateDelta(callback: StateDeltaCallback): () => void {
+    this.stateDeltaListeners.add(callback)
+    return () => {
+      this.stateDeltaListeners.delete(callback)
+    }
+  }
+
   onError(callback: ErrorCallback): () => void {
     this.errorListeners.add(callback)
     return () => {
@@ -181,6 +198,18 @@ export class SocketClient {
     return Boolean(this.socket?.connected)
   }
 
+  requestStateFull(roomId?: string): void {
+    if (!this.socket || !this.socket.connected) {
+      return
+    }
+    const joinRoomId = typeof this.joinPayload.roomId === 'string' ? (this.joinPayload.roomId as string) : null
+    const targetRoomId = roomId ?? this.lastKnownRoomId ?? joinRoomId
+    if (!targetRoomId) {
+      return
+    }
+    this.socket.emit('request_state_full', { roomId: targetRoomId })
+  }
+
   private registerHandlers(socket: SocketLike): void {
     socket.on('connect', () => {
       socket.emit('join_room', { role: this.role, ...this.joinPayload })
@@ -191,14 +220,25 @@ export class SocketClient {
 
     socket.on('room_info', (info: unknown) => {
       const payload = info as RoomInfoMessage
+      this.lastKnownRoomId = payload?.roomId ?? this.lastKnownRoomId
       for (const listener of this.roomInfoListeners) {
         listener(payload)
       }
     })
 
-    socket.on('state', (state: unknown) => {
-      const payload = state as StateMessage
+    const dispatchState = (state: unknown) => {
+      const payload = state as StateFullMessage
       for (const listener of this.stateListeners) {
+        listener(payload)
+      }
+    }
+
+    socket.on('state', dispatchState)
+    socket.on('state_full', dispatchState)
+
+    socket.on('state_delta', (delta: unknown) => {
+      const payload = delta as StateDeltaMessage
+      for (const listener of this.stateDeltaListeners) {
         listener(payload)
       }
     })

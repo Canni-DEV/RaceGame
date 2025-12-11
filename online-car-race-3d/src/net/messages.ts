@@ -1,4 +1,4 @@
-import type { PlayerRole, TrackData, RoomState } from '../core/trackTypes'
+import type { PlayerRole, TrackData, RoomState, RoomStateDelta } from '../core/trackTypes'
 
 export interface PlayerSummary {
   playerId: string
@@ -15,6 +15,8 @@ export interface RoomInfoMessage {
 }
 
 export type StateMessage = RoomState
+export type StateFullMessage = RoomState
+export type StateDeltaMessage = RoomStateDelta
 
 export interface ErrorMessage {
   message: string

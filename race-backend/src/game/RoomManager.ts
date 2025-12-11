@@ -205,6 +205,10 @@ export class RoomManager {
     return this.rooms.get(roomId);
   }
 
+  getRoomIdForSocket(socketId: string): string | undefined {
+    return this.socketToRoom.get(socketId);
+  }
+
   deleteRoom(roomId: string): void {
     this.rooms.delete(roomId);
   }

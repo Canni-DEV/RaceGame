@@ -1,4 +1,4 @@
-import { PlayerRole, RoomState, TrackData } from "./trackTypes";
+import { PlayerRole, RoomState, RoomStateDelta, TrackData } from "./trackTypes";
 
 export interface JoinRoomRequest {
   roomId?: string;
@@ -28,6 +28,8 @@ export interface InputMessage {
 }
 
 export type StateMessage = RoomState;
+export type StateFullMessage = RoomState;
+export type StateDeltaMessage = RoomStateDelta;
 
 export interface ErrorMessage {
   message: string;

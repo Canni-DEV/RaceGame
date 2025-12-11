@@ -10,9 +10,12 @@ import {
 } from "../types/messages";
 import { RoomState } from "../types/trackTypes";
 import { RoomManager } from "../game/RoomManager";
+import { serializeRoomState } from "./stateSerializer";
+import { computeStateDelta, hasBroadcastableChanges, shouldSendFullSnapshot } from "./stateDiff";
 
 export class SocketServer {
   private io: Server;
+  private readonly lastFullStates: Map<string, RoomState> = new Map();
 
   constructor(httpServer: http.Server, private readonly roomManager: RoomManager) {
     this.io = new Server(httpServer, {
@@ -25,7 +28,28 @@ export class SocketServer {
   }
 
   broadcastState(roomId: string, state: RoomState): void {
-    this.io.to(roomId).emit("state", state);
+    const serialized = serializeRoomState(state);
+    const previous = this.lastFullStates.get(roomId);
+
+    if (!previous) {
+      this.sendFull(roomId, serialized);
+      return;
+    }
+
+    const delta = computeStateDelta(previous, serialized);
+    if (!hasBroadcastableChanges(delta)) {
+      this.lastFullStates.set(roomId, serialized);
+      return;
+    }
+
+    if (shouldSendFullSnapshot(delta, previous, serialized)) {
+      this.sendFull(roomId, serialized);
+      return;
+    }
+
+    delta.serverTime = serialized.serverTime;
+    this.lastFullStates.set(roomId, serialized);
+    this.io.to(roomId).emit("state_delta", delta);
   }
 
   private onConnection(socket: Socket): void {
@@ -39,6 +63,11 @@ export class SocketServer {
 
     socket.on("update_username", (payload: UsernameUpdateMessage) => {
       this.handleUsernameUpdate(socket, payload);
+    });
+
+    socket.on("request_state_full", (payload: { roomId?: string }) => {
+      const targetRoomId = payload?.roomId ?? this.roomManager.getRoomIdForSocket(socket.id);
+      this.handleFullStateRequest(socket, targetRoomId);
     });
 
     socket.on("disconnect", () => {
@@ -66,6 +95,7 @@ export class SocketServer {
         };
 
         socket.emit("room_info", info);
+        this.sendFullToSocket(socket, result.room.roomId, serializeRoomState(result.room.toRoomState()));
 
       } else if (payload.role === "controller") {
         const result = this.roomManager.handleControllerJoin(socket.id, payload);
@@ -89,6 +119,8 @@ export class SocketServer {
           };
           this.io.to(result.room.roomId).emit("player_joined", joinMessage);
         }
+
+        this.sendFullToSocket(socket, result.room.roomId, serializeRoomState(result.room.toRoomState()));
       } else {
         this.emitError(socket, "Unsupported role");
       }
@@ -148,6 +180,7 @@ export class SocketServer {
       this.io.to(player.roomId).emit("player_left", message);
     }
     for (const roomId of result.deletedRooms) {
+      this.lastFullStates.delete(roomId);
       this.io.in(roomId).socketsLeave(roomId);
     }
   }
@@ -155,5 +188,36 @@ export class SocketServer {
   private emitError(socket: Socket, message: string): void {
     const errorMessage: ErrorMessage = { message };
     socket.emit("error_message", errorMessage);
+  }
+
+  private handleFullStateRequest(socket: Socket, roomId?: string): void {
+    if (!roomId) {
+      this.emitError(socket, "RoomId required for state request");
+      return;
+    }
+    const cached = this.lastFullStates.get(roomId);
+    if (cached) {
+      this.sendFullToSocket(socket, roomId, cached);
+      return;
+    }
+    const room = this.roomManager.getRoom(roomId);
+    if (!room) {
+      this.emitError(socket, "Room not found");
+      return;
+    }
+    const state = serializeRoomState(room.toRoomState());
+    this.sendFullToSocket(socket, roomId, state);
+  }
+
+  private sendFull(roomId: string, state: RoomState): void {
+    this.lastFullStates.set(roomId, state);
+    this.io.to(roomId).emit("state_full", state);
+    this.io.to(roomId).emit("state", state);
+  }
+
+  private sendFullToSocket(socket: Socket, roomId: string, state: RoomState): void {
+    this.lastFullStates.set(roomId, state);
+    socket.emit("state_full", state);
+    socket.emit("state", state);
   }
 }
