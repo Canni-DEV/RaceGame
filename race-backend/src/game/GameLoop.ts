@@ -4,6 +4,10 @@ import { RoomState } from "../types/trackTypes";
 import { RoomManager } from "./RoomManager";
 
 export class GameLoop {
+  private static readonly MAX_CATCHUP_MS = 200; // cap backlog to avoid long bursts
+  private static readonly MAX_TICKS_PER_ITERATION = 8; // prevent a single loop from hogging the thread
+  private static readonly MAX_BROADCASTS_PER_ITERATION = 1; // keep network usage steady
+
   private loopHandle?: NodeJS.Timeout | NodeJS.Immediate;
   private usingImmediate = false;
   private running = false;
@@ -38,23 +42,41 @@ export class GameLoop {
     const runLoop = () => {
       this.loopHandle = undefined;
       const now = getTimeMs();
-      accumulator += now - lastTime;
+      accumulator = Math.min(
+        accumulator + (now - lastTime),
+        GameLoop.MAX_CATCHUP_MS
+      );
       lastTime = now;
 
-      while (accumulator >= tickMs) {
+      let ticksThisIteration = 0;
+      let broadcastsThisIteration = 0;
+
+      while (
+        accumulator >= tickMs &&
+        ticksThisIteration < GameLoop.MAX_TICKS_PER_ITERATION
+      ) {
         accumulator -= tickMs;
         broadcastAccumulator += tickMs;
         for (const room of this.roomManager.getRooms()) {
           room.update(dt);
         }
 
-        while (broadcastAccumulator >= broadcastMs) {
-          broadcastAccumulator -= broadcastMs;
+        if (
+          broadcastAccumulator >= broadcastMs &&
+          broadcastsThisIteration < GameLoop.MAX_BROADCASTS_PER_ITERATION
+        ) {
+          broadcastAccumulator = 0;
           for (const room of this.roomManager.getRooms()) {
             const state = room.toRoomState();
             this.broadcastFn(room.roomId, state);
           }
+          broadcastsThisIteration++;
+        } else if (broadcastAccumulator >= broadcastMs) {
+          // Drop overdue broadcasts to keep cadence steady and avoid bursts.
+          broadcastAccumulator = 0;
         }
+
+        ticksThisIteration++;
       }
 
       if (this.running) {
