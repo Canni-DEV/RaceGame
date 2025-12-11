@@ -72,6 +72,17 @@ export interface MissileState {
   targetId?: string;
 }
 
+export interface EntityDelta<T extends { id?: string; playerId?: string }> {
+  added?: T[];
+  updated?: T[];
+  removed?: string[];
+}
+
+export interface ItemDelta {
+  added?: ItemState[];
+  removed?: string[];
+}
+
 export interface RoomState {
   roomId: string;
   trackId: string;
@@ -80,6 +91,16 @@ export interface RoomState {
   missiles: MissileState[];
   items: ItemState[];
   race: RaceState;
+}
+
+export interface RoomStateDelta {
+  roomId: string;
+  serverTime?: number;
+  trackId?: string;
+  cars?: EntityDelta<CarState>;
+  missiles?: EntityDelta<MissileState>;
+  items?: ItemDelta;
+  race?: RaceState;
 }
 
 export type PlayerRole = "viewer" | "controller";

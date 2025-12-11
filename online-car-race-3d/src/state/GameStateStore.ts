@@ -4,9 +4,11 @@ import type {
   MissileState,
   RaceState,
   RoomState,
+  RoomStateDelta,
   TrackData,
 } from '../core/trackTypes'
 import type { PlayerSummary } from '../net/messages'
+import { applyRoomStateDelta } from './StateRebuilder'
 
 export interface RoomInfoSnapshot {
   roomId: string | null
@@ -44,10 +46,16 @@ export class GameStateStore {
   }
 
   updateState(roomState: RoomState): void {
-    this.mergePlayersFromState(roomState)
-    this.lastState = roomState
-    this.lastStateTimestamp = performance.now()
-    this.notifyState(roomState)
+    this.consumeState(roomState)
+  }
+
+  applyDelta(delta: RoomStateDelta): boolean {
+    const merged = applyRoomStateDelta(this.lastState, delta)
+    if (!merged) {
+      return false
+    }
+    this.consumeState(merged)
+    return true
   }
 
   updatePlayer(player: PlayerSummary): void {
@@ -120,6 +128,13 @@ export class GameStateStore {
     for (const listener of this.stateListeners) {
       listener(state)
     }
+  }
+
+  private consumeState(roomState: RoomState): void {
+    this.mergePlayersFromState(roomState)
+    this.lastState = roomState
+    this.lastStateTimestamp = performance.now()
+    this.notifyState(roomState)
   }
 
   private getRoomInfoSnapshot(): RoomInfoSnapshot {

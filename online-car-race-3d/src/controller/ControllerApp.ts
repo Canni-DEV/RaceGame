@@ -2,8 +2,9 @@ import './controller.css'
 import { ControllerInputStore } from './ControllerInputStore'
 import { ControllerSocketClient } from './ControllerSocketClient'
 import { OrientationManager } from './OrientationManager'
-import type { RaceState } from '../core/trackTypes'
+import type { RaceState, RoomState, RoomStateDelta } from '../core/trackTypes'
 import type { PlayerSummary } from '../net/messages'
+import { applyRoomStateDelta } from '../state/StateRebuilder'
 
 const INPUT_SEND_INTERVAL_MS = 100
 const SENSOR_PULSE_TIMEOUT_MS = 2000
@@ -47,6 +48,7 @@ export class ControllerApp {
   private calibrateButton!: HTMLButtonElement
   private raceStatus!: HTMLElement
   private lastRaceState: RaceState | null = null
+  private lastRoomState: RoomState | null = null
   private raceInputBlocked = false
   private readonly roomId: string
   private readonly playerId: string
@@ -157,8 +159,10 @@ export class ControllerApp {
         this.updateOverlay()
       })
       this.socketClient.onState((state) => {
-        this.lastRaceState = state.race
-        this.updateRaceStatus()
+        this.handleFullState(state)
+      })
+      this.socketClient.onStateDelta((delta) => {
+        this.handleStateDelta(delta)
       })
       this.socketClient.onPlayerUpdate((event) => {
         if (event.playerId !== this.playerId) {
@@ -488,6 +492,21 @@ export class ControllerApp {
     }
     this.lastShootAt = now
     this.inputStore.triggerShoot()
+  }
+
+  private handleFullState(state: RoomState): void {
+    this.lastRoomState = state
+    this.lastRaceState = state.race
+    this.updateRaceStatus()
+  }
+
+  private handleStateDelta(delta: RoomStateDelta): void {
+    const merged = applyRoomStateDelta(this.lastRoomState, delta)
+    if (!merged) {
+      this.socketClient?.requestStateFull(this.roomId)
+      return
+    }
+    this.handleFullState(merged)
   }
 
   private updateRaceStatus(): void {
