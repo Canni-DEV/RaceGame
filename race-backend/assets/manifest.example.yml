@@ -118,7 +118,7 @@ assets:
     lookAtTrack: true
     alignToTrack: false
     baseRotation: 0
-    size: 18
+    size: 20
 
   - file: grandStand.glb
     id: grandstands-right
@@ -132,7 +132,7 @@ assets:
     lookAtTrack: true
     alignToTrack: false
     baseRotation: 0
-    size: 18
+    size: 20
 
   - file: grandStandAwning.glb
     id: grandstands-right-2
@@ -146,7 +146,7 @@ assets:
     lookAtTrack: true
     alignToTrack: false
     baseRotation: 0
-    size: 18
+    size: 20
 
   - file: grandStandCovered.glb
     id: grandstands-right-3
@@ -160,7 +160,7 @@ assets:
     lookAtTrack: true
     alignToTrack: false
     baseRotation: 0
-    size: 18
+    size: 20
 
 
 
@@ -169,7 +169,7 @@ assets:
     id: trees-bg
     placement: filler
     placementTier: 1
-    density: 200
+    density: 5
     minSpacing: 5
     minDistance: 0.9
     maxDistance: 2.6
@@ -185,8 +185,8 @@ assets:
     id: trees-large
     placement: filler
     placementTier: 2
-    density: 200
-    minSpacing: 12
+    density: 20
+    minSpacing: 20
     offset: 26
     spreadMode: band
     offsetJitter: 6
@@ -201,8 +201,8 @@ assets:
     id: trees-small
     placement: filler
     placementTier: 2
-    density: 600
-    minSpacing: 6
+    density: 50
+    minSpacing: 20
     offset: 24
     spreadMode: band
     offsetJitter: 0.2
@@ -217,10 +217,10 @@ assets:
     placement: filler
     placementTier: 4
     fillEmpty: true
-    fillCellSize: 20
-    density: 250
-    minSpacing: 15
-    offset: 50
+    fillCellSize: 25
+    density: 20
+    minSpacing: 30
+    offset: 30
     spreadMode: band
     offsetJitter: 6
     side: right
@@ -233,7 +233,7 @@ assets:
     id: billboards
     placement: optional
     placementTier: 3
-    density: 20
+    density: 5
     minSpacing: 20
     offset: 14
     side: both
@@ -244,7 +244,6 @@ assets:
     minSize: 10
     maxSize: 15
 
-  # Relleno de huecos (grilla) con césped
   - file: tent.glb
     id: grass-gaps
     placement: filler
@@ -252,7 +251,7 @@ assets:
     fillEmpty: true
     fillCellSize: 30
     density: 130
-    minSpacing: 12
+    minSpacing: 21
     offset: 10
     spreadMode: band
     offsetJitter: 6
@@ -267,7 +266,7 @@ assets:
     fillEmpty: true
     fillCellSize: 30
     density: 50
-    minSpacing: 12
+    minSpacing: 21
     offset: 10
     spreadMode: band
     offsetJitter: 6
@@ -284,7 +283,7 @@ assets:
     lookAtTrack: true
     alignToTrack: false
     density: 25
-    minSpacing: 15
+    minSpacing: 22
     offset: 10
     spreadMode: band
     offsetJitter: 6
@@ -301,7 +300,7 @@ assets:
     lookAtTrack: true
     alignToTrack: false
     density: 115
-    minSpacing: 12
+    minSpacing: 22
     offset: 8
     spreadMode: band
     offsetJitter: 6
@@ -315,8 +314,8 @@ assets:
     placementTier: 4
     fillEmpty: true
     fillCellSize: 30
-    density: 30
-    minSpacing: 12
+    density: 5
+    minSpacing: 18
     offset: 15
     spreadMode: band
     offsetJitter: 6
@@ -330,8 +329,8 @@ assets:
     placementTier: 4
     fillEmpty: true
     fillCellSize: 30
-    density: 30
-    minSpacing: 12
+    density: 5
+    minSpacing: 18
     offset: 15
     spreadMode: band
     offsetJitter: 6
@@ -346,7 +345,7 @@ assets:
     fillEmpty: true
     fillCellSize: 10
     density: 150
-    minSpacing: 12
+    minSpacing: 22
     offset: 8
     spreadMode: band
     offsetJitter: 6
