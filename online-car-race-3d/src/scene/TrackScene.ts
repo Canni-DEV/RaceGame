@@ -28,6 +28,11 @@ export class TrackScene {
   private readonly playerColors: Map<string, THREE.Color>
   private readonly audioManager: AudioManager | null
   private readonly onPlayerAutoFollow?: () => void
+  private readonly ownerNpcMap = new Map<string, boolean>()
+  private readonly activeCarIds = new Set<string>()
+  private readonly activeMissileIds = new Set<string>()
+  private readonly activeItemIds = new Set<string>()
+  private itemSyncPromise: Promise<void> = Promise.resolve()
   private trackRoot: THREE.Group | null = null
   private currentTrackId: string | null = null
   private playerId: string | null = null
@@ -96,13 +101,15 @@ export class TrackScene {
     const carStates = this.store.getCarsForRender(now)
     const missileStates = this.store.getMissilesForRender(now)
     const itemStates = this.store.getItemsForRender(now)
-    const ownerNpcMap = new Map<string, boolean>()
+    // PERF: Reuse lookup tables/sets to reduce per-frame allocations.
+    this.ownerNpcMap.clear()
     for (const state of carStates) {
-      ownerNpcMap.set(state.playerId, Boolean(state.isNpc))
+      this.ownerNpcMap.set(state.playerId, Boolean(state.isNpc))
     }
     this.syncCars(carStates)
-    this.syncMissiles(missileStates, ownerNpcMap)
-    void this.syncItems(itemStates)
+    this.syncMissiles(missileStates, this.ownerNpcMap)
+    // PERF: Serialize async item syncs to keep pooled sets safe from concurrent mutation.
+    this.itemSyncPromise = this.itemSyncPromise.then(() => this.syncItems(itemStates))
     for (const entity of this.cars.values()) {
       entity.update(dt)
       entity.updateNameLabelScale(this.camera)
@@ -190,16 +197,17 @@ export class TrackScene {
   }
 
   private syncCars(states: CarState[]): void {
-    const active = new Set<string>()
+    // PERF: Avoid recreating sets each frame when reconciling entities.
+    this.activeCarIds.clear()
     for (const state of states) {
-      active.add(state.playerId)
+      this.activeCarIds.add(state.playerId)
       const entity = this.getOrCreateCar(state)
       entity.setNameLabelVisible(this.shouldShowLabelFor(state.playerId))
       entity.setTargetState(state)
     }
 
     for (const [playerId, entity] of this.cars.entries()) {
-      if (!active.has(playerId)) {
+      if (!this.activeCarIds.has(playerId)) {
         entity.dispose()
         this.cars.delete(playerId)
         if (this.firstPersonHiddenId === playerId) {
@@ -213,16 +221,17 @@ export class TrackScene {
   }
 
   private syncMissiles(states: MissileState[], ownerNpcMap: Map<string, boolean>): void {
-    const active = new Set<string>()
+    // PERF: Reuse set to minimize garbage while syncing missiles.
+    this.activeMissileIds.clear()
     for (const state of states) {
-      active.add(state.id)
+      this.activeMissileIds.add(state.id)
       const ownerIsNpc = ownerNpcMap.get(state.ownerId)
       const entity = this.getOrCreateMissile(state, ownerIsNpc)
       entity.setTargetState(state)
     }
 
     for (const [missileId, entity] of this.missiles.entries()) {
-      if (!active.has(missileId)) {
+      if (!this.activeMissileIds.has(missileId)) {
         entity.dispose()
         this.missiles.delete(missileId)
       }
@@ -230,15 +239,16 @@ export class TrackScene {
   }
 
   private async syncItems(states: ItemState[]): Promise<void> {
-    const active = new Set<string>()
+    // PERF: Reuse set for item reconciliation while keeping async flow intact.
+    this.activeItemIds.clear()
     for (const state of states) {
-      active.add(state.id)
+      this.activeItemIds.add(state.id)
       const entity = await this.getOrCreateItem(state)
       await entity.setState(state)
     }
 
     for (const [itemId, entity] of this.items.entries()) {
-      if (!active.has(itemId)) {
+      if (!this.activeItemIds.has(itemId)) {
         entity.dispose()
         this.items.delete(itemId)
       }

@@ -19,6 +19,7 @@ const TURBO_LIFT_SETTINGS = {
 const TURBO_LIFT_AXIS = new THREE.Vector3()
 const TURBO_LIFT_PIVOT_WORLD = new THREE.Vector3()
 const TURBO_LIFT_PIVOT_WORLD_AFTER = new THREE.Vector3()
+const TEMP_EULER = new THREE.Euler()
 
 export class CarEntity {
   readonly id: string
@@ -134,7 +135,9 @@ export class CarEntity {
 
     this.desiredForward.normalize()
     const yaw = Math.atan2(this.desiredForward.x, this.desiredForward.z)
-    this.targetOrientation.setFromEuler(new THREE.Euler(0, yaw, 0))
+    // PERF: Reuse Euler to avoid allocations per state update.
+    TEMP_EULER.set(0, yaw, 0)
+    this.targetOrientation.setFromEuler(TEMP_EULER)
 
     this.engineSound?.setTargetSpeed(state.speed)
   }

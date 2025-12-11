@@ -5,6 +5,7 @@ import { TRACK_SURFACE_HEIGHT } from './TrackMeshBuilder'
 const HEIGHT_OFFSET = TRACK_SURFACE_HEIGHT + 0.9
 const POSITION_SMOOTHING = 12
 const ROTATION_SMOOTHING = 16
+const TEMP_EULER = new THREE.Euler()
 
 export class MissileEntity {
   readonly id: string
@@ -51,10 +52,13 @@ export class MissileEntity {
     const yaw = Math.atan2(forwardX, forwardZ)
     if (!this.hasReceivedState) {
       this.currentPosition.copy(this.targetPosition)
-      this.orientation.setFromEuler(new THREE.Euler(0, yaw, 0))
+      // PERF: Reuse Euler to avoid per-frame allocations while updating missiles.
+      TEMP_EULER.set(0, yaw, 0)
+      this.orientation.setFromEuler(TEMP_EULER)
       this.hasReceivedState = true
     }
-    this.targetOrientation.setFromEuler(new THREE.Euler(0, yaw, 0))
+    TEMP_EULER.set(0, yaw, 0)
+    this.targetOrientation.setFromEuler(TEMP_EULER)
   }
 
   update(dt: number): void {
