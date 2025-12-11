@@ -20,6 +20,7 @@ const HALF_LENGTH = CAR_LENGTH * 0.5;
 const HALF_WIDTH = CAR_WIDTH * 0.5;
 const CAR_BOUNDARY_RADIUS = HALF_WIDTH;
 const COLLISION_RESTITUTION = 0.35;
+const BROADPHASE_CELL_SIZE = CAR_WIDTH;
 
 interface Vec2 {
   x: number;
@@ -33,6 +34,16 @@ interface CollisionBody {
   right: Vec2;
   velocity: Vec2;
 }
+
+interface BroadphaseCell {
+  indices: number[];
+  x: number;
+  z: number;
+}
+
+const broadphaseCells = new Map<string, BroadphaseCell>();
+const occupiedCells: BroadphaseCell[] = [];
+const candidatePairs: number[] = [];
 
 function normalizeAngle(angle: number): number {
   return ((angle + Math.PI) % TAU + TAU) % TAU - Math.PI;
@@ -106,26 +117,26 @@ export function updateCarsForRoom(room: Room, dt: number): void {
 }
 
 function resolveCarCollisions(room: Room, bodies: CollisionBody[]): void {
-  for (let i = 0; i < bodies.length; i++) {
-    for (let j = i + 1; j < bodies.length; j++) {
-      const first = bodies[i];
-      const second = bodies[j];
-      const collision = detectCollision(first, second);
-      if (!collision) {
-        continue;
-      }
+  populateBroadphase(bodies);
 
-      const { normal, penetration } = collision;
-      const separationX = normal.x * (penetration * 0.5);
-      const separationZ = normal.z * (penetration * 0.5);
-
-      first.car.x -= separationX;
-      first.car.z -= separationZ;
-      second.car.x += separationX;
-      second.car.z += separationZ;
-
-      applyImpulse(first, second, normal);
+  for (let i = 0; i < candidatePairs.length; i += 2) {
+    const first = bodies[candidatePairs[i]];
+    const second = bodies[candidatePairs[i + 1]];
+    const collision = detectCollision(first, second);
+    if (!collision) {
+      continue;
     }
+
+    const { normal, penetration } = collision;
+    const separationX = normal.x * (penetration * 0.5);
+    const separationZ = normal.z * (penetration * 0.5);
+
+    first.car.x -= separationX;
+    first.car.z -= separationZ;
+    second.car.x += separationX;
+    second.car.z += separationZ;
+
+    applyImpulse(first, second, normal);
   }
 
   for (const body of bodies) {
@@ -138,6 +149,76 @@ function resolveCarCollisions(room: Room, bodies: CollisionBody[]): void {
       body.car.speed = Math.min(maxSpeed, speed);
     } else {
       body.car.speed = 0;
+    }
+  }
+}
+
+function populateBroadphase(bodies: CollisionBody[]): void {
+  resetBroadphase();
+
+  for (let i = 0; i < bodies.length; i++) {
+    const body = bodies[i];
+    const cellX = Math.floor(body.car.x / BROADPHASE_CELL_SIZE);
+    const cellZ = Math.floor(body.car.z / BROADPHASE_CELL_SIZE);
+    const key = `${cellX},${cellZ}`;
+
+    let cell = broadphaseCells.get(key);
+    if (!cell) {
+      cell = { indices: [], x: cellX, z: cellZ };
+      broadphaseCells.set(key, cell);
+    }
+
+    if (cell.indices.length === 0) {
+      occupiedCells.push(cell);
+    }
+
+    cell.indices.push(i);
+  }
+
+  candidatePairs.length = 0;
+
+  for (const cell of occupiedCells) {
+    addPairsForCell(cell);
+  }
+}
+
+function resetBroadphase(): void {
+  for (const cell of occupiedCells) {
+    cell.indices.length = 0;
+  }
+  occupiedCells.length = 0;
+}
+
+function addPairsForCell(cell: BroadphaseCell): void {
+  const { indices, x, z } = cell;
+
+  for (let i = 0; i < indices.length; i++) {
+    for (let j = i + 1; j < indices.length; j++) {
+      candidatePairs.push(indices[i], indices[j]);
+    }
+  }
+
+  for (let dz = -1; dz <= 1; dz++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dz === 0) {
+        continue;
+      }
+
+      if (dx < 0 || (dx === 0 && dz <= 0)) {
+        continue;
+      }
+
+      const neighborKey = `${x + dx},${z + dz}`;
+      const neighbor = broadphaseCells.get(neighborKey);
+      if (!neighbor || neighbor.indices.length === 0) {
+        continue;
+      }
+
+      for (const firstIndex of indices) {
+        for (const secondIndex of neighbor.indices) {
+          candidatePairs.push(firstIndex, secondIndex);
+        }
+      }
     }
   }
 }
