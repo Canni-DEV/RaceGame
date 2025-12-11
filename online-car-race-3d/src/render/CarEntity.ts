@@ -12,9 +12,13 @@ const PITCH_AXIS = new THREE.Vector3(1, 0, 0)
 const TURBO_LIFT_SETTINGS = {
   liftAngle: THREE.MathUtils.degToRad(9),
   speedThreshold: 22,
-  raiseSpeed: THREE.MathUtils.degToRad(80),
+  raiseSpeed: THREE.MathUtils.degToRad(90),
   lowerSpeed: THREE.MathUtils.degToRad(55),
+  pivotOffset: new THREE.Vector3(0, -0.3, -1.35),
 }
+const TURBO_LIFT_AXIS = new THREE.Vector3()
+const TURBO_LIFT_PIVOT_WORLD = new THREE.Vector3()
+const TURBO_LIFT_PIVOT_WORLD_AFTER = new THREE.Vector3()
 
 export class CarEntity {
   readonly id: string
@@ -93,7 +97,7 @@ export class CarEntity {
     if (state.username && state.username !== this.username) {
       this.setUsername(state.username)
     }
-    this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT + 0.75, state.z)
+    this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT + 0.82, state.z)
     this.impactSpinTimeLeft = Math.max(0, state.impactSpinTimeLeft ?? 0)
     this.targetTurboPitch = this.shouldApplyTurboLift(state)
       ? TURBO_LIFT_SETTINGS.liftAngle
@@ -149,13 +153,28 @@ export class CarEntity {
     this.updateTurboPitch(dt)
 
     if (this.object) {
+      const hasTurboPitch = Math.abs(this.currentTurboPitch) > 1e-6
       this.object.position.copy(this.currentPosition)
       this.composedOrientation.copy(this.orientation)
-      if (this.currentTurboPitch !== 0) {
-        this.pitchQuaternion.setFromAxisAngle(PITCH_AXIS, -this.currentTurboPitch)
+      if (hasTurboPitch) {
+        TURBO_LIFT_AXIS.copy(PITCH_AXIS)
+        this.pitchQuaternion.setFromAxisAngle(TURBO_LIFT_AXIS, -this.currentTurboPitch)
         this.composedOrientation.multiply(this.pitchQuaternion)
       }
       this.object.quaternion.copy(this.composedOrientation)
+
+      if (hasTurboPitch && TURBO_LIFT_SETTINGS.pivotOffset.lengthSq() > 0) {
+        // Offset the pivot so turbo lift rotates around the rear axle instead of the car center.
+        TURBO_LIFT_PIVOT_WORLD.copy(TURBO_LIFT_SETTINGS.pivotOffset)
+        TURBO_LIFT_PIVOT_WORLD.applyQuaternion(this.orientation)
+        TURBO_LIFT_PIVOT_WORLD.add(this.currentPosition)
+
+        TURBO_LIFT_PIVOT_WORLD_AFTER.copy(TURBO_LIFT_SETTINGS.pivotOffset)
+        TURBO_LIFT_PIVOT_WORLD_AFTER.applyQuaternion(this.composedOrientation)
+        TURBO_LIFT_PIVOT_WORLD_AFTER.add(this.currentPosition)
+
+        this.object.position.add(TURBO_LIFT_PIVOT_WORLD.sub(TURBO_LIFT_PIVOT_WORLD_AFTER))
+      }
     }
 
     this.engineSound?.update(dt, this.currentPosition)
