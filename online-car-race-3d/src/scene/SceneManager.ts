@@ -32,6 +32,8 @@ export class SceneManager {
   private readonly orbitRotateSpeed = 0.005
   private readonly orbitTiltSpeed = 0.0035
   private readonly zoomStep = 0.08
+  private readonly minShadowMapSize = 1024
+  private readonly maxShadowMapSize = 2048
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -133,8 +135,7 @@ export class SceneManager {
     const keyLight = new THREE.DirectionalLight(0xffe2b3, 1.15)
     keyLight.position.set(60, 120, 80)
     keyLight.castShadow = true
-    keyLight.shadow.mapSize.width = 4096
-    keyLight.shadow.mapSize.height = 4096
+    this.updateShadowMapSize(keyLight)
     keyLight.shadow.bias = -0.00035
     keyLight.shadow.normalBias = 0.015
     keyLight.shadow.camera.near = 0.1
@@ -195,6 +196,21 @@ export class SceneManager {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
+
+    if (this.keyLight) {
+      this.updateShadowMapSize(this.keyLight)
+    }
+  }
+
+  private updateShadowMapSize(light: THREE.DirectionalLight): void {
+    const maxDimension = Math.max(this.container.clientWidth, this.container.clientHeight)
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+    const targetSize = maxDimension * pixelRatio
+    const clampedSize = THREE.MathUtils.clamp(targetSize, this.minShadowMapSize, this.maxShadowMapSize)
+    const powerOfTwoSize = Math.pow(2, Math.round(Math.log2(clampedSize)))
+
+    light.shadow.mapSize.width = powerOfTwoSize
+    light.shadow.mapSize.height = powerOfTwoSize
   }
 
   private readonly animate = (): void => {
