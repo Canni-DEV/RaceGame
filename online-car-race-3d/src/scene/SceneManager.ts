@@ -28,7 +28,8 @@ export class SceneManager {
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
-  private lastPointerPosition: { x: number; y: number } | null = null
+  private readonly lastPointerPosition = new THREE.Vector2()
+  private hasLastPointerPosition = false
   private readonly orbitRotateSpeed = 0.005
   private readonly orbitTiltSpeed = 0.0035
   private readonly zoomStep = 0.08
@@ -281,18 +282,19 @@ export class SceneManager {
     }
     this.isOrbitDragging = true
     this.orbitPointerId = event.pointerId
-    this.lastPointerPosition = { x: event.clientX, y: event.clientY }
+    this.lastPointerPosition.set(event.clientX, event.clientY)
+    this.hasLastPointerPosition = true
     this.renderer.domElement.setPointerCapture(event.pointerId)
     this.cameraRig.beginManualOrbit()
   }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
-    if (!this.isOrbitDragging || this.orbitPointerId !== event.pointerId || !this.lastPointerPosition) {
+    if (!this.isOrbitDragging || this.orbitPointerId !== event.pointerId || !this.hasLastPointerPosition) {
       return
     }
     const deltaX = event.clientX - this.lastPointerPosition.x
     const deltaY = event.clientY - this.lastPointerPosition.y
-    this.lastPointerPosition = { x: event.clientX, y: event.clientY }
+    this.lastPointerPosition.set(event.clientX, event.clientY)
 
     const deltaAzimuth = -deltaX * this.orbitRotateSpeed
     const deltaAngle = -deltaY * this.orbitTiltSpeed
@@ -306,7 +308,7 @@ export class SceneManager {
     this.renderer.domElement.releasePointerCapture(event.pointerId)
     this.isOrbitDragging = false
     this.orbitPointerId = null
-    this.lastPointerPosition = null
+    this.hasLastPointerPosition = false
     this.cameraRig.endManualOrbit()
   }
 
