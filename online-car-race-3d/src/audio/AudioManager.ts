@@ -19,13 +19,13 @@ export class AudioManager {
         return
       }
       this.startPendingSounds()
-      this.playDebugChime()
+      //this.playDebugChime()
     }
     this.listener.context.addEventListener('statechange', this.stateChangeHandler)
     if (this.isContextRunning()) {
       this.contextRunning = true
       this.startPendingSounds()
-      this.playDebugChime()
+      //this.playDebugChime()
     }
 
     this.unlockHandler = () => {
