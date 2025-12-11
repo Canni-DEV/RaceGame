@@ -29,6 +29,7 @@ export class TrackScene {
   private readonly audioManager: AudioManager | null
   private readonly onPlayerAutoFollow?: () => void
   private trackRoot: THREE.Group | null = null
+  private currentTrackId: string | null = null
   private playerId: string | null = null
   private cameraMode: 'overview' | 'follow' | 'firstPerson' = 'overview'
   private requestedFollowId: string | null = null
@@ -68,11 +69,13 @@ export class TrackScene {
 
     this.store.onRoomInfo((info) => {
       const playerChanged = info.playerId !== this.playerId
+      const trackChanged = info.track?.id !== this.currentTrackId
       this.playerId = info.playerId
       if (playerChanged) {
         this.hasAutoFollowedPlayer = false
       }
-      if (info.track) {
+      if (info.track && trackChanged) {
+        this.currentTrackId = info.track.id
         this.rebuildTrack(info.track)
       }
       if (info.playerId && this.cars.has(info.playerId)) {
