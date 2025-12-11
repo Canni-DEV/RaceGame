@@ -32,7 +32,8 @@ export class TrackScene {
   private readonly activeCarIds = new Set<string>()
   private readonly activeMissileIds = new Set<string>()
   private readonly activeItemIds = new Set<string>()
-  private itemSyncPromise: Promise<void> = Promise.resolve()
+  private itemSyncInFlight = false
+  private pendingItemStates: ItemState[] | null = null
   private trackRoot: THREE.Group | null = null
   private currentTrackId: string | null = null
   private playerId: string | null = null
@@ -108,8 +109,7 @@ export class TrackScene {
     }
     this.syncCars(carStates)
     this.syncMissiles(missileStates, this.ownerNpcMap)
-    // PERF: Serialize async item syncs to keep pooled sets safe from concurrent mutation.
-    this.itemSyncPromise = this.itemSyncPromise.then(() => this.syncItems(itemStates))
+    this.enqueueItemSync(itemStates)
     for (const entity of this.cars.values()) {
       entity.update(dt)
       entity.updateNameLabelScale(this.camera)
@@ -236,6 +236,28 @@ export class TrackScene {
         this.missiles.delete(missileId)
       }
     }
+  }
+
+  private enqueueItemSync(states: ItemState[]): void {
+    if (this.itemSyncInFlight) {
+      this.pendingItemStates = states
+      return
+    }
+
+    this.itemSyncInFlight = true
+    void this.runItemSync(states)
+  }
+
+  private async runItemSync(states: ItemState[]): Promise<void> {
+    await this.syncItems(states)
+
+    while (this.pendingItemStates) {
+      const nextStates = this.pendingItemStates
+      this.pendingItemStates = null
+      await this.syncItems(nextStates)
+    }
+
+    this.itemSyncInFlight = false
   }
 
   private async syncItems(states: ItemState[]): Promise<void> {
