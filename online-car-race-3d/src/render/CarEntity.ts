@@ -8,6 +8,17 @@ import type { EngineSound } from '../audio/EngineSound'
 const TEMP_VECTOR = new THREE.Vector3()
 const ANGLE_FORWARD = new THREE.Vector3()
 const MAX_SPEED_FOR_ALIGNMENT = 45
+const PITCH_AXIS = new THREE.Vector3(1, 0, 0)
+const TURBO_LIFT_SETTINGS = {
+  liftAngle: THREE.MathUtils.degToRad(9),
+  speedThreshold: 22,
+  raiseSpeed: THREE.MathUtils.degToRad(90),
+  lowerSpeed: THREE.MathUtils.degToRad(55),
+  pivotOffset: new THREE.Vector3(0, -0.3, -1.35),
+}
+const TURBO_LIFT_AXIS = new THREE.Vector3()
+const TURBO_LIFT_PIVOT_WORLD = new THREE.Vector3()
+const TURBO_LIFT_PIVOT_WORLD_AFTER = new THREE.Vector3()
 
 export class CarEntity {
   readonly id: string
@@ -20,13 +31,17 @@ export class CarEntity {
   private readonly engineSound: EngineSound | null
   private readonly currentPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
   private readonly targetPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
-  private readonly orientation = new THREE.Quaternion()
-  private readonly targetOrientation = new THREE.Quaternion()
+  private readonly orientation: THREE.Quaternion = new THREE.Quaternion()
+  private readonly targetOrientation: THREE.Quaternion = new THREE.Quaternion()
   private readonly desiredForward = new THREE.Vector3(0, 0, 1)
   private readonly lastServerPosition = new THREE.Vector3(0, TRACK_SURFACE_HEIGHT, 0)
+  private readonly pitchQuaternion: THREE.Quaternion = new THREE.Quaternion()
+  private readonly composedOrientation: THREE.Quaternion = new THREE.Quaternion()
   private hasReceivedState = false
   private disposed = false
   private impactSpinTimeLeft = 0
+  private currentTurboPitch = 0
+  private targetTurboPitch = 0
   private nameSprite: THREE.Sprite | null = null
   private nameTexture: THREE.CanvasTexture | null = null
   private nameLabelAspect = 1
@@ -82,11 +97,15 @@ export class CarEntity {
     if (state.username && state.username !== this.username) {
       this.setUsername(state.username)
     }
-    this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT + 0.75, state.z)
+    this.targetPosition.set(state.x, TRACK_SURFACE_HEIGHT + 0.82, state.z)
     this.impactSpinTimeLeft = Math.max(0, state.impactSpinTimeLeft ?? 0)
+    this.targetTurboPitch = this.shouldApplyTurboLift(state)
+      ? TURBO_LIFT_SETTINGS.liftAngle
+      : 0
     if (!this.hasReceivedState) {
       this.currentPosition.copy(this.targetPosition)
       this.lastServerPosition.copy(this.targetPosition)
+      this.currentTurboPitch = this.targetTurboPitch
       this.hasReceivedState = true
     }
 
@@ -131,9 +150,31 @@ export class CarEntity {
     const rotationLerp = 1 - Math.exp(-dt * 8)
     this.orientation.slerp(this.targetOrientation, rotationLerp)
 
+    this.updateTurboPitch(dt)
+
     if (this.object) {
+      const hasTurboPitch = Math.abs(this.currentTurboPitch) > 1e-6
       this.object.position.copy(this.currentPosition)
-      this.object.quaternion.copy(this.orientation)
+      this.composedOrientation.copy(this.orientation)
+      if (hasTurboPitch) {
+        TURBO_LIFT_AXIS.copy(PITCH_AXIS)
+        this.pitchQuaternion.setFromAxisAngle(TURBO_LIFT_AXIS, -this.currentTurboPitch)
+        this.composedOrientation.multiply(this.pitchQuaternion)
+      }
+      this.object.quaternion.copy(this.composedOrientation)
+
+      if (hasTurboPitch && TURBO_LIFT_SETTINGS.pivotOffset.lengthSq() > 0) {
+        // Offset the pivot so turbo lift rotates around the rear axle instead of the car center.
+        TURBO_LIFT_PIVOT_WORLD.copy(TURBO_LIFT_SETTINGS.pivotOffset)
+        TURBO_LIFT_PIVOT_WORLD.applyQuaternion(this.orientation)
+        TURBO_LIFT_PIVOT_WORLD.add(this.currentPosition)
+
+        TURBO_LIFT_PIVOT_WORLD_AFTER.copy(TURBO_LIFT_SETTINGS.pivotOffset)
+        TURBO_LIFT_PIVOT_WORLD_AFTER.applyQuaternion(this.composedOrientation)
+        TURBO_LIFT_PIVOT_WORLD_AFTER.add(this.currentPosition)
+
+        this.object.position.add(TURBO_LIFT_PIVOT_WORLD.sub(TURBO_LIFT_PIVOT_WORLD_AFTER))
+      }
     }
 
     this.engineSound?.update(dt, this.currentPosition)
@@ -291,6 +332,27 @@ export class CarEntity {
     if (this.nameTexture) {
       this.nameTexture.dispose()
       this.nameTexture = null
+    }
+  }
+
+  private shouldApplyTurboLift(state: CarState): boolean {
+    return !!state.turboActive && Math.abs(state.speed) >= TURBO_LIFT_SETTINGS.speedThreshold
+  }
+
+  private updateTurboPitch(dt: number): void {
+    const delta = this.targetTurboPitch - this.currentTurboPitch
+    if (Math.abs(delta) < 1e-4) {
+      this.currentTurboPitch = this.targetTurboPitch
+      return
+    }
+
+    const speed = delta > 0 ? TURBO_LIFT_SETTINGS.raiseSpeed : TURBO_LIFT_SETTINGS.lowerSpeed
+    const step = Math.sign(delta) * speed * dt
+
+    if (Math.abs(step) >= Math.abs(delta)) {
+      this.currentTurboPitch = this.targetTurboPitch
+    } else {
+      this.currentTurboPitch += step
     }
   }
 }
