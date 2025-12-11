@@ -43,12 +43,11 @@ import {
 } from "../config";
 import { updateCarsForRoom } from "./Physics";
 import {
-  NpcBehaviorConfig,
   NpcControllerState,
-  createNpcBehaviorConfig,
   createNpcState,
   updateNpcControllers
 } from "./NpcController";
+import { NpcManager, NpcProfile } from "./NpcManager";
 import { TrackBoundaryCollision, TrackGeometry } from "./TrackGeometry";
 import { ProjectedProgress, TrackNavigator } from "./TrackNavigator";
 
@@ -89,11 +88,6 @@ export interface MovementMultipliers {
   accelerationMultiplier: number;
   maxSpeedMultiplier: number;
   turboActive: boolean;
-}
-
-interface NpcProfile {
-  name: string;
-  behavior: NpcBehaviorConfig;
 }
 
 interface PlayerRaceProgress {
@@ -142,6 +136,7 @@ function createRandom(seed: number): () => number {
 
 const MAX_USERNAME_LENGTH = 24;
 const ITEM_PICKUP_RADIUS_SQ = ITEM_PICKUP_RADIUS * ITEM_PICKUP_RADIUS;
+const npcManager = new NpcManager();
 
 export class Room {
   public serverTime = 0;
@@ -191,46 +186,7 @@ export class Room {
     this.itemRandom = createRandom(this.track.seed ^ 0x5a18c3);
     this.resetItems();
 
-    const npcProfiles: NpcProfile[] = [
-      {
-        name: "Garburator",
-        behavior: createNpcBehaviorConfig({
-          baseThrottle: 0.86,
-          lookaheadSpeedFactor: 0.8,
-          mistakeTriggerChance: 0.28,
-          mistakeCooldownRange: [2, 5]
-        })
-      },
-      {
-        name: "Petrucci",
-        behavior: createNpcBehaviorConfig({
-          baseThrottle: 0.78,
-          minThrottle: 0.38,
-          throttleCornerPenalty: 0.45,
-          steerResponse: Math.PI / 3.4,
-          lookaheadSpeedFactor: 0.95,
-          mistakeTriggerChance: 0.18,
-          mistakeDurationRange: [0.25, 0.6],
-          mistakeCooldownRange: [2.5, 6.5]
-        })
-      },
-      {
-        name: "Arthur Morgan",
-        behavior: createNpcBehaviorConfig({
-          baseThrottle: 0.9,
-          throttleCornerPenalty: 0.65,
-          steerResponse: Math.PI / 2.8,
-          offTrackThrottleScale: 0.6,
-          offTrackBrake: 0.45,
-          mistakeSteerBias: Math.PI / 10,
-          mistakeTriggerChance: 0.45,
-          approachThrottleScale: 0.6,
-          approachBrake: 0.25
-        })
-      }
-    ];
-
-    npcProfiles.forEach((profile) => this.initializeNpc(profile));
+    npcManager.getActiveProfiles().forEach((profile) => this.initializeNpc(profile));
   }
 
   addViewer(socketId: string, playerId: string): void {

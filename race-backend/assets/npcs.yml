@@ -1,0 +1,53 @@
+# Propiedades soportadas para cada NPC:
+# - name: identificador/username del bot.
+# - active: habilita/deshabilita el NPC sin borrarlo (true/false).
+# - baseThrottle: acelerador base en rectas (0-1).
+# - minThrottle: acelerador mínimo permitido tras ajustes (0-1).
+# - throttleCornerPenalty: cuánto se reduce el acelerador según el giro (0-1).
+# - minTargetThreshold: distancia mínima al siguiente punto de mira antes de cambiar (metros).
+# - targetThresholdFactor: factor que escala el umbral por el ancho de pista.
+# - minLookahead: distancia mínima de anticipación para elegir el siguiente punto (metros).
+# - maxLookahead: distancia máxima de anticipación (metros).
+# - lookaheadSpeedFactor: cuánto crece la anticipación según la velocidad.
+# - recoveryBrakeAngle: ángulo (radianes) a partir del cual frena al estar muy cruzado.
+# - offTrackThrottleScale: multiplicador de acelerador cuando está fuera de pista.
+# - offTrackBrake: frenado extra fuera de pista si va rápido (0-1).
+# - steerResponse: divisor de la diferencia de ángulo; menores valores giran más rápido (radianes).
+# - mistakeSteerBias: desviación que aplica durante un error para simular fallos (radianes).
+# - mistakeTriggerChance: probabilidad de entrar en error al evaluar (0-1).
+# - mistakeDurationRange: rango [min, max] en segundos que dura un error.
+# - mistakeCooldownRange: rango [min, max] en segundos entre posibles errores.
+# - approachThrottleScale: recorte de acelerador al acercarse mucho al punto objetivo (0-1).
+# - approachBrake: frenado al acercarse al punto objetivo (0-1).
+# - approachDistanceRatio: porcentaje del umbral de objetivo en el que empieza a aplicar approach.
+
+npcs:
+  - name: Garburator
+    active: false
+    baseThrottle: 0.86
+    lookaheadSpeedFactor: 0.8
+    mistakeTriggerChance: 0.28
+    mistakeCooldownRange: [2, 5]
+
+  - name: Petrucci
+    active: false
+    baseThrottle: 0.78
+    minThrottle: 0.38
+    throttleCornerPenalty: 0.45
+    steerResponse: 0.923998
+    lookaheadSpeedFactor: 0.95
+    mistakeTriggerChance: 0.18
+    mistakeDurationRange: [0.25, 0.6]
+    mistakeCooldownRange: [2.5, 6.5]
+
+  - name: Arthur Morgan
+    active: false
+    baseThrottle: 0.9
+    throttleCornerPenalty: 0.65
+    steerResponse: 1.121997
+    offTrackThrottleScale: 0.6
+    offTrackBrake: 0.45
+    mistakeSteerBias: 0.314159
+    mistakeTriggerChance: 0.45
+    approachThrottleScale: 0.6
+    approachBrake: 0.25

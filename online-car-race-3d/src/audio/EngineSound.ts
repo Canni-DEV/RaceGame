@@ -300,7 +300,7 @@ export class EngineSound {
     }
     // Log para depurar activación de audio (útil para confirmar que se habilitó tras gesto de usuario)
     if (typeof console !== 'undefined') {
-      console.info('[Audio] Engine oscillator started')
+      //console.info('[Audio] Engine oscillator started')
     }
     this.started = true
   }
