@@ -23,7 +23,7 @@
 
 npcs:
   - name: Garburator
-    active: false
+    active: true
     baseThrottle: 0.86
     lookaheadSpeedFactor: 0.8
     mistakeTriggerChance: 0.28
