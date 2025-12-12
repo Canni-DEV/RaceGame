@@ -25,6 +25,8 @@ export class SceneManager {
   private readonly playerListOverlay: PlayerListOverlay
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
+  private readonly skyAnimationEnabled = false
+  private readonly skyAnimationInterval = 0.5
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
@@ -37,6 +39,7 @@ export class SceneManager {
   private readonly maxShadowMapSize = 1024
   private readonly maxPixelRatio = 1
   private lastShadowMapSize: number | null = null
+  private skyUpdateAccumulator = 0
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -58,11 +61,7 @@ export class SceneManager {
       topColor: '#6d9eff',
       middleColor: '#9ccfff',
       bottomColor: '#f6e5d6',
-      horizonExponent: 1.35,
       timeOfDay: 0.25,
-      cloudSpeed: 0.012,
-      cloudCoverage: 0.4,
-      cloudOpacity: 0.6,
     })
     this.scene.add(this.sky.mesh)
     this.setupEnvironment()
@@ -219,12 +218,18 @@ export class SceneManager {
   private readonly animate = (): void => {
     requestAnimationFrame(this.animate)
     const delta = this.clock.getDelta()
-    const dayPhase = THREE.MathUtils.clamp(
-      0.25 + Math.sin(this.clock.getElapsedTime() * 0.05) * 0.22,
-      0,
-      1,
-    )
-    this.sky.setTimeOfDay(dayPhase)
+    if (this.skyAnimationEnabled) {
+      this.skyUpdateAccumulator += delta
+      if (this.skyUpdateAccumulator >= this.skyAnimationInterval) {
+        const dayPhase = THREE.MathUtils.clamp(
+          0.25 + Math.sin(this.clock.getElapsedTime() * 0.05) * 0.22,
+          0,
+          1,
+        )
+        this.sky.setTimeOfDay(dayPhase)
+        this.skyUpdateAccumulator = 0
+      }
+    }
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
     this.sky.update(delta, this.camera.position)
