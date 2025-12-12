@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
-import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
 import { resolveServerAssetUrl } from '../config'
 
@@ -167,12 +167,12 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     }
 
     uniqueTemplates.forEach((mesh, geometry) => {
-      const mergedGeometry = BufferGeometryUtils.mergeBufferGeometries([geometry], false) ?? geometry
-      const instancedMesh = new THREE.InstancedMesh(
-        mergedGeometry,
-        mesh.material,
-        instances.length,
-      )
+      const mergedGeometry = mergeGeometries([geometry], false) ?? geometry
+      const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+      if (!material) {
+        return
+      }
+      const instancedMesh = new THREE.InstancedMesh(mergedGeometry, material, instances.length)
       instancedMesh.castShadow = mesh.castShadow
       instancedMesh.receiveShadow = mesh.receiveShadow
       instancedMesh.name = `${mesh.name || 'decor-submesh'}-instanced`
