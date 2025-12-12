@@ -18,10 +18,16 @@ type Snapshot = {
 
 const MAX_SNAPSHOTS = 120 // ~6s @ 20Hz
 const OFFSET_SMOOTHING = 0.1
-const INTERPOLATION_DELAY = 0.1 // seconds to render in the past
 const MAX_EXTRAPOLATION = 0.05
 const MAX_OFFSET_DELTA = 0.05
-const MAX_RENDER_BACKSTEP = 0.01
+
+const DEFAULT_INTERPOLATION_DELAY_SECONDS = 0.1 // seconds to render in the past
+const DEFAULT_MAX_RENDER_BACKSTEP_SECONDS = 0.01
+
+export type InterpolationConfig = {
+  interpolationDelaySeconds?: number
+  maxRenderBackstepSeconds?: number
+}
 
 export interface RoomInfoSnapshot {
   roomId: string | null
@@ -44,9 +50,17 @@ export class GameStateStore {
   private readonly snapshots: Snapshot[] = []
   private serverOffsetSeconds: number | null = null
   private lastRenderServerTime: number | null = null
+  private interpolationDelaySeconds = DEFAULT_INTERPOLATION_DELAY_SECONDS
+  private maxRenderBackstepSeconds = DEFAULT_MAX_RENDER_BACKSTEP_SECONDS
 
   private readonly roomInfoListeners = new Set<RoomInfoListener>()
   private readonly stateListeners = new Set<StateListener>()
+
+  constructor(config?: InterpolationConfig) {
+    if (config) {
+      this.updateInterpolationConfig(config)
+    }
+  }
 
   setRoomInfo(
     roomId: string,
@@ -111,6 +125,22 @@ export class GameStateStore {
   getRaceState(): RaceState | null {
     const interpolated = this.getInterpolatedState(performance.now())
     return interpolated?.race ?? this.lastState?.race ?? null
+  }
+
+  updateInterpolationConfig(config: InterpolationConfig): void {
+    if (typeof config.interpolationDelaySeconds === 'number') {
+      this.interpolationDelaySeconds = Math.max(
+        0,
+        config.interpolationDelaySeconds,
+      )
+    }
+
+    if (typeof config.maxRenderBackstepSeconds === 'number') {
+      this.maxRenderBackstepSeconds = Math.max(
+        0,
+        config.maxRenderBackstepSeconds,
+      )
+    }
   }
 
   getLastStateTimestamp(): number {
@@ -205,10 +235,12 @@ export class GameStateStore {
       return null
     }
     const nowSeconds = nowMs / 1000
-    let target = nowSeconds - this.serverOffsetSeconds - INTERPOLATION_DELAY
+    let target =
+      nowSeconds - this.serverOffsetSeconds - this.interpolationDelaySeconds
 
     if (this.lastRenderServerTime !== null) {
-      const maxBackstep = this.lastRenderServerTime - MAX_RENDER_BACKSTEP
+      const maxBackstep =
+        this.lastRenderServerTime - this.maxRenderBackstepSeconds
       target = Math.max(target, maxBackstep)
     }
 
@@ -440,9 +472,10 @@ export class GameStateStore {
   }
 
   private interpolateAngle(a: number, b: number, alpha: number): number {
+    const delta = Math.atan2(Math.sin(b - a), Math.cos(b - a))
+    const interpolated = a + delta * alpha
     const twoPi = Math.PI * 2
-    const delta = (((b - a + Math.PI) % twoPi) + twoPi) % twoPi - Math.PI
-    return a + delta * alpha
+    return ((interpolated % twoPi) + twoPi) % twoPi
   }
 
   private lerp(a: number, b: number, alpha: number): number {
