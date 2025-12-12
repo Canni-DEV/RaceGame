@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
 import { resolveServerAssetUrl } from '../config'
 
@@ -124,15 +125,75 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
       return
     }
 
-    for (const [index, instance] of instances.entries()) {
-      const clone = SkeletonUtils.clone(base) as THREE.Object3D
-      clone.userData.isTrackAsset = true
-      clone.name = `decor-asset-${assetUrl}-${index}`
-      clone.position.set(instance.position.x, 0, instance.position.z)
-      clone.rotation.y = toRendererYaw(instance.rotation)
-      clone.scale.setScalar(instance.scale)
-      root.add(clone)
+    base.updateMatrixWorld(true)
+
+    const templateMeshes: THREE.Mesh[] = []
+    base.traverse((child: THREE.Object3D) => {
+      if ((child as THREE.Mesh).isMesh) {
+        const mesh = child as THREE.Mesh
+        // InstancedMesh does not support skinned meshes; fall back to cloning in that case.
+        if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+          templateMeshes.length = 0
+        }
+        templateMeshes.push(mesh)
+      }
+    })
+
+    if (templateMeshes.length === 0 || (templateMeshes[0] as THREE.SkinnedMesh).isSkinnedMesh) {
+      for (const [index, instance] of instances.entries()) {
+        const clone = SkeletonUtils.clone(base) as THREE.Object3D
+        clone.userData.isTrackAsset = true
+        clone.name = `decor-asset-${assetUrl}-${index}`
+        clone.position.set(instance.position.x, 0, instance.position.z)
+        clone.rotation.y = toRendererYaw(instance.rotation)
+        clone.scale.setScalar(instance.scale)
+        root.add(clone)
+      }
+      return
     }
+
+    const decorationGroup = new THREE.Group()
+    decorationGroup.name = `decor-instanced-asset-${assetUrl}`
+
+    const instanceTransform = new THREE.Object3D()
+    const reusableMatrix = new THREE.Matrix4()
+
+    const uniqueTemplates = new Map<THREE.BufferGeometry, THREE.Mesh>()
+    for (const mesh of templateMeshes) {
+      const geometry = mesh.geometry
+      if (!uniqueTemplates.has(geometry)) {
+        uniqueTemplates.set(geometry, mesh)
+      }
+    }
+
+    uniqueTemplates.forEach((mesh, geometry) => {
+      const mergedGeometry = mergeGeometries([geometry], false) ?? geometry
+      const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
+      if (!material) {
+        return
+      }
+      const instancedMesh = new THREE.InstancedMesh(mergedGeometry, material, instances.length)
+      instancedMesh.castShadow = mesh.castShadow
+      instancedMesh.receiveShadow = mesh.receiveShadow
+      instancedMesh.name = `${mesh.name || 'decor-submesh'}-instanced`
+
+      const meshMatrix = mesh.matrixWorld.clone()
+      instances.forEach((instance, index) => {
+        instanceTransform.position.set(instance.position.x, 0, instance.position.z)
+        instanceTransform.rotation.set(0, toRendererYaw(instance.rotation), 0)
+        instanceTransform.scale.setScalar(instance.scale)
+        instanceTransform.updateMatrix()
+
+        reusableMatrix.multiplyMatrices(instanceTransform.matrix, meshMatrix)
+        instancedMesh.setMatrixAt(index, reusableMatrix)
+      })
+      instancedMesh.instanceMatrix.needsUpdate = true
+
+      decorationGroup.add(instancedMesh)
+    })
+
+    decorationGroup.userData.isTrackAsset = true
+    root.add(decorationGroup)
   }
 
   private buildTreeInstances(instances: InstancedDecoration['instances']): THREE.Object3D | null {

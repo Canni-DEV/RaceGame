@@ -36,7 +36,10 @@ declare module 'three' {
     set(x: number, y: number, z: number): this
   }
 
-  export class Matrix4 {}
+  export class Matrix4 {
+    clone(): Matrix4
+    multiplyMatrices(a: Matrix4, b: Matrix4): this
+  }
 
   export class Camera extends Object3D {}
 
@@ -57,6 +60,7 @@ declare module 'three' {
     quaternion: Quaternion
     scale: Vector3
     matrix: Matrix4
+    matrixWorld: Matrix4
     visible: boolean
     parent: Object3D | null
     userData: Record<string, any>
@@ -331,8 +335,12 @@ declare module 'three' {
     isMesh: boolean
   }
 
+  export class SkinnedMesh<TGeometry extends BufferGeometry = BufferGeometry> extends Mesh<TGeometry> {
+    isSkinnedMesh: boolean
+  }
+
   export class InstancedMesh extends Mesh {
-    constructor(geometry: BufferGeometry, material: Material, count: number)
+    constructor(geometry: BufferGeometry, material: Material | Material[], count: number)
     setMatrixAt(index: number, matrix: Matrix4): void
     instanceMatrix: BufferAttribute
     dispose(): void
@@ -390,4 +398,10 @@ declare module 'three/examples/jsm/utils/SkeletonUtils.js' {
   import type { Object3D } from 'three'
 
   export function clone<T extends Object3D>(source: T): T
+}
+
+declare module 'three/examples/jsm/utils/BufferGeometryUtils.js' {
+  import type { BufferGeometry } from 'three'
+
+  export function mergeGeometries(geometries: BufferGeometry[], useGroups?: boolean): BufferGeometry
 }
