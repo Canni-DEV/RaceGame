@@ -36,7 +36,7 @@ export class TrackMeshBuilder {
 
     const mesh = new THREE.Mesh(geometry, material)
     mesh.receiveShadow = true
-    mesh.castShadow = true
+    mesh.castShadow = false
 
     const bounds = geometry.boundingBox?.clone() ?? new THREE.Box3().setFromObject(mesh)
 

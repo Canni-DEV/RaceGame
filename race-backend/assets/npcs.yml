@@ -24,13 +24,28 @@
 npcs:
   - name: Garburator
     active: true
-    baseThrottle: 0.86
-    lookaheadSpeedFactor: 0.8
-    mistakeTriggerChance: 0.28
-    mistakeCooldownRange: [2, 5]
+    baseThrottle: 0.92
+    minThrottle: 0.6
+    throttleCornerPenalty: 0.3
+    minTargetThreshold: 1.0
+    targetThresholdFactor: 1.05
+    minLookahead: 12
+    maxLookahead: 40
+    lookaheadSpeedFactor: 1.3
+    recoveryBrakeAngle: 0.9
+    offTrackThrottleScale: 0.5
+    offTrackBrake: 0.3
+    steerResponse: 0.55
+    mistakeSteerBias: 0.05
+    mistakeTriggerChance: 0.05
+    mistakeDurationRange: [0.05, 0.2]
+    mistakeCooldownRange: [4, 8]
+    approachThrottleScale: 0.85
+    approachBrake: 0.15
+    approachDistanceRatio: 0.65
 
   - name: Petrucci
-    active: false
+    active: true
     baseThrottle: 0.78
     minThrottle: 0.38
     throttleCornerPenalty: 0.45
@@ -41,7 +56,7 @@ npcs:
     mistakeCooldownRange: [2.5, 6.5]
 
   - name: Arthur Morgan
-    active: false
+    active: true
     baseThrottle: 0.9
     throttleCornerPenalty: 0.65
     steerResponse: 1.121997
@@ -51,3 +66,25 @@ npcs:
     mistakeTriggerChance: 0.45
     approachThrottleScale: 0.6
     approachBrake: 0.25
+
+  - name: Dummy
+    active: true
+    baseThrottle: 0.76
+    minThrottle: 0.05
+    throttleCornerPenalty: 0.9
+    minTargetThreshold: 1.8
+    targetThresholdFactor: 1.4
+    minLookahead: 4
+    maxLookahead: 18
+    lookaheadSpeedFactor: 1.2
+    recoveryBrakeAngle: 1.4
+    offTrackThrottleScale: 0.25
+    offTrackBrake: 0.8
+    steerResponse: 0.55
+    mistakeSteerBias: 0.45
+    mistakeTriggerChance: 0.72
+    mistakeDurationRange: [0.35, 1.4]
+    mistakeCooldownRange: [0.6, 1.8]
+    approachThrottleScale: 0.2
+    approachBrake: 0.65
+    approachDistanceRatio: 0.85

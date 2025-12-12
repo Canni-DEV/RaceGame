@@ -145,8 +145,8 @@ export class SceneManager {
     keyLight.position.set(60, 120, 80)
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
-    keyLight.shadow.bias = -0.0001
-    keyLight.shadow.normalBias = 0.008
+    keyLight.shadow.bias = -0.00005
+    keyLight.shadow.normalBias = 0.012
     keyLight.shadow.camera.near = 0.5
     keyLight.shadow.camera.far = 600
     keyLight.shadow.camera.left = -150

@@ -360,7 +360,7 @@ export class TrackScene {
 
     const center = track.bounds.getCenter(new THREE.Vector3())
     const size = track.bounds.getSize(new THREE.Vector3())
-    const margin = 40
+    const margin = 25
     const halfSpan = Math.max(size.x, size.z) / 2 + margin
     const height = size.y + margin
 

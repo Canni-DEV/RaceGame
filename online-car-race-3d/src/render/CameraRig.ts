@@ -26,7 +26,7 @@ export class CameraRig {
   private followMode: 'chase' | 'firstPerson' = 'chase'
   private followDistance = 26
   private followHeight = 14
-  private firstPersonHeight = 1.4
+  private firstPersonHeight = 1.5
   private firstPersonForwardOffset = 7
   private firstPersonLookAhead = 30
   private followRotationLocked = false
@@ -108,7 +108,7 @@ export class CameraRig {
     this.camera.near = Math.max(0.1, distanceToTarget * 0.001)
     this.camera.far = distanceToTarget + boundsDiagonal * 0.75
     this.camera.updateProjectionMatrix()
-    this.followDistance = Math.max(maxHorizontal * 0.05, 24)
+    this.followDistance = Math.max(maxHorizontal * 0.04, 16)
     this.followHeight = Math.max(size.y + 10, 10)
     this.setTarget(bounds.getCenter(new THREE.Vector3()))
     const radius = this.getCurrentRadius()
