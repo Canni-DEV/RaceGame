@@ -374,12 +374,28 @@ export class TrackScene {
     this.mainLight.target.position.copy(center)
     this.mainLight.target.updateMatrixWorld()
 
+    // Snap light and target to shadow texels to reduce shimmering when moving.
+    const shadowSize = this.mainLight.shadow.mapSize.width || 1024
+    const texelSize = (halfSpan * 2) / shadowSize
+    if (texelSize > 0) {
+      const snap = (v: THREE.Vector3): void => {
+        v.set(
+          Math.round(v.x / texelSize) * texelSize,
+          Math.round(v.y / texelSize) * texelSize,
+          Math.round(v.z / texelSize) * texelSize,
+        )
+      }
+      snap(this.mainLight.position)
+      snap(this.mainLight.target.position)
+      this.mainLight.target.updateMatrixWorld()
+    }
+
     const shadowCamera = this.mainLight.shadow.camera as THREE.OrthographicCamera
     shadowCamera.left = -halfSpan
     shadowCamera.right = halfSpan
     shadowCamera.top = halfSpan
     shadowCamera.bottom = -halfSpan
-    shadowCamera.near = 0.1
+    shadowCamera.near = Math.max(0.5, distance - (halfSpan + height))
     shadowCamera.far = distance + halfSpan + height
     shadowCamera.updateProjectionMatrix()
   }

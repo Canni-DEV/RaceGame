@@ -48,7 +48,7 @@ export class SceneManager {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.maxPixelRatio))
     this.renderer.setSize(container.clientWidth, container.clientHeight)
     this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.BasicShadowMap
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.renderer.toneMapping = THREE.NoToneMapping
     this.renderer.toneMappingExposure = 1
@@ -145,9 +145,9 @@ export class SceneManager {
     keyLight.position.set(60, 120, 80)
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
-    keyLight.shadow.bias = -0.00035
-    keyLight.shadow.normalBias = 0.015
-    keyLight.shadow.camera.near = 0.1
+    keyLight.shadow.bias = -0.0001
+    keyLight.shadow.normalBias = 0.008
+    keyLight.shadow.camera.near = 0.5
     keyLight.shadow.camera.far = 600
     keyLight.shadow.camera.left = -150
     keyLight.shadow.camera.right = 150

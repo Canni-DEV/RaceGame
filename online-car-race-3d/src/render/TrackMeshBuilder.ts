@@ -29,9 +29,9 @@ export class TrackMeshBuilder {
     const metadata = this.computeEdges(smoothCenterline, track.width / 2)
     const geometry = this.buildGeometry(metadata.leftEdge, metadata.rightEdge)
     const material = new THREE.MeshStandardMaterial({
-      color: 0x1f1f26,
-      metalness: 0.15,
-      roughness: 0.65,
+      color: 0x2a2a30,
+      metalness: 0.04,
+      roughness: 0.9,
     })
 
     const mesh = new THREE.Mesh(geometry, material)
