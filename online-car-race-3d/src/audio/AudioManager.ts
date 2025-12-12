@@ -7,7 +7,6 @@ export class AudioManager {
   private readonly engineSounds: Set<EngineSound> = new Set()
   private readonly stateChangeHandler: () => void
   private contextRunning = false
-  private debugPlayed = false
 
   constructor(camera: THREE.Camera) {
     this.listener = new THREE.AudioListener()
@@ -19,13 +18,11 @@ export class AudioManager {
         return
       }
       this.startPendingSounds()
-      //this.playDebugChime()
     }
     this.listener.context.addEventListener('statechange', this.stateChangeHandler)
     if (this.isContextRunning()) {
       this.contextRunning = true
       this.startPendingSounds()
-      //this.playDebugChime()
     }
 
     this.unlockHandler = () => {
@@ -88,28 +85,5 @@ export class AudioManager {
 
   private isContextRunning(): boolean {
     return this.listener.context.state === 'running'
-  }
-
-  private playDebugChime(): void {
-    if (this.debugPlayed) {
-      return
-    }
-    this.debugPlayed = true
-    console.info('[Audio] Debug chime')
-    const ctx = this.listener.context
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = 660
-    gain.gain.value = 0.18
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    const now = ctx.currentTime
-    osc.start(now)
-    osc.stop(now + 0.25)
-    osc.onended = () => {
-      osc.disconnect()
-      gain.disconnect()
-    }
   }
 }
