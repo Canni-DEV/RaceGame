@@ -86,6 +86,8 @@ declare module 'three' {
     mapping: number
     image: { width: number; height: number }
     needsUpdate: boolean
+    wrapS: number
+    wrapT: number
     dispose(): void
   }
 
@@ -99,9 +101,10 @@ declare module 'three' {
   }
 
   export class Color {
-    constructor(hex?: ColorRepresentation)
+    constructor(r?: number | ColorRepresentation, g?: number, b?: number)
     setHSL(h: number, s: number, l: number): this
     getHex(): number
+    getHexString(): string
     getStyle(): string
     lerp(color: Color, alpha: number): this
     clone(): Color
@@ -164,6 +167,9 @@ declare module 'three' {
 
   export const PCFSoftShadowMap: number
   export const BackSide: number
+  export const BasicShadowMap: number
+  export const ClampToEdgeWrapping: number
+  export const NoToneMapping: number
 
   export class Clock {
     constructor()
@@ -311,6 +317,11 @@ declare module 'three' {
     metalness: number
     roughness: number
     clone(): MeshStandardMaterial
+  }
+
+  export class MeshBasicMaterial extends Material {
+    constructor(parameters?: { map?: Texture | null; side?: number; depthWrite?: boolean; toneMapped?: boolean })
+    map: Texture | null
   }
 
   export class ShaderMaterial extends Material {
