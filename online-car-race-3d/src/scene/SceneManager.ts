@@ -33,20 +33,23 @@ export class SceneManager {
   private readonly orbitRotateSpeed = 0.005
   private readonly orbitTiltSpeed = 0.0035
   private readonly zoomStep = 0.08
-  private readonly minShadowMapSize = 1024
-  private readonly maxShadowMapSize = 2048
+  private readonly minShadowMapSize = 512
+  private readonly maxShadowMapSize = 1024
+  private readonly maxPixelRatio = 1
+  private lastShadowMapSize: number | null = null
 
   constructor(container: HTMLElement) {
     this.container = container
-    this.renderer = new THREE.WebGLRenderer({ antialias: true })
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    const devicePixelRatio = window.devicePixelRatio || 1
+    this.renderer = new THREE.WebGLRenderer({ antialias: devicePixelRatio > 1 })
+    this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.maxPixelRatio))
     this.renderer.setSize(container.clientWidth, container.clientHeight)
     this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.renderer.shadowMap.type = THREE.BasicShadowMap
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 1.2
-    this.renderer.physicallyCorrectLights = true
+    this.renderer.toneMapping = THREE.NoToneMapping
+    this.renderer.toneMappingExposure = 1
+    this.renderer.physicallyCorrectLights = false
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
 
@@ -154,18 +157,6 @@ export class SceneManager {
     this.scene.add(keyLight)
     this.scene.add(keyLight.target)
 
-    const fillLight = new THREE.DirectionalLight(0xd5e3ff, 0.35)
-    fillLight.position.set(-140, 80, 40)
-    fillLight.castShadow = false
-    this.scene.add(fillLight)
-    this.scene.add(fillLight.target)
-
-    const rimLight = new THREE.DirectionalLight(0x9ecbff, 0.5)
-    rimLight.position.set(100, 50, -160)
-    rimLight.castShadow = false
-    this.scene.add(rimLight)
-    this.scene.add(rimLight.target)
-
     this.keyLight = keyLight
   }
 
@@ -211,13 +202,18 @@ export class SceneManager {
 
   private updateShadowMapSize(light: THREE.DirectionalLight): void {
     const maxDimension = Math.max(this.container.clientWidth, this.container.clientHeight)
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+    const pixelRatio = Math.min(window.devicePixelRatio || 1, this.maxPixelRatio)
     const targetSize = maxDimension * pixelRatio
     const clampedSize = THREE.MathUtils.clamp(targetSize, this.minShadowMapSize, this.maxShadowMapSize)
     const powerOfTwoSize = Math.pow(2, Math.round(Math.log2(clampedSize)))
 
+    if (this.lastShadowMapSize === powerOfTwoSize) {
+      return
+    }
+
     light.shadow.mapSize.width = powerOfTwoSize
     light.shadow.mapSize.height = powerOfTwoSize
+    this.lastShadowMapSize = powerOfTwoSize
   }
 
   private readonly animate = (): void => {
