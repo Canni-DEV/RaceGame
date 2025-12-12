@@ -10,6 +10,19 @@ import type {
 import type { PlayerSummary } from '../net/messages'
 import { applyRoomStateDelta } from './StateRebuilder'
 
+type Snapshot = {
+  state: RoomState
+  serverTime: number
+  receivedAt: number
+}
+
+const MAX_SNAPSHOTS = 120 // ~6s @ 20Hz
+const OFFSET_SMOOTHING = 0.1
+const INTERPOLATION_DELAY = 0.1 // seconds to render in the past
+const MAX_EXTRAPOLATION = 0.05
+const MAX_OFFSET_DELTA = 0.05
+const MAX_RENDER_BACKSTEP = 0.01
+
 export interface RoomInfoSnapshot {
   roomId: string | null
   playerId: string | null
@@ -28,6 +41,9 @@ export class GameStateStore {
   private readonly playerNames = new Map<string, string>()
   private lastState: RoomState | null = null
   private lastStateTimestamp = 0
+  private readonly snapshots: Snapshot[] = []
+  private serverOffsetSeconds: number | null = null
+  private lastRenderServerTime: number | null = null
 
   private readonly roomInfoListeners = new Set<RoomInfoListener>()
   private readonly stateListeners = new Set<StateListener>()
@@ -36,7 +52,7 @@ export class GameStateStore {
     roomId: string,
     playerId: string,
     track: TrackData,
-    players: PlayerSummary[]
+    players: PlayerSummary[],
   ): void {
     this.roomId = roomId
     this.playerId = playerId
@@ -77,20 +93,24 @@ export class GameStateStore {
     return this.playerId
   }
 
-  getCarsForRender(_currentTime: number): CarState[] {
-    return this.lastState?.cars ?? []
+  getCarsForRender(currentTime: number): CarState[] {
+    const interpolated = this.getInterpolatedState(currentTime)
+    return interpolated?.cars ?? this.lastState?.cars ?? []
   }
 
-  getMissilesForRender(_currentTime: number): MissileState[] {
-    return this.lastState?.missiles ?? []
+  getMissilesForRender(currentTime: number): MissileState[] {
+    const interpolated = this.getInterpolatedState(currentTime)
+    return interpolated?.missiles ?? this.lastState?.missiles ?? []
   }
 
-  getItemsForRender(_currentTime: number): ItemState[] {
-    return this.lastState?.items ?? []
+  getItemsForRender(currentTime: number): ItemState[] {
+    const interpolated = this.getInterpolatedState(currentTime)
+    return interpolated?.items ?? this.lastState?.items ?? []
   }
 
   getRaceState(): RaceState | null {
-    return this.lastState?.race ?? null
+    const interpolated = this.getInterpolatedState(performance.now())
+    return interpolated?.race ?? this.lastState?.race ?? null
   }
 
   getLastStateTimestamp(): number {
@@ -132,9 +152,305 @@ export class GameStateStore {
 
   private consumeState(roomState: RoomState): void {
     this.mergePlayersFromState(roomState)
-    this.lastState = roomState
-    this.lastStateTimestamp = performance.now()
+    this.recordSnapshot(roomState)
     this.notifyState(roomState)
+  }
+
+  private recordSnapshot(state: RoomState): void {
+    const now = performance.now()
+    this.lastState = state
+    this.lastStateTimestamp = now
+    this.updateServerOffset(now, state.serverTime)
+    const snapshot: Snapshot = {
+      state,
+      serverTime: state.serverTime,
+      receivedAt: now,
+    }
+
+    const existingIndex = this.snapshots.findIndex(
+      (entry) => entry.serverTime === snapshot.serverTime,
+    )
+    if (existingIndex >= 0) {
+      this.snapshots[existingIndex] = snapshot
+    } else {
+      const insertIndex = this.snapshots.findIndex(
+        (entry) => entry.serverTime > snapshot.serverTime,
+      )
+      if (insertIndex === -1) {
+        this.snapshots.push(snapshot)
+      } else {
+        this.snapshots.splice(insertIndex, 0, snapshot)
+      }
+      if (this.snapshots.length > MAX_SNAPSHOTS) {
+        this.snapshots.shift()
+      }
+    }
+  }
+
+  private updateServerOffset(nowMs: number, serverTime: number): void {
+    const nowSeconds = nowMs / 1000
+    const sample = nowSeconds - serverTime
+    if (this.serverOffsetSeconds === null) {
+      this.serverOffsetSeconds = sample
+      return
+    }
+    const delta = sample - this.serverOffsetSeconds
+    const clampedDelta = this.clamp(delta, -MAX_OFFSET_DELTA, MAX_OFFSET_DELTA)
+    this.serverOffsetSeconds =
+      this.serverOffsetSeconds + clampedDelta * OFFSET_SMOOTHING
+  }
+
+  private getRenderServerTime(nowMs: number): number | null {
+    if (this.serverOffsetSeconds === null) {
+      return null
+    }
+    const nowSeconds = nowMs / 1000
+    let target = nowSeconds - this.serverOffsetSeconds - INTERPOLATION_DELAY
+
+    if (this.lastRenderServerTime !== null) {
+      const maxBackstep = this.lastRenderServerTime - MAX_RENDER_BACKSTEP
+      target = Math.max(target, maxBackstep)
+    }
+
+    this.lastRenderServerTime = target
+    return target
+  }
+
+  private getInterpolatedState(nowMs: number): RoomState | null {
+    if (!this.lastState || this.snapshots.length === 0) {
+      return this.lastState
+    }
+
+    const targetServerTime = this.getRenderServerTime(nowMs)
+    if (targetServerTime === null) {
+      return this.lastState
+    }
+
+    let previous: Snapshot | null = null
+    let next: Snapshot | null = null
+
+    for (const snapshot of this.snapshots) {
+      if (snapshot.serverTime <= targetServerTime) {
+        previous = snapshot
+      }
+      if (snapshot.serverTime >= targetServerTime) {
+        next = snapshot
+        break
+      }
+    }
+
+    if (!previous) {
+      return this.snapshots[0]?.state ?? this.lastState
+    }
+
+    if (!next) {
+      return this.extrapolateState(previous, targetServerTime)
+    }
+
+    if (next === previous || next.serverTime === previous.serverTime) {
+      return next.state
+    }
+
+    const alpha = this.clamp(
+      (targetServerTime - previous.serverTime) /
+        (next.serverTime - previous.serverTime),
+      0,
+      1,
+    )
+
+    return this.interpolateStates(previous.state, next.state, alpha, targetServerTime)
+  }
+
+  private interpolateStates(
+    a: RoomState,
+    b: RoomState,
+    alpha: number,
+    targetServerTime: number,
+  ): RoomState {
+    const carMap = new Map<string, CarState>()
+    for (const car of a.cars) {
+      carMap.set(car.playerId, car)
+    }
+
+    const mergedCars: CarState[] = []
+    const nextCars = new Map<string, CarState>()
+    for (const car of b.cars) {
+      nextCars.set(car.playerId, car)
+    }
+
+    const allIds = new Set<string>([
+      ...carMap.keys(),
+      ...nextCars.keys(),
+    ])
+
+    for (const id of allIds) {
+      const carA = carMap.get(id)
+      const carB = nextCars.get(id)
+
+      if (carA && carB) {
+        mergedCars.push(this.interpolateCar(carA, carB, alpha))
+      } else if (carB) {
+        mergedCars.push({ ...carB })
+      } else if (carA) {
+        mergedCars.push({ ...carA })
+      }
+    }
+
+    const missiles = this.interpolateEntities(
+      a.missiles,
+      b.missiles,
+      (missile) => missile.id,
+      alpha,
+    )
+    const items = this.interpolateEntities(
+      a.items,
+      b.items,
+      (item) => item.id,
+      alpha,
+    )
+
+    return {
+      roomId: a.roomId,
+      trackId: a.trackId,
+      serverTime: targetServerTime,
+      cars: mergedCars,
+      missiles,
+      items,
+      race: alpha < 0.5 ? a.race : b.race,
+    }
+  }
+
+  private extrapolateState(base: Snapshot, targetServerTime: number): RoomState {
+    const dt = this.clamp(targetServerTime - base.serverTime, 0, MAX_EXTRAPOLATION)
+
+    const cars = base.state.cars.map((car) => {
+      const directionX = Math.cos(car.angle)
+      const directionZ = Math.sin(car.angle)
+      const delta = car.speed * dt
+      return {
+        ...car,
+        x: car.x + directionX * delta,
+        z: car.z + directionZ * delta,
+      }
+    })
+
+    const missiles = base.state.missiles.map((missile) => {
+      const dirX = Math.cos(missile.angle)
+      const dirZ = Math.sin(missile.angle)
+      const delta = missile.speed * dt
+      return {
+        ...missile,
+        x: missile.x + dirX * delta,
+        z: missile.z + dirZ * delta,
+      }
+    })
+
+    return {
+      ...base.state,
+      serverTime: base.serverTime + dt,
+      cars,
+      missiles,
+    }
+  }
+
+  private interpolateCar(a: CarState, b: CarState, alpha: number): CarState {
+    const angle = this.interpolateAngle(a.angle, b.angle, alpha)
+    return {
+      playerId: a.playerId,
+      username: alpha < 0.5 ? a.username : b.username,
+      x: this.lerp(a.x, b.x, alpha),
+      z: this.lerp(a.z, b.z, alpha),
+      angle,
+      speed: this.lerp(a.speed, b.speed, alpha),
+      isNpc: a.isNpc ?? b.isNpc,
+      turboActive: alpha < 0.5 ? a.turboActive : b.turboActive,
+      turboCharges: this.lerp(a.turboCharges ?? 0, b.turboCharges ?? 0, alpha),
+      turboRecharge: this.lerp(
+        a.turboRecharge ?? 0,
+        b.turboRecharge ?? 0,
+        alpha,
+      ),
+      turboDurationLeft: this.lerp(
+        a.turboDurationLeft ?? 0,
+        b.turboDurationLeft ?? 0,
+        alpha,
+      ),
+      missileCharges: this.lerp(
+        a.missileCharges ?? 0,
+        b.missileCharges ?? 0,
+        alpha,
+      ),
+      missileRecharge: this.lerp(
+        a.missileRecharge ?? 0,
+        b.missileRecharge ?? 0,
+        alpha,
+      ),
+      impactSpinTimeLeft: this.lerp(
+        a.impactSpinTimeLeft ?? 0,
+        b.impactSpinTimeLeft ?? 0,
+        alpha,
+      ),
+    }
+  }
+
+  private interpolateEntities<T extends { id: string; x: number; z: number; angle: number }>(
+    a: T[],
+    b: T[],
+    keySelector: (value: T) => string,
+    alpha: number,
+  ): T[] {
+    const mapA = new Map<string, T>()
+    for (const value of a) {
+      mapA.set(keySelector(value), value)
+    }
+    const mapB = new Map<string, T>()
+    for (const value of b) {
+      mapB.set(keySelector(value), value)
+    }
+
+    const ids = new Set<string>([...mapA.keys(), ...mapB.keys()])
+    const result: T[] = []
+
+    for (const id of ids) {
+      const valueA = mapA.get(id)
+      const valueB = mapB.get(id)
+      if (valueA && valueB) {
+        result.push(this.interpolateGeneric(valueA, valueB, alpha))
+      } else if (valueB) {
+        result.push({ ...valueB })
+      } else if (valueA) {
+        result.push({ ...valueA })
+      }
+    }
+
+    return result
+  }
+
+  private interpolateGeneric<T extends { x: number; z: number; angle: number }>(
+    a: T,
+    b: T,
+    alpha: number,
+  ): T {
+    return {
+      ...b,
+      x: this.lerp(a.x, b.x, alpha),
+      z: this.lerp(a.z, b.z, alpha),
+      angle: this.interpolateAngle(a.angle, b.angle, alpha),
+    }
+  }
+
+  private interpolateAngle(a: number, b: number, alpha: number): number {
+    const twoPi = Math.PI * 2
+    const delta = (((b - a + Math.PI) % twoPi) + twoPi) % twoPi - Math.PI
+    return a + delta * alpha
+  }
+
+  private lerp(a: number, b: number, alpha: number): number {
+    return a + (b - a) * alpha
+  }
+
+  private clamp(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max)
   }
 
   private getRoomInfoSnapshot(): RoomInfoSnapshot {
@@ -177,9 +493,7 @@ export class GameStateStore {
       this.players = filtered
       this.refreshPlayerNames(this.players)
     }
-    if (updated) {
-      this.notifyRoomInfo()
-    } else if (removed) {
+    if (updated || removed) {
       this.notifyRoomInfo()
     }
   }
