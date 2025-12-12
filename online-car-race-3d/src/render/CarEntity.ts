@@ -147,10 +147,10 @@ export class CarEntity {
       return
     }
     this.impactSpinTimeLeft = Math.max(0, this.impactSpinTimeLeft - dt)
-    const positionLerp = 1 - Math.exp(-dt * 7)
+    const positionLerp = Math.min(1, dt * 60)
     this.currentPosition.lerp(this.targetPosition, positionLerp)
 
-    const rotationLerp = 1 - Math.exp(-dt * 8)
+    const rotationLerp = Math.min(1, dt * 60)
     this.orientation.slerp(this.targetOrientation, rotationLerp)
 
     this.updateTurboPitch(dt)

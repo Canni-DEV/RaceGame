@@ -6,7 +6,7 @@ import { RoomManager } from "./RoomManager";
 export class GameLoop {
   private static readonly MAX_CATCHUP_MS = 200; // cap backlog to avoid long bursts
   private static readonly MAX_TICKS_PER_ITERATION = 8; // prevent a single loop from hogging the thread
-  private static readonly MAX_BROADCASTS_PER_ITERATION = 1; // keep network usage steady
+  private static readonly MAX_BROADCASTS_PER_ITERATION = 2; // allow catching up on missed broadcasts without spiking
 
   private loopHandle?: NodeJS.Timeout | NodeJS.Immediate;
   private usingImmediate = false;
@@ -73,8 +73,8 @@ export class GameLoop {
           }
           broadcastsThisIteration++;
         } else if (broadcastAccumulator >= broadcastMs) {
-          // Drop overdue broadcasts to keep cadence steady and avoid bursts.
-          broadcastAccumulator = 0;
+          // Keep some backlog so the next loop can emit promptly without dropping updates.
+          broadcastAccumulator = Math.min(broadcastAccumulator, broadcastMs);
         }
 
         ticksThisIteration++;
