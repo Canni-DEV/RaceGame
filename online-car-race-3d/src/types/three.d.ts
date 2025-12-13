@@ -62,6 +62,7 @@ declare module 'three' {
     matrix: Matrix4
     matrixWorld: Matrix4
     visible: boolean
+    frustumCulled: boolean
     parent: Object3D | null
     userData: Record<string, any>
     renderOrder: number
@@ -98,15 +99,20 @@ declare module 'three' {
   export class Scene extends Object3D {
     background: Color | Texture | null
     environment: Texture | null
+    fog: any
   }
 
   export class Color {
     constructor(r?: number | ColorRepresentation, g?: number, b?: number)
+    r: number
+    g: number
+    b: number
     setHSL(h: number, s: number, l: number): this
     getHex(): number
     getHexString(): string
     getStyle(): string
     lerp(color: Color, alpha: number): this
+    multiplyScalar(s: number): this
     clone(): Color
   }
 
@@ -170,6 +176,7 @@ declare module 'three' {
   export const BasicShadowMap: number
   export const ClampToEdgeWrapping: number
   export const NoToneMapping: number
+  export const AdditiveBlending: number
 
   export class Clock {
     constructor()
@@ -212,6 +219,7 @@ declare module 'three' {
   }
 
   export class BufferAttribute {
+    constructor(array: ArrayLike<number>, itemSize: number)
     needsUpdate: boolean
   }
 
@@ -224,6 +232,7 @@ declare module 'three' {
     setAttribute(name: string, attribute: BufferAttribute): this
     computeVertexNormals(): void
     computeBoundingBox(): void
+    computeBoundingSphere(): void
     boundingBox?: Box3 | null
     translate(x: number, y: number, z: number): this
     dispose(): void
@@ -301,6 +310,7 @@ declare module 'three' {
 
   export class CatmullRomCurve3 extends Curve<Vector3> {
     constructor(points?: Vector3[], closed?: boolean, curveType?: string)
+    points: Vector3[]
   }
 
   export class Material {
@@ -317,6 +327,20 @@ declare module 'three' {
     metalness: number
     roughness: number
     clone(): MeshStandardMaterial
+  }
+
+  export class MeshPhysicalMaterial extends Material {
+    constructor(parameters?: Record<string, unknown>)
+    color: Color
+    metalness: number
+    roughness: number
+    transmission: number
+    ior: number
+    thickness: number
+    clearcoat: number
+    clearcoatRoughness: number
+    envMapIntensity: number
+    transparent: boolean
   }
 
   export class MeshBasicMaterial extends Material {
@@ -358,6 +382,25 @@ declare module 'three' {
     isMesh: boolean
   }
 
+  export class PointsMaterial extends Material {
+    constructor(parameters?: {
+      size?: number
+      sizeAttenuation?: boolean
+      vertexColors?: boolean
+      transparent?: boolean
+      opacity?: number
+      depthWrite?: boolean
+      blending?: number
+      toneMapped?: boolean
+    })
+  }
+
+  export class Points<TGeometry extends BufferGeometry = BufferGeometry> extends Object3D {
+    constructor(geometry?: TGeometry, material?: Material | Material[])
+    geometry: TGeometry
+    material: Material | Material[]
+  }
+
   export class CanvasTexture extends Texture {
     constructor(canvas: HTMLCanvasElement)
   }
@@ -373,6 +416,7 @@ declare module 'three' {
     clamp(value: number, min: number, max: number): number
     mapLinear(x: number, a1: number, a2: number, b1: number, b2: number): number
     degToRad(degrees: number): number
+    randFloat(low: number, high: number): number
   }
 
   export class Box3 {
@@ -415,4 +459,36 @@ declare module 'three/examples/jsm/utils/BufferGeometryUtils.js' {
   import type { BufferGeometry } from 'three'
 
   export function mergeGeometries(geometries: BufferGeometry[], useGroups?: boolean): BufferGeometry
+}
+
+declare module 'three/examples/jsm/postprocessing/EffectComposer.js' {
+  import type { WebGLRenderer } from 'three'
+
+  export class EffectComposer {
+    constructor(renderer: WebGLRenderer)
+    addPass(pass: unknown): void
+    render(): void
+    setSize(width: number, height: number): void
+    setPixelRatio(value: number): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/RenderPass.js' {
+  import type { Camera, Scene } from 'three'
+
+  export class RenderPass {
+    constructor(scene: Scene, camera: Camera)
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/UnrealBloomPass.js' {
+  import type { Vector2 } from 'three'
+
+  export class UnrealBloomPass {
+    constructor(resolution?: Vector2, strength?: number, radius?: number, threshold?: number)
+    strength: number
+    radius: number
+    threshold: number
+    setSize(width: number, height: number): void
+  }
 }

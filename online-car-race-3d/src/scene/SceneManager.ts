@@ -1,4 +1,7 @@
 import * as THREE from 'three'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
 import { GameStateStore } from '../state/GameStateStore'
@@ -8,7 +11,6 @@ import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
 import { RaceHud } from './RaceHud'
-import { ProceduralSky } from '../render/ProceduralSky'
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -18,15 +20,13 @@ export class SceneManager {
   private readonly cameraRig: CameraRig
   private readonly clock: THREE.Clock
   private readonly trackScene: TrackScene
-  private readonly sky: ProceduralSky
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
   private readonly playerListOverlay: PlayerListOverlay
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
-  private readonly skyAnimationEnabled = false
-  private readonly skyAnimationInterval = 0.5
+  private readonly bloomResolution = new THREE.Vector2(1, 1)
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
@@ -35,11 +35,10 @@ export class SceneManager {
   private readonly orbitRotateSpeed = 0.005
   private readonly orbitTiltSpeed = 0.0035
   private readonly zoomStep = 0.08
-  private readonly minShadowMapSize = 512
-  private readonly maxShadowMapSize = 1024
   private readonly maxPixelRatio = 1
-  private lastShadowMapSize: number | null = null
-  private skyUpdateAccumulator = 0
+  private composer: EffectComposer | null = null
+  private bloomPass: UnrealBloomPass | null = null
+  private starField: THREE.Points | null = null
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -47,23 +46,15 @@ export class SceneManager {
     this.renderer = new THREE.WebGLRenderer({ antialias: devicePixelRatio > 1 })
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.maxPixelRatio))
     this.renderer.setSize(container.clientWidth, container.clientHeight)
-    this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    this.renderer.shadowMap.enabled = false
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.NoToneMapping
-    this.renderer.toneMappingExposure = 1
-    this.renderer.physicallyCorrectLights = false
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 1.05
+    this.renderer.physicallyCorrectLights = true
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
 
     this.scene = new THREE.Scene()
-    this.sky = new ProceduralSky({
-      topColor: '#6d9eff',
-      middleColor: '#9ccfff',
-      bottomColor: '#f6e5d6',
-      timeOfDay: 0.25,
-    })
-    this.scene.add(this.sky.mesh)
     this.setupEnvironment()
 
     const aspect = container.clientWidth / container.clientHeight
@@ -76,6 +67,7 @@ export class SceneManager {
     this.audioManager = new AudioManager(this.camera)
 
     this.setupLights()
+    this.setupPostprocessing()
 
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
@@ -138,28 +130,15 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const hemisphere = new THREE.HemisphereLight(0x6fa5ff, 0x7a552d, 0.35)
+    const hemisphere = new THREE.HemisphereLight(0x400080, 0x000000, 0.5)
     this.scene.add(hemisphere)
-
-    const keyLight = new THREE.DirectionalLight(0xffe2b3, 1.15)
-    keyLight.position.set(60, 120, 80)
-    keyLight.castShadow = true
-    this.updateShadowMapSize(keyLight)
-    keyLight.shadow.bias = -0.00005
-    keyLight.shadow.normalBias = 0.012
-    keyLight.shadow.camera.near = 0.5
-    keyLight.shadow.camera.far = 600
-    keyLight.shadow.camera.left = -150
-    keyLight.shadow.camera.right = 150
-    keyLight.shadow.camera.top = 150
-    keyLight.shadow.camera.bottom = -150
-    this.scene.add(keyLight)
-    this.scene.add(keyLight.target)
-
-    this.keyLight = keyLight
+    this.keyLight = null
   }
 
   private setupEnvironment(): void {
+    this.scene.background = new THREE.Color(0x050510)
+    this.scene.fog = null
+
     const width = 1024
     const height = 512
     const canvas = document.createElement('canvas')
@@ -171,8 +150,9 @@ export class SceneManager {
     }
 
     const gradient = context.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#182c47')
-    gradient.addColorStop(1, '#0f0c17')
+    gradient.addColorStop(0, '#0e1842')
+    gradient.addColorStop(0.55, '#080a1d')
+    gradient.addColorStop(1, '#04040b')
     context.fillStyle = gradient
     context.fillRect(0, 0, width, height)
 
@@ -185,6 +165,78 @@ export class SceneManager {
     pmremGenerator.dispose()
 
     this.scene.environment = envMap
+
+    const stars = this.createStarField()
+    if (stars) {
+      this.scene.add(stars)
+      this.starField = stars
+    }
+  }
+
+  private createStarField(): THREE.Points | null {
+    const starCount = 1200
+    const radius = 900
+    const positions = new Float32Array(starCount * 3)
+    const colors = new Float32Array(starCount * 3)
+
+    for (let i = 0; i < starCount; i++) {
+      const direction = new THREE.Vector3(
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+        Math.random() * 2 - 1,
+      ).normalize()
+      const distance = radius * (0.55 + Math.random() * 0.45)
+      const tint = Math.random() > 0.6 ? new THREE.Color(0x88d7ff) : new THREE.Color(0xff66ff)
+      const variation = THREE.MathUtils.randFloat(0.75, 1.1)
+      tint.multiplyScalar(variation)
+
+      const idx = i * 3
+      positions[idx] = direction.x * distance
+      positions[idx + 1] = direction.y * distance
+      positions[idx + 2] = direction.z * distance
+      colors[idx] = tint.r
+      colors[idx + 1] = tint.g
+      colors[idx + 2] = tint.b
+    }
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+    geometry.computeBoundingSphere()
+
+    const material = new THREE.PointsMaterial({
+      size: 1.1,
+      sizeAttenuation: true,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.85,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+    })
+
+    const points = new THREE.Points(geometry, material)
+    points.name = 'star-field'
+    points.frustumCulled = false
+    return points
+  }
+
+  private setupPostprocessing(): void {
+    this.bloomResolution.set(this.container.clientWidth, this.container.clientHeight)
+
+    const renderPass = new RenderPass(this.scene, this.camera)
+    const bloomPass = new UnrealBloomPass(this.bloomResolution.clone(), 1.8, 0.5, 0.12)
+    bloomPass.threshold = 0.12
+    bloomPass.strength = 2
+    bloomPass.radius = 0.5
+
+    const composer = new EffectComposer(this.renderer)
+    composer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.maxPixelRatio))
+    composer.setSize(this.container.clientWidth, this.container.clientHeight)
+    composer.addPass(renderPass)
+    composer.addPass(bloomPass)
+
+    this.composer = composer
+    this.bloomPass = bloomPass
   }
 
   private readonly handleResize = (): void => {
@@ -193,47 +245,24 @@ export class SceneManager {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
-
-    if (this.keyLight) {
-      this.updateShadowMapSize(this.keyLight)
-    }
-  }
-
-  private updateShadowMapSize(light: THREE.DirectionalLight): void {
-    const maxDimension = Math.max(this.container.clientWidth, this.container.clientHeight)
-    const pixelRatio = Math.min(window.devicePixelRatio || 1, this.maxPixelRatio)
-    const targetSize = maxDimension * pixelRatio
-    const clampedSize = THREE.MathUtils.clamp(targetSize, this.minShadowMapSize, this.maxShadowMapSize)
-    const powerOfTwoSize = Math.pow(2, Math.round(Math.log2(clampedSize)))
-
-    if (this.lastShadowMapSize === powerOfTwoSize) {
-      return
-    }
-
-    light.shadow.mapSize.width = powerOfTwoSize
-    light.shadow.mapSize.height = powerOfTwoSize
-    this.lastShadowMapSize = powerOfTwoSize
+    this.composer?.setSize(width, height)
+    this.bloomResolution.set(width, height)
+    this.bloomPass?.setSize(width, height)
   }
 
   private readonly animate = (): void => {
     requestAnimationFrame(this.animate)
     const delta = this.clock.getDelta()
-    if (this.skyAnimationEnabled) {
-      this.skyUpdateAccumulator += delta
-      if (this.skyUpdateAccumulator >= this.skyAnimationInterval) {
-        const dayPhase = THREE.MathUtils.clamp(
-          0.25 + Math.sin(this.clock.getElapsedTime() * 0.05) * 0.22,
-          0,
-          1,
-        )
-        this.sky.setTimeOfDay(dayPhase)
-        this.skyUpdateAccumulator = 0
-      }
-    }
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
-    this.sky.update(delta, this.camera.position)
-    this.renderer.render(this.scene, this.camera)
+    if (this.starField) {
+      this.starField.position.copy(this.camera.position)
+    }
+    if (this.composer) {
+      this.composer.render()
+    } else {
+      this.renderer.render(this.scene, this.camera)
+    }
   }
 
   private readonly preventContextMenu = (event: Event): void => {

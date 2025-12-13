@@ -28,14 +28,21 @@ export class TrackMeshBuilder {
     const smoothCenterline = this.generateSmoothCenterline(track.centerline)
     const metadata = this.computeEdges(smoothCenterline, track.width / 2)
     const geometry = this.buildGeometry(metadata.leftEdge, metadata.rightEdge)
-    const material = new THREE.MeshStandardMaterial({
-      color: 0x2a2a30,
-      metalness: 0.04,
-      roughness: 0.9,
+    const material = new THREE.MeshPhysicalMaterial({
+      color: 0x000020,
+      metalness: 0.05,
+      roughness: 0.15,
+      transmission: 0.82,
+      ior: 1.5,
+      thickness: 0.6,
+      clearcoat: 0.5,
+      clearcoatRoughness: 0.1,
+      envMapIntensity: 1.1,
+      transparent: true,
     })
 
     const mesh = new THREE.Mesh(geometry, material)
-    mesh.receiveShadow = true
+    mesh.receiveShadow = false
     mesh.castShadow = false
 
     const bounds = geometry.boundingBox?.clone() ?? new THREE.Box3().setFromObject(mesh)
