@@ -21,7 +21,7 @@ const OFFSET_SMOOTHING = 0.1
 const MAX_EXTRAPOLATION = 0.05
 const MAX_OFFSET_DELTA = 0.05
 
-const DEFAULT_INTERPOLATION_DELAY_SECONDS = 0.1 // seconds to render in the past
+const DEFAULT_INTERPOLATION_DELAY_SECONDS = 0.06 // seconds to render in the past
 const DEFAULT_MAX_RENDER_BACKSTEP_SECONDS = 0.01
 
 export type InterpolationConfig = {

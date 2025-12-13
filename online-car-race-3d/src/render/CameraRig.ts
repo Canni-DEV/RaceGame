@@ -141,7 +141,8 @@ export class CameraRig {
   }
 
   update(_dt: number): void {
-    const dt = Math.max(_dt, 0.016)
+    // Clamp delta to avoid frame-rate dependent damping; keep spikes bounded.
+    const dt = THREE.MathUtils.clamp(_dt, 0, 0.05)
     const targetLerpSpeed = this.followMode === 'firstPerson' ? 6 : 3.5
     const targetLerp = 1 - Math.exp(-dt * targetLerpSpeed)
     this.lookTarget.copy(this.smoothedTarget)

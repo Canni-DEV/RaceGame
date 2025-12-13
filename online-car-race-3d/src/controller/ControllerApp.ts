@@ -6,7 +6,7 @@ import type { RaceState, RoomState, RoomStateDelta } from '../core/trackTypes'
 import type { PlayerSummary } from '../net/messages'
 import { applyRoomStateDelta } from '../state/StateRebuilder'
 
-const INPUT_SEND_INTERVAL_MS = 100
+const INPUT_SEND_INTERVAL_MS = 33
 const SENSOR_PULSE_TIMEOUT_MS = 2000
 const SHOOT_COOLDOWN_MS = 2000
 const TURBO_COOLDOWN_MS = 400

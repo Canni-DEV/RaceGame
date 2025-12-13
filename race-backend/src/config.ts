@@ -22,9 +22,9 @@ export const RACE_BACKTRACK_TOLERANCE = clamp(Number(process.env.RACE_BACKTRACK_
 export const RACE_MIN_FORWARD_ADVANCE = clamp(Number(process.env.RACE_MIN_FORWARD_ADVANCE ?? 1), 0, 100);
 
 // Physics configuration
-export const MAX_SPEED = 65; // units per second
-export const ACCELERATION = 50; // units per second^2
-export const BRAKE_DECELERATION = 50; // units per second^2
+export const MAX_SPEED = 55; // units per second
+export const ACCELERATION = 45; // units per second^2
+export const BRAKE_DECELERATION = 75; // units per second^2
 export const FRICTION = 10; // passive deceleration per second
 export const STEER_SENSITIVITY = 2.5; // radians per second at full steer and 1 unit of normalized speed
 export const TURBO_MAX_CHARGES = clamp(Number(process.env.TURBO_MAX_CHARGES ?? 3), 0, 99);
