@@ -5,6 +5,18 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
 import { resolveServerAssetUrl } from '../config'
 
+const NEON_THEME = {
+  groundColor: 0x060814,
+  groundEmissive: 0x0b1433,
+  groundRoughness: 0.65,
+  groundMetalness: 0.15,
+  gridStep: 18,
+  gridOpacity: 0.2,
+  palette: [0x00ffff, 0xff00ff, 0x7cfbff, 0x00f7a5],
+  accent: 0xff5df2,
+  emissiveIntensity: 0.35,
+}
+
 // Backend rotations use the game angle convention (0 = +X). Three.js yaw expects 0 = +Z,
 // so we convert to the same mapping cars/missiles use.
 function toRendererYaw(angle: number): number {
@@ -21,19 +33,29 @@ interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
   ): void
 }
 
-export function createGroundPlane(size: number): THREE.Mesh {
+export function createGroundPlane(size: number): THREE.Group {
   const geometry = new THREE.PlaneGeometry(size, size)
   geometry.rotateX(-Math.PI / 2)
 
   const material = new THREE.MeshStandardMaterial({
-    color: 0x1a2b1f,
-    roughness: 1,
-    metalness: 0,
+    color: NEON_THEME.groundColor,
+    roughness: NEON_THEME.groundRoughness,
+    metalness: NEON_THEME.groundMetalness,
+    emissive: new THREE.Color(NEON_THEME.groundEmissive),
+    emissiveIntensity: 0.55,
   })
 
   const mesh = new THREE.Mesh(geometry, material)
-  mesh.receiveShadow = true
-  return mesh
+  mesh.receiveShadow = false
+  mesh.name = 'cyber-ground'
+
+  const group = new THREE.Group()
+  group.add(mesh)
+
+  const grid = createNeonGrid(size)
+  group.add(grid)
+
+  return group
 }
 
 class TrackAssetLoader {
@@ -97,10 +119,10 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     _track: TrackData,
     instruction: InstancedDecoration,
     root: THREE.Object3D,
-    _random: () => number,
+    random: () => number,
   ): void {
     if (instruction.mesh === 'procedural-tree') {
-      const treeGroup = this.buildTreeInstances(instruction.instances)
+      const treeGroup = this.buildTreeInstances(instruction.instances, random)
       if (treeGroup) {
         root.add(treeGroup)
       }
@@ -112,13 +134,14 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     }
 
     const assetUrl = resolveServerAssetUrl(instruction.assetUrl)
-    void this.buildAssetInstances(assetUrl, instruction.instances, root)
+    void this.buildAssetInstances(assetUrl, instruction.instances, root, random)
   }
 
   private async buildAssetInstances(
     assetUrl: string,
     instances: InstancedDecoration['instances'],
     root: THREE.Object3D,
+    random: () => number,
   ): Promise<void> {
     const base = await trackAssetLoader.loadBase(assetUrl)
     if (!base) {
@@ -126,6 +149,7 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     }
 
     base.updateMatrixWorld(true)
+    applyNeonStyle(base, random)
 
     const templateMeshes: THREE.Mesh[] = []
     base.traverse((child: THREE.Object3D) => {
@@ -196,13 +220,24 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     root.add(decorationGroup)
   }
 
-  private buildTreeInstances(instances: InstancedDecoration['instances']): THREE.Object3D | null {
+  private buildTreeInstances(
+    instances: InstancedDecoration['instances'],
+    random: () => number,
+  ): THREE.Object3D | null {
     if (instances.length === 0) {
       return null
     }
     const geometry = new THREE.ConeGeometry(1, 4.2, 6)
     geometry.translate(0, 2.1, 0)
-    const material = new THREE.MeshStandardMaterial({ color: 0x1f4d1a, flatShading: true })
+    const neonColor = pickNeonColor(random)
+    const material = new THREE.MeshStandardMaterial({
+      color: neonColor,
+      emissive: new THREE.Color(neonColor),
+      emissiveIntensity: NEON_THEME.emissiveIntensity * 0.6,
+      flatShading: true,
+      metalness: 0.2,
+      roughness: 0.35,
+    })
 
     const mesh = new THREE.InstancedMesh(geometry, material, instances.length)
     mesh.castShadow = true
@@ -246,4 +281,80 @@ export function applyDecorators(
     const decorator = decoratorRegistry[decoration.type]
     decorator.apply(track, decoration, root, random)
   }
+}
+
+function createNeonGrid(size: number): THREE.LineSegments {
+  const half = size / 2
+  const step = NEON_THEME.gridStep
+  const positions: number[] = []
+  const colors: number[] = []
+  let colorIndex = 0
+
+  const palette = NEON_THEME.palette
+  for (let x = -half; x <= half; x += step) {
+    positions.push(x, 0, -half, x, 0, half)
+    const color = new THREE.Color(palette[colorIndex % palette.length])
+    colors.push(color.r, color.g, color.b, color.r, color.g, color.b)
+    colorIndex++
+  }
+  for (let z = -half; z <= half; z += step) {
+    positions.push(-half, 0, z, half, 0, z)
+    const color = new THREE.Color(palette[colorIndex % palette.length])
+    colors.push(color.r, color.g, color.b, color.r, color.g, color.b)
+    colorIndex++
+  }
+
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3))
+
+  const material = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent: true,
+    opacity: NEON_THEME.gridOpacity,
+    blending: THREE.AdditiveBlending,
+    linewidth: 1,
+    toneMapped: false,
+  })
+
+  const lines = new THREE.LineSegments(geometry, material)
+  lines.position.y = 0.02
+  lines.name = 'neon-grid'
+  lines.userData.isTrackAsset = true
+  return lines
+}
+
+function applyNeonStyle(object: THREE.Object3D, random: () => number): void {
+  object.traverse((child: THREE.Object3D) => {
+    if ((child as THREE.Mesh).isMesh) {
+      const mesh = child as THREE.Mesh
+      if (Array.isArray(mesh.material)) {
+        mesh.material = mesh.material.map((material) => tintMaterial(material, pickNeonColor(random)))
+      } else {
+        mesh.material = tintMaterial(mesh.material, pickNeonColor(random))
+      }
+    }
+  })
+}
+
+function tintMaterial(material: THREE.Material, neon: number): THREE.Material {
+  if (
+    'color' in material &&
+    material instanceof THREE.MeshStandardMaterial &&
+    material.color instanceof THREE.Color
+  ) {
+    const clone = material.clone()
+    const emissiveColor = new THREE.Color(neon)
+    clone.emissive = emissiveColor
+    clone.emissiveIntensity = NEON_THEME.emissiveIntensity
+    clone.metalness = Math.max(clone.metalness, 0.25)
+    clone.roughness = Math.min(clone.roughness, 0.35)
+    return clone
+  }
+  return material
+}
+
+function pickNeonColor(random: () => number): number {
+  const index = Math.floor(random() * NEON_THEME.palette.length)
+  return NEON_THEME.palette[index]
 }

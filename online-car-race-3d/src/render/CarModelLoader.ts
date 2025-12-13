@@ -3,7 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { resolvePublicAssetUrl } from '../config'
 
-const DEFAULT_MODEL_PATH = 'models/car.glb'
+const DEFAULT_MODEL_PATH = 'models/Spaceship.glb'
 const TARGET_LENGTH = 4.6
 const DEBUG_MODEL_STRUCTURE =
   typeof import.meta.env?.VITE_DEBUG_CAR_MODEL_STRUCTURE === 'string'
@@ -38,6 +38,9 @@ type StandardMaterial = THREE.MeshStandardMaterial & {
   transparent: boolean
   opacity: number
   alphaMap: THREE.Texture | null
+  emissive: ColorWithChannels
+  emissiveIntensity: number
+  toneMapped?: boolean
 }
 
 type TextureWithMetadata = THREE.Texture & {
@@ -221,16 +224,28 @@ export class CarModelLoader {
     ) {
       const material = source.clone() as StandardMaterial
       const targetColor = color as ColorWithChannels
-      if (this.shouldTintMaterial(meshName, material)) {
+      const shouldTint = this.shouldTintMaterial(meshName, material)
+      const baseColor = material.color.clone()
+
+      if (shouldTint) {
         const tintedMap = this.getTintedMap(material.map, targetColor)
         if (tintedMap) {
           material.map = tintedMap
-          material.color.set(0xffffff)
-        } else {
-          material.map = null
-          material.color.copy(targetColor)
         }
+        // Blend toward player color; if no usable map, lean harder into the tint.
+        const mix = tintedMap ? 0.55 : 0.9
+        const tintedColor = baseColor.clone().lerp(targetColor, mix)
+        material.color.copy(tintedColor)
+      } else {
+        material.color.copy(baseColor)
       }
+
+      // Neon accent to read in the dark while keeping albedo/normal detail.
+      const emissiveBase = shouldTint ? targetColor : material.color
+      const emissiveColor = emissiveBase.clone().lerp(new THREE.Color(0x7cfbff), 0.35)
+      material.emissive.copy(emissiveColor)
+      material.emissiveIntensity = 0.1
+      material.toneMapped = true
       material.needsUpdate = true
       return material
     }

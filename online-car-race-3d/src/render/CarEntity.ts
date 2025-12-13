@@ -86,12 +86,20 @@ export class CarEntity {
     object.visible = this.isVisible
     this.scene.add(object)
     this.object = object
+    this.attachAccentLights(object)
 
     this.updateNameLabel()
 
     if (this.engineSound) {
       this.engineSound.attachTo(object)
     }
+  }
+  private attachAccentLights(root: THREE.Object3D): void {
+    const cyan = new THREE.PointLight(0x00ffff, 10, 32, 2.2)
+    cyan.position.set(0, 2.2, 0)
+    const magenta = new THREE.PointLight(0xff00ff, 6, 24, 2.2)
+    magenta.position.set(0, 1.2, -1.8)
+    root.add(cyan, magenta)
   }
 
   setTargetState(state: CarState): void {

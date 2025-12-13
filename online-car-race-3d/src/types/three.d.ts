@@ -107,6 +107,7 @@ declare module 'three' {
     r: number
     g: number
     b: number
+    copy(color: Color): this
     setHSL(h: number, s: number, l: number): this
     getHex(): number
     getHexString(): string
@@ -196,6 +197,14 @@ declare module 'three' {
 
   export class AmbientLight extends Object3D {
     constructor(color?: number | string, intensity?: number)
+  }
+
+  export class PointLight extends Object3D {
+    constructor(color?: number | string, intensity?: number, distance?: number, decay?: number)
+    intensity: number
+    distance: number
+    decay: number
+    castShadow: boolean
   }
 
   export class DirectionalLight extends Object3D {
@@ -326,6 +335,9 @@ declare module 'three' {
     color: Color
     metalness: number
     roughness: number
+    emissive: Color
+    emissiveIntensity: number
+    toneMapped?: boolean
     clone(): MeshStandardMaterial
   }
 
@@ -346,6 +358,18 @@ declare module 'three' {
   export class MeshBasicMaterial extends Material {
     constructor(parameters?: { map?: Texture | null; side?: number; depthWrite?: boolean; toneMapped?: boolean })
     map: Texture | null
+  }
+
+  export class LineBasicMaterial extends Material {
+    constructor(parameters?: {
+      color?: number | string
+      vertexColors?: boolean
+      transparent?: boolean
+      opacity?: number
+      linewidth?: number
+      blending?: number
+      toneMapped?: boolean
+    })
   }
 
   export class ShaderMaterial extends Material {
@@ -396,6 +420,12 @@ declare module 'three' {
   }
 
   export class Points<TGeometry extends BufferGeometry = BufferGeometry> extends Object3D {
+    constructor(geometry?: TGeometry, material?: Material | Material[])
+    geometry: TGeometry
+    material: Material | Material[]
+  }
+
+  export class LineSegments<TGeometry extends BufferGeometry = BufferGeometry> extends Object3D {
     constructor(geometry?: TGeometry, material?: Material | Material[])
     geometry: TGeometry
     material: Material | Material[]
