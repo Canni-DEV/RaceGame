@@ -405,6 +405,24 @@ declare module 'three/examples/jsm/loaders/GLTFLoader.js' {
   }
 }
 
+declare module 'three/examples/jsm/loaders/RGBELoader.js' {
+  import type { Texture } from 'three'
+
+  export class RGBELoader {
+    loadAsync(path: string): Promise<Texture>
+    setDataType?(type: number): this
+  }
+}
+
+declare module 'three/examples/jsm/loaders/HDRLoader.js' {
+  import type { Texture } from 'three'
+
+  export class HDRLoader {
+    loadAsync(path: string): Promise<Texture>
+    setDataType?(type: number): this
+  }
+}
+
 declare module 'three/examples/jsm/utils/SkeletonUtils.js' {
   import type { Object3D } from 'three'
 

@@ -3,12 +3,22 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
+import type { TrackBuildResult } from './TrackMeshBuilder'
 import { resolveServerAssetUrl } from '../config'
 
 // Backend rotations use the game angle convention (0 = +X). Three.js yaw expects 0 = +Z,
 // so we convert to the same mapping cars/missiles use.
 function toRendererYaw(angle: number): number {
   return Math.atan2(Math.cos(angle), Math.sin(angle))
+}
+
+export const DECORATOR_CONFIG = {
+  ground: {
+    minSize: 10000,
+    sizeMultiplier: 1.15,
+    padding: 35,
+    offsetY: -0.02,
+  },
 }
 
 interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
@@ -233,12 +243,20 @@ const decoratorRegistry: DecoratorRegistry = {
 
 export function applyDecorators(
   track: TrackData,
+  trackMesh: TrackBuildResult,
   root: THREE.Object3D,
   random: () => number,
 ): void {
-  const groundSize = Math.max(200, track.width * 200)
+  const bounds = trackMesh.bounds ?? new THREE.Box3().setFromObject(root)
+  const size = bounds.getSize(new THREE.Vector3())
+  const center = bounds.getCenter(new THREE.Vector3())
+  const maxSide = Math.max(size.x, size.z)
+  const groundSize = Math.max(
+    DECORATOR_CONFIG.ground.minSize,
+    maxSide * DECORATOR_CONFIG.ground.sizeMultiplier + DECORATOR_CONFIG.ground.padding,
+  )
   const ground = createGroundPlane(groundSize)
-  ground.position.y = -0.01
+  ground.position.set(center.x, DECORATOR_CONFIG.ground.offsetY, center.z)
   root.add(ground)
 
   const decorations = track.decorations ?? []

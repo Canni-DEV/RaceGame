@@ -1,4 +1,6 @@
 import * as THREE from 'three'
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
+import { resolvePublicAssetUrl } from '../config'
 import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
 import { GameStateStore } from '../state/GameStateStore'
@@ -9,6 +11,30 @@ import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
 import { RaceHud } from './RaceHud'
 import { ProceduralSky } from '../render/ProceduralSky'
+
+const DEFAULT_HDR_SKYBOX = 'textures/empty_play_room_4k.hdr'
+const SKYBOX_BACKGROUND_CONFIG = {
+  radius: 900,
+  offsetY: -20,
+}
+
+const getEnvFlag = (key: string, defaultValue: boolean): boolean => {
+  const raw = import.meta.env?.[key]
+  if (typeof raw !== 'string') {
+    return defaultValue
+  }
+  return raw.toLowerCase() === 'true' || raw === '1'
+}
+
+const getSkyboxUrl = (): string => {
+  const candidate = import.meta.env?.VITE_SKYBOX_HDR_URL
+  if (typeof candidate === 'string' && candidate.trim().length > 0) {
+    return resolvePublicAssetUrl(candidate.trim())
+  }
+  return resolvePublicAssetUrl(DEFAULT_HDR_SKYBOX)
+}
+
+const HDR_BACKGROUND_ENABLED = getEnvFlag('VITE_ENABLE_HDR_BACKGROUND', false)
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -40,6 +66,10 @@ export class SceneManager {
   private readonly maxPixelRatio = 1
   private lastShadowMapSize: number | null = null
   private skyUpdateAccumulator = 0
+  private environmentMap: THREE.Texture | null = null
+  private hdrBackground: THREE.Mesh | null = null
+  private readonly hdrLoader = new HDRLoader()
+  private readonly skyboxPath = getSkyboxUrl()
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -160,6 +190,16 @@ export class SceneManager {
   }
 
   private setupEnvironment(): void {
+    const fallback = this.createGradientEnvironmentMap()
+    if (fallback) {
+      this.setEnvironmentMap(fallback)
+    }
+    if (HDR_BACKGROUND_ENABLED) {
+      void this.loadHdrEnvironment()
+    }
+  }
+
+  private createGradientEnvironmentMap(): THREE.Texture | null {
     const width = 1024
     const height = 512
     const canvas = document.createElement('canvas')
@@ -167,7 +207,7 @@ export class SceneManager {
     canvas.height = height
     const context = canvas.getContext('2d')
     if (!context) {
-      return
+      return null
     }
 
     const gradient = context.createLinearGradient(0, 0, 0, height)
@@ -183,8 +223,65 @@ export class SceneManager {
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer)
     const envMap = pmremGenerator.fromEquirectangular(texture).texture
     pmremGenerator.dispose()
+    texture.dispose()
 
+    return envMap
+  }
+
+  private setEnvironmentMap(envMap: THREE.Texture): void {
+    if (this.environmentMap && this.environmentMap !== envMap) {
+      this.environmentMap.dispose()
+    }
+    this.environmentMap = envMap
     this.scene.environment = envMap
+  }
+
+  private setHdrBackground(hdrTexture: THREE.Texture): void {
+    if (this.hdrBackground) {
+      this.scene.remove(this.hdrBackground)
+      this.hdrBackground.geometry.dispose()
+      const material = this.hdrBackground.material as THREE.MeshBasicMaterial
+      if (material.map) {
+        material.map.dispose()
+      }
+      material.dispose()
+      this.hdrBackground = null
+    }
+
+    const geometry = new THREE.SphereGeometry(
+      SKYBOX_BACKGROUND_CONFIG.radius,
+      48,
+      32,
+    )
+    const material = new THREE.MeshBasicMaterial({
+      map: hdrTexture,
+      side: THREE.BackSide,
+      depthWrite: false,
+      toneMapped: false,
+    })
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.frustumCulled = false
+    mesh.name = 'hdr-background'
+    this.scene.add(mesh)
+    this.scene.background = null
+    this.hdrBackground = mesh
+  }
+
+  private async loadHdrEnvironment(): Promise<void> {
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer)
+    try {
+      const hdrTexture = await this.hdrLoader.loadAsync(this.skyboxPath)
+      hdrTexture.mapping = THREE.EquirectangularReflectionMapping
+      const envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture
+
+      this.setEnvironmentMap(envMap)
+      this.sky.mesh.visible = false
+      this.setHdrBackground(hdrTexture)
+    } catch (error) {
+      console.error(`[SceneManager] Failed to load HDR skybox from "${this.skyboxPath}".`, error)
+    } finally {
+      pmremGenerator.dispose()
+    }
   }
 
   private readonly handleResize = (): void => {
@@ -232,7 +329,16 @@ export class SceneManager {
     }
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
-    this.sky.update(delta, this.camera.position)
+    if (this.sky.mesh.visible) {
+      this.sky.update(delta, this.camera.position)
+    }
+    if (this.hdrBackground) {
+      this.hdrBackground.position.set(
+        this.camera.position.x,
+        this.camera.position.y + SKYBOX_BACKGROUND_CONFIG.offsetY,
+        this.camera.position.z,
+      )
+    }
     this.renderer.render(this.scene, this.camera)
   }
 

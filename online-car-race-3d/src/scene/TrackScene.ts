@@ -139,7 +139,7 @@ export class TrackScene {
       group.add(rails)
     }
 
-    applyDecorators(track, group, random)
+    applyDecorators(track, result, group, random)
 
     this.scene.add(group)
     this.trackRoot = group
