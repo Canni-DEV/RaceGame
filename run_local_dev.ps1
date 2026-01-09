@@ -1,7 +1,7 @@
 param(
   [int]$BackendPort = 4000,
   [int]$FrontendPort = 5173,
-  [string]$LanHost = '192.168.0.214'  # ajusta si quieres otra IP LAN
+  [string]$LanHost = '192.168.0.215'  # ajusta si quieres otra IP LAN
 )
 
 Set-StrictMode -Version Latest

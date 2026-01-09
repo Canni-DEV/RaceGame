@@ -24,14 +24,21 @@ export class CameraRig {
   private manualOrbitActive = false
   private followTarget: THREE.Object3D | null = null
   private followMode: 'chase' | 'firstPerson' = 'chase'
-  private followDistance = 26
-  private followHeight = 14
+  private followDistance = 10
+  private followHeight = 12
+  private followLookAhead = 12
+  private followLookUpOffset = 0
+  private maxFollowLagFraction = 0.1
+  private lagCorrectionSpeed = 140
   private firstPersonHeight = 1.5
   private firstPersonForwardOffset = 7
   private firstPersonLookAhead = 30
   private followRotationLocked = false
   private readonly followForward = new THREE.Vector3(0, 0, 1)
   private readonly tempForward = new THREE.Vector3(0, 0, 1)
+  private readonly tempOffset = new THREE.Vector3()
+  private readonly tempLagTarget = new THREE.Vector3()
+  private readonly worldUp = new THREE.Vector3(0, 1, 0)
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera
@@ -108,8 +115,8 @@ export class CameraRig {
     this.camera.near = Math.max(0.1, distanceToTarget * 0.001)
     this.camera.far = distanceToTarget + boundsDiagonal * 0.75
     this.camera.updateProjectionMatrix()
-    this.followDistance = Math.max(maxHorizontal * 0.04, 16)
-    this.followHeight = Math.max(size.y + 10, 10)
+    this.followDistance = Math.max(maxHorizontal * 0.02, 4)
+    this.followHeight = Math.max(size.y, 8)
     this.setTarget(bounds.getCenter(new THREE.Vector3()))
     const radius = this.getCurrentRadius()
     const minAngle = this.getMinVerticalAngle(radius)
@@ -136,6 +143,28 @@ export class CameraRig {
     }
   }
 
+  setFollowLookOffset(offset: { forward?: number; up?: number }): void {
+    if (typeof offset.forward === 'number' && Number.isFinite(offset.forward)) {
+      this.followLookAhead = offset.forward
+    }
+    if (typeof offset.up === 'number' && Number.isFinite(offset.up)) {
+      this.followLookUpOffset = offset.up
+    }
+  }
+
+  setFollowLag(options: { maxFraction?: number; correctionSpeed?: number }): void {
+    if (typeof options.maxFraction === 'number' && Number.isFinite(options.maxFraction)) {
+      this.maxFollowLagFraction = THREE.MathUtils.clamp(options.maxFraction, 0, 1)
+    }
+    if (
+      typeof options.correctionSpeed === 'number' &&
+      Number.isFinite(options.correctionSpeed) &&
+      options.correctionSpeed > 0
+    ) {
+      this.lagCorrectionSpeed = options.correctionSpeed
+    }
+  }
+
   isFollowing(): boolean {
     return this.followTarget !== null
   }
@@ -148,7 +177,27 @@ export class CameraRig {
     this.lookTarget.copy(this.smoothedTarget)
 
     if (this.followTarget) {
-      this.smoothedTarget.lerp(this.followTarget.position, targetLerp)
+      const targetPosition = this.followTarget.position
+      this.smoothedTarget.lerp(targetPosition, targetLerp)
+
+      // Limit positional lag so distance stays stable even at high speed.
+      this.tempOffset.subVectors(targetPosition, this.smoothedTarget)
+      const lag = this.tempOffset.length()
+      const maxLag = Math.max(this.followDistance * this.maxFollowLagFraction, 0.01)
+      if (lag > maxLag) {
+        // Move toward the capped target without snapping to preserve smooth transitions.
+        const desiredTarget = this.tempLagTarget
+          .copy(targetPosition)
+          .addScaledVector(this.tempOffset, -maxLag / lag)
+        const move = desiredTarget.sub(this.smoothedTarget)
+        const moveDistance = move.length()
+        if (moveDistance > 1e-6) {
+          const maxStep = Math.max(this.followDistance * 10, this.lagCorrectionSpeed) * dt
+          const stepFactor = Math.min(1, maxStep / moveDistance)
+          this.smoothedTarget.addScaledVector(move, stepFactor)
+        }
+      }
+
       if (!this.followRotationLocked) {
         const targetForward = this.getTargetForward(this.followTarget)
         if (targetForward.lengthSq() > 1e-6) {
@@ -168,7 +217,10 @@ export class CameraRig {
       } else {
         this.desiredPosition.addScaledVector(this.followForward, -this.followDistance)
         this.desiredPosition.y = this.smoothedTarget.y + this.followHeight
-        this.lookTarget.copy(this.smoothedTarget)
+        this.lookTarget
+          .copy(this.smoothedTarget)
+          .addScaledVector(this.followForward, this.followLookAhead)
+          .addScaledVector(this.worldUp, this.followLookUpOffset)
       }
     } else {
       this.smoothedTarget.lerp(this.manualTarget, targetLerp)
