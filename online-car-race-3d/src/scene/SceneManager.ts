@@ -9,6 +9,7 @@ import { ViewerControllerAccess } from './ViewerControllerAccess'
 import { PlayerListOverlay } from './PlayerListOverlay'
 import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
+import { GameAudioSystem } from '../audio/GameAudioSystem'
 import { RaceHud } from './RaceHud'
 import { ProceduralSky } from '../render/ProceduralSky'
 
@@ -51,6 +52,7 @@ export class SceneManager {
   private readonly playerListOverlay: PlayerListOverlay
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
+  private readonly gameAudio: GameAudioSystem
   private readonly skyAnimationEnabled = false
   private readonly skyAnimationInterval = 0.5
   private keyLight: THREE.DirectionalLight | null = null
@@ -103,12 +105,14 @@ export class SceneManager {
     this.scene.add(this.camera)
 
     this.cameraRig = new CameraRig(this.camera)
-    this.audioManager = new AudioManager(this.camera)
+    this.audioManager = new AudioManager(this.camera, this.scene)
 
     this.setupLights()
 
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
+    this.gameAudio = new GameAudioSystem(this.audioManager, this.gameStateStore)
+    void this.gameAudio
     this.trackScene = new TrackScene(
       this.scene,
       this.camera,

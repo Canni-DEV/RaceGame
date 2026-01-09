@@ -1,16 +1,39 @@
 import * as THREE from 'three'
 import { EngineSound } from './EngineSound'
 
+export type PositionalSfxOptions = {
+  volume?: number
+  refDistance?: number
+  rolloff?: number
+  maxDistance?: number
+}
+
+type SfxRequest = {
+  url: string
+  volume: number
+  position?: THREE.Vector3
+  refDistance?: number
+  rolloff?: number
+  maxDistance?: number
+}
+
 export class AudioManager {
   private readonly listener: THREE.AudioListener
+  private readonly audioRoot: THREE.Group
   private readonly unlockHandler: () => void
   private readonly engineSounds: Set<EngineSound> = new Set()
   private readonly stateChangeHandler: () => void
+  private readonly pendingActions: Array<() => void> = []
+  private readonly bufferCache = new Map<string, AudioBuffer>()
+  private readonly bufferLoads = new Map<string, Promise<AudioBuffer>>()
   private contextRunning = false
 
-  constructor(camera: THREE.Camera) {
+  constructor(camera: THREE.Camera, scene: THREE.Scene) {
     this.listener = new THREE.AudioListener()
     camera.add(this.listener)
+    this.audioRoot = new THREE.Group()
+    this.audioRoot.name = 'audio-root'
+    scene.add(this.audioRoot)
 
     this.stateChangeHandler = () => {
       this.contextRunning = this.isContextRunning()
@@ -57,6 +80,12 @@ export class AudioManager {
     this.unlockHandler()
   }
 
+  preload(urls: string[]): void {
+    for (const url of urls) {
+      void this.loadBuffer(url).catch(() => undefined)
+    }
+  }
+
   createEngineSound(): EngineSound {
     const sound = new EngineSound(this.listener, undefined, () => {
       this.engineSounds.delete(sound)
@@ -66,8 +95,36 @@ export class AudioManager {
     return sound
   }
 
+  playUiSound(url: string, volume = 1): void {
+    this.enqueueOrRun(() => {
+      void this.playOneShot({
+        url,
+        volume,
+      })
+    })
+  }
+
+  playPositionalSound(
+    url: string,
+    position: THREE.Vector3,
+    options?: PositionalSfxOptions,
+  ): void {
+    const positionCopy = position.clone()
+    this.enqueueOrRun(() => {
+      void this.playOneShot({
+        url,
+        volume: options?.volume ?? 1,
+        position: positionCopy,
+        refDistance: options?.refDistance,
+        rolloff: options?.rolloff,
+        maxDistance: options?.maxDistance,
+      })
+    })
+  }
+
   dispose(): void {
     this.listener.context.removeEventListener('statechange', this.stateChangeHandler)
+    this.audioRoot.removeFromParent()
   }
 
   private startSoundIfReady(sound: EngineSound): void {
@@ -81,9 +138,106 @@ export class AudioManager {
     for (const sound of this.engineSounds) {
       this.startSoundIfReady(sound)
     }
+    this.flushPendingActions()
   }
 
   private isContextRunning(): boolean {
     return this.listener.context.state === 'running'
+  }
+
+  private enqueueOrRun(action: () => void): void {
+    if (this.contextRunning) {
+      action()
+      return
+    }
+    this.pendingActions.push(action)
+    this.unlockHandler()
+  }
+
+  private flushPendingActions(): void {
+    if (!this.contextRunning || this.pendingActions.length === 0) {
+      return
+    }
+    const pending = this.pendingActions.splice(0)
+    for (const action of pending) {
+      action()
+    }
+  }
+
+  private async loadBuffer(url: string): Promise<AudioBuffer> {
+    const cached = this.bufferCache.get(url)
+    if (cached) {
+      return cached
+    }
+    const inflight = this.bufferLoads.get(url)
+    if (inflight) {
+      return inflight
+    }
+    const loadPromise = fetch(url)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Audio fetch failed (${response.status})`)
+        }
+        return response.arrayBuffer()
+      })
+      .then((data) => this.listener.context.decodeAudioData(data))
+      .then((buffer) => {
+        this.bufferCache.set(url, buffer)
+        this.bufferLoads.delete(url)
+        return buffer
+      })
+      .catch((error) => {
+        this.bufferLoads.delete(url)
+        console.warn('[Audio] Failed to load', url, error)
+        throw error
+      })
+    this.bufferLoads.set(url, loadPromise)
+    return loadPromise
+  }
+
+  private async playOneShot(request: SfxRequest): Promise<void> {
+    let buffer: AudioBuffer
+    try {
+      buffer = await this.loadBuffer(request.url)
+    } catch {
+      return
+    }
+
+    if (!this.contextRunning) {
+      this.pendingActions.push(() => {
+        void this.playOneShot(request)
+      })
+      return
+    }
+
+    const sound = request.position
+      ? new THREE.PositionalAudio(this.listener)
+      : new THREE.Audio(this.listener)
+    sound.setBuffer(buffer)
+    sound.setLoop(false)
+    sound.setVolume(request.volume)
+
+    if (request.position) {
+      const positional = sound as THREE.PositionalAudio
+      if (typeof request.refDistance === 'number') {
+        positional.setRefDistance(request.refDistance)
+      }
+      if (typeof request.rolloff === 'number') {
+        positional.setRolloffFactor(request.rolloff)
+      }
+      positional.setDistanceModel('inverse')
+      if (typeof request.maxDistance === 'number') {
+        const panner = positional.getOutput() as PannerNode
+        panner.maxDistance = request.maxDistance
+      }
+      positional.position.copy(request.position)
+    }
+
+    sound.onEnded = () => {
+      sound.removeFromParent()
+    }
+
+    this.audioRoot.add(sound)
+    sound.play()
   }
 }

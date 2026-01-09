@@ -142,6 +142,18 @@ declare module 'three' {
     context: AudioContext
   }
 
+  export class Audio extends Object3D {
+    constructor(listener: AudioListener)
+    context: AudioContext
+    isPlaying: boolean
+    onEnded?: () => void
+    setBuffer(buffer: AudioBuffer): this
+    setLoop(value: boolean): this
+    setVolume(value: number): this
+    play(): this
+    stop(): this
+  }
+
   export class OrthographicCamera extends Object3D {
     near: number
     far: number
@@ -178,9 +190,7 @@ declare module 'three' {
     elapsedTime: number
   }
 
-  export class PositionalAudio extends Object3D {
-    constructor(listener: AudioListener)
-    context: AudioContext
+  export class PositionalAudio extends Audio {
     getOutput(): AudioNode
     setRefDistance(value: number): this
     setRolloffFactor(value: number): this
