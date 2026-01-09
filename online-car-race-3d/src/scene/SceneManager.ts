@@ -132,7 +132,11 @@ export class SceneManager {
 
     this.socketClient = new SocketClient()
     this.socketClient.onRoomInfo((info) => {
-      this.gameStateStore.setRoomInfo(info.roomId, info.playerId, info.track, info.players)
+      this.gameStateStore.setRoomInfo(info.roomId, info.playerId, info.track, info.players, {
+        sessionToken: info.sessionToken,
+        protocolVersion: info.protocolVersion,
+        serverVersion: info.serverVersion,
+      })
     })
     this.socketClient.onState((state) => {
       this.gameStateStore.updateState(state)

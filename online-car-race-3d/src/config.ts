@@ -74,6 +74,8 @@ export const SERVER_URL = trimTrailingSlash(
   })(),
 )
 
+export const PROTOCOL_VERSION = 2
+
 const BASE_PATH = normalizeBasePath(RAW_BASE_URL)
 
 export function resolvePublicAssetUrl(path: string): string {

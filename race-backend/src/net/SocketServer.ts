@@ -8,6 +8,7 @@ import {
   RoomInfoMessage,
   UsernameUpdateMessage
 } from "../types/messages";
+import { PROTOCOL_VERSION, SERVER_VERSION } from "../config";
 import { RoomState } from "../types/trackTypes";
 import { RoomManager } from "../game/RoomManager";
 import { serializeRoomState } from "./stateSerializer";
@@ -91,7 +92,10 @@ export class SocketServer {
           playerId: result.playerId,
           role: "viewer",
           track: result.room.track,
-          players: result.room.getPlayers()
+          players: result.room.getPlayers(),
+          sessionToken: result.sessionToken,
+          protocolVersion: PROTOCOL_VERSION,
+          serverVersion: SERVER_VERSION
         };
 
         socket.emit("room_info", info);
@@ -106,7 +110,10 @@ export class SocketServer {
           playerId: result.playerId,
           role: "controller",
           track: result.room.track,
-          players: result.room.getPlayers()
+          players: result.room.getPlayers(),
+          sessionToken: result.sessionToken,
+          protocolVersion: PROTOCOL_VERSION,
+          serverVersion: SERVER_VERSION
         };
 
         socket.emit("room_info", info);
@@ -137,12 +144,7 @@ export class SocketServer {
     }
 
     try {
-      this.roomManager.handleInput(socket.id, payload.roomId, payload.playerId, {
-        steer: payload.steer,
-        throttle: payload.throttle,
-        brake: payload.brake,
-        actions: payload.actions
-      });
+      this.roomManager.handleInput(socket.id, payload);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       this.emitError(socket, message);

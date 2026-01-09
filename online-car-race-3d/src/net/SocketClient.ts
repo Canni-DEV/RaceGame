@@ -6,7 +6,7 @@ import type {
   StateFullMessage,
   StateMessage,
 } from './messages'
-import { SERVER_URL } from '../config'
+import { PROTOCOL_VERSION, SERVER_URL } from '../config'
 
 const SOCKET_SCRIPT_PATH = '/socket.io/socket.io.js'
 
@@ -182,7 +182,7 @@ export class SocketClient {
   setJoinPayload(payload: Record<string, unknown>): void {
     this.joinPayload = sanitizeJoinPayload(payload)
     if (this.socket?.connected) {
-      this.socket.emit('join_room', { role: this.role, ...this.joinPayload })
+      this.socket.emit('join_room', this.buildJoinPayload())
     }
   }
 
@@ -212,7 +212,7 @@ export class SocketClient {
 
   private registerHandlers(socket: SocketLike): void {
     socket.on('connect', () => {
-      socket.emit('join_room', { role: this.role, ...this.joinPayload })
+      socket.emit('join_room', this.buildJoinPayload())
       for (const listener of this.connectListeners) {
         listener()
       }
@@ -265,5 +265,9 @@ export class SocketClient {
     socket.on('disconnect', (reason: unknown) => {
       console.warn(`[SocketClient] disconnected: ${String(reason)}`)
     })
+  }
+
+  private buildJoinPayload(): Record<string, unknown> {
+    return { role: this.role, protocolVersion: PROTOCOL_VERSION, ...this.joinPayload }
   }
 }

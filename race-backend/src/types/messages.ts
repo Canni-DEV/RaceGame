@@ -4,6 +4,8 @@ export interface JoinRoomRequest {
   roomId?: string;
   role: PlayerRole;
   playerId?: string;
+  sessionToken?: string;
+  protocolVersion?: number;
 }
 
 export interface RoomInfoMessage {
@@ -12,6 +14,9 @@ export interface RoomInfoMessage {
   role: PlayerRole;
   track: TrackData;
   players: { playerId: string; username: string; isNpc?: boolean }[];
+  sessionToken?: string;
+  protocolVersion?: number;
+  serverVersion?: string;
 }
 
 export interface InputMessage {
@@ -25,6 +30,7 @@ export interface InputMessage {
     reset?: boolean;
     shoot?: boolean;
   };
+  sessionToken?: string;
 }
 
 export type StateMessage = RoomState;
