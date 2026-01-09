@@ -6,6 +6,7 @@ type ControllerSocketOptions = {
   roomId: string
   playerId: string
   serverUrl?: string
+  sessionToken?: string
 }
 
 type RoomInfoCallback = (info: RoomInfoMessage) => void
@@ -20,14 +21,16 @@ export class ControllerSocketClient {
   private readonly client: SocketClient
   private readonly roomId: string
   private readonly playerId: string
+  private readonly sessionToken?: string
 
-  constructor({ roomId, playerId, serverUrl }: ControllerSocketOptions) {
+  constructor({ roomId, playerId, serverUrl, sessionToken }: ControllerSocketOptions) {
     this.roomId = roomId
     this.playerId = playerId
+    this.sessionToken = sessionToken
     this.client = new SocketClient(
       {
         role: 'controller',
-        joinPayload: { roomId, playerId },
+        joinPayload: { roomId, playerId, sessionToken },
       },
       serverUrl,
     )
@@ -83,6 +86,7 @@ export class ControllerSocketClient {
       throttle: input.throttle,
       brake: input.brake,
       actions: input.actions,
+      sessionToken: this.sessionToken,
     })
   }
 

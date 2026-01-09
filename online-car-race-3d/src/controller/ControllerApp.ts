@@ -130,6 +130,7 @@ export class ControllerApp {
     const params = new URLSearchParams(window.location.search)
     const roomId = params.get('roomId') ?? ''
     const playerId = params.get('playerId') ?? ''
+    const sessionToken = params.get('sessionToken') ?? undefined
     this.roomId = roomId
     this.playerId = playerId
     this.playerUsername = playerId
@@ -144,7 +145,7 @@ export class ControllerApp {
 
     if (this.hasRoomParameters) {
       this.statusText.textContent = `Room ${roomId} · ${this.playerUsername}`
-      this.socketClient = new ControllerSocketClient({ roomId, playerId, serverUrl })
+      this.socketClient = new ControllerSocketClient({ roomId, playerId, serverUrl, sessionToken })
       this.socketClient.onError((message) => {
         this.errorMessage = message
         this.hasRoomInfo = false

@@ -70,7 +70,11 @@ export class ViewerControllerAccess {
     }
 
     this.isReady = true
-    const controllerUrl = this.buildControllerUrl(info.roomId, info.playerId)
+    const controllerUrl = this.buildControllerUrl(
+      info.roomId,
+      info.playerId,
+      info.sessionToken ?? undefined,
+    )
     this.statusText.textContent = `Room ${info.roomId} · Player ${info.playerId}`
     this.linkElement.href = controllerUrl
     this.linkElement.textContent = controllerUrl
@@ -83,11 +87,16 @@ export class ViewerControllerAccess {
     return params.get('server') ?? params.get('serverUrl')
   }
 
-  private buildControllerUrl(roomId: string, playerId: string): string {
+  private buildControllerUrl(roomId: string, playerId: string, sessionToken?: string): string {
     const url = new URL(window.location.href)
     url.searchParams.set('mode', 'controller')
     url.searchParams.set('roomId', roomId)
     url.searchParams.set('playerId', playerId)
+    if (sessionToken) {
+      url.searchParams.set('sessionToken', sessionToken)
+    } else {
+      url.searchParams.delete('sessionToken')
+    }
     if (this.serverParam) {
       url.searchParams.set('server', this.serverParam)
     } else {

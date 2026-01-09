@@ -3,9 +3,10 @@ import {
   DEFAULT_ROOM_PREFIX,
   INPUT_BURST_LIMIT,
   INPUT_BURST_WINDOW_MS,
-  MAX_PLAYERS_PER_ROOM
+  MAX_PLAYERS_PER_ROOM,
+  PROTOCOL_VERSION
 } from "../config";
-import { JoinRoomRequest, UsernameUpdateMessage } from "../types/messages";
+import { InputMessage, JoinRoomRequest, UsernameUpdateMessage } from "../types/messages";
 import { PlayerRole } from "../types/trackTypes";
 import { trackRepository } from "./TrackRepository";
 import { Room, PlayerInput } from "./Room";
@@ -31,6 +32,7 @@ interface ViewerJoinResult {
   playerId: string;
   trackCreated: boolean;
   playerCreated: boolean;
+  sessionToken: string;
 }
 
 interface ControllerJoinResult {
@@ -38,6 +40,7 @@ interface ControllerJoinResult {
   playerId: string;
   playerCreated: boolean;
   username: string;
+  sessionToken?: string;
 }
 
 interface DisconnectResult {
@@ -51,9 +54,11 @@ export class RoomManager {
   private socketRoles: Map<string, PlayerRole> = new Map();
   private viewerSocketToPlayer: Map<string, string> = new Map();
   private controllerSocketToPlayer: Map<string, string> = new Map();
+  private readonly sessionTokens: Map<string, Map<string, string>> = new Map();
   private readonly inputBuffers: Map<string, Map<string, BufferedInputEntry>> = new Map();
 
   handleViewerJoin(socketId: string, payload: JoinRoomRequest): ViewerJoinResult {
+    this.assertProtocolVersion(payload.protocolVersion);
     const { room, isNewRoom } = this.resolveRoom(payload.roomId);
 
     let playerId = payload.playerId;
@@ -75,12 +80,14 @@ export class RoomManager {
     this.socketToRoom.set(socketId, room.roomId);
     this.socketRoles.set(socketId, "viewer");
     this.viewerSocketToPlayer.set(socketId, playerId);
+    const sessionToken = this.getOrCreateSessionToken(room.roomId, playerId);
 
     return {
       room,
       playerId,
       trackCreated: isNewRoom,
-      playerCreated
+      playerCreated,
+      sessionToken
     };
   }
 
@@ -104,6 +111,12 @@ export class RoomManager {
       throw new Error("Viewer session not found for player");
     }
 
+    const expectedToken = this.getSessionToken(room.roomId, payload.playerId);
+    this.assertProtocolVersion(payload.protocolVersion);
+    if (!expectedToken || !payload.sessionToken || payload.sessionToken !== expectedToken) {
+      throw new Error("Session token inválido");
+    }
+
     let playerCreated = false;
 
     if (!room.cars.has(payload.playerId)) {
@@ -118,8 +131,7 @@ export class RoomManager {
     if (existingController) {
       room.detachController(existingController);
       this.controllerSocketToPlayer.delete(existingController);
-      this.socketToRoom.delete(existingController);
-      this.socketRoles.delete(existingController);
+      this.cleanupSocket(existingController);
     }
 
     room.attachController(socketId, payload.playerId);
@@ -132,11 +144,22 @@ export class RoomManager {
       room,
       playerId: payload.playerId,
       playerCreated,
-      username: room.getUsername(payload.playerId)
+      username: room.getUsername(payload.playerId),
+      sessionToken: expectedToken
     };
   }
 
-  handleInput(socketId: string, roomId: string, playerId: string, input: PlayerInput): void {
+  handleInput(socketId: string, payload: InputMessage): void {
+    const role = this.socketRoles.get(socketId);
+    if (role !== "controller") {
+      throw new Error("Socket no autorizado para enviar inputs");
+    }
+    const roomId = this.socketToRoom.get(socketId);
+    const playerId = this.controllerSocketToPlayer.get(socketId);
+    if (!roomId || !playerId) {
+      throw new Error("Controller session not bound");
+    }
+
     const room = this.rooms.get(roomId);
     if (!room) {
       throw new Error("Room not found");
@@ -145,6 +168,12 @@ export class RoomManager {
       throw new Error("Player not found in room");
     }
 
+    const expectedToken = this.getSessionToken(roomId, playerId);
+    if (!expectedToken || !payload.sessionToken || payload.sessionToken !== expectedToken) {
+      throw new Error("Session token inválido");
+    }
+
+    const input = this.sanitizeInputPayload(payload);
     const buffered = this.getOrCreateBuffer(roomId, playerId);
     this.enforceBurstLimit(buffered, socketId);
 
@@ -213,6 +242,7 @@ export class RoomManager {
       const removedPlayerId = room.removeViewer(socketId);
       this.viewerSocketToPlayer.delete(socketId);
       if (playerId && removedPlayerId === playerId) {
+        this.deleteSessionToken(roomId, playerId);
         const controllerSocket = room.removePlayer(playerId);
         this.removeBufferedInput(roomId, playerId);
         if (controllerSocket) {
@@ -232,6 +262,7 @@ export class RoomManager {
     if (room.isEmpty()) {
       this.rooms.delete(room.roomId);
       this.inputBuffers.delete(room.roomId);
+      this.sessionTokens.delete(room.roomId);
       deletedRooms = [room.roomId];
     }
 
@@ -370,6 +401,62 @@ export class RoomManager {
   private removeBufferedInput(roomId: string, playerId: string): void {
     const buffers = this.inputBuffers.get(roomId);
     buffers?.delete(playerId);
+  }
+
+  private getSessionToken(roomId: string, playerId: string): string | undefined {
+    return this.sessionTokens.get(roomId)?.get(playerId);
+  }
+
+  private getOrCreateSessionToken(roomId: string, playerId: string): string {
+    let roomTokens = this.sessionTokens.get(roomId);
+    if (!roomTokens) {
+      roomTokens = new Map();
+      this.sessionTokens.set(roomId, roomTokens);
+    }
+
+    const existing = roomTokens.get(playerId);
+    if (existing) {
+      return existing;
+    }
+
+    const token = randomBytes(16).toString("hex");
+    roomTokens.set(playerId, token);
+    return token;
+  }
+
+  private deleteSessionToken(roomId: string, playerId: string): void {
+    const roomTokens = this.sessionTokens.get(roomId);
+    if (!roomTokens) {
+      return;
+    }
+    roomTokens.delete(playerId);
+    if (roomTokens.size === 0) {
+      this.sessionTokens.delete(roomId);
+    }
+  }
+
+  private assertProtocolVersion(value?: number): void {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      throw new Error("Protocol version requerida");
+    }
+    const normalized = Math.max(1, Math.floor(value));
+    if (normalized !== PROTOCOL_VERSION) {
+      throw new Error("Protocol version no soportada");
+    }
+  }
+
+  private sanitizeInputPayload(payload: InputMessage): PlayerInput {
+    return {
+      steer: this.clampNumber(payload.steer, -1, 1, 0),
+      throttle: this.clampNumber(payload.throttle, 0, 1, 0),
+      brake: this.clampNumber(payload.brake, 0, 1, 0),
+      actions: payload.actions
+    };
+  }
+
+  private clampNumber(value: unknown, min: number, max: number, fallback: number): number {
+    const numeric = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+    return Math.min(Math.max(numeric, min), max);
   }
 
   private analogEquals(

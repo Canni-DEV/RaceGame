@@ -1,6 +1,8 @@
 import path from "path";
 
 export const PORT = 4000;
+export const PROTOCOL_VERSION = clamp(Number(process.env.PROTOCOL_VERSION ?? 2), 1, 1000);
+export const SERVER_VERSION = process.env.SERVER_VERSION ?? "1";
 export const TICK_RATE = 60; // ticks per second
 export const STATE_BROADCAST_RATE = 20; // snapshots per second
 export const STATE_NUMBER_PRECISION = clamp(Number(process.env.STATE_NUMBER_PRECISION ?? 3), 0, 10);

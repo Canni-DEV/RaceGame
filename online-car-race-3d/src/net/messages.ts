@@ -12,6 +12,9 @@ export interface RoomInfoMessage {
   role: PlayerRole
   track: TrackData
   players: PlayerSummary[]
+  sessionToken?: string
+  protocolVersion?: number
+  serverVersion?: string
 }
 
 export type StateMessage = RoomState

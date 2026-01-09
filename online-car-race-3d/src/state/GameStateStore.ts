@@ -34,6 +34,9 @@ export interface RoomInfoSnapshot {
   playerId: string | null
   track: TrackData | null
   players: PlayerSummary[]
+  sessionToken?: string
+  protocolVersion?: number
+  serverVersion?: string
 }
 
 type RoomInfoListener = (info: RoomInfoSnapshot) => void
@@ -44,6 +47,9 @@ export class GameStateStore {
   private playerId: string | null = null
   private track: TrackData | null = null
   private players: PlayerSummary[] = []
+  private sessionToken: string | null = null
+  private protocolVersion: number | null = null
+  private serverVersion: string | null = null
   private readonly playerNames = new Map<string, string>()
   private lastState: RoomState | null = null
   private lastStateTimestamp = 0
@@ -67,11 +73,15 @@ export class GameStateStore {
     playerId: string,
     track: TrackData,
     players: PlayerSummary[],
+    info?: { sessionToken?: string; protocolVersion?: number; serverVersion?: string },
   ): void {
     this.roomId = roomId
     this.playerId = playerId
     this.track = track
     this.replacePlayers(players)
+    this.sessionToken = info?.sessionToken ?? null
+    this.protocolVersion = info?.protocolVersion ?? null
+    this.serverVersion = info?.serverVersion ?? null
     this.notifyRoomInfo()
   }
 
@@ -492,6 +502,9 @@ export class GameStateStore {
       playerId: this.playerId,
       track: this.track,
       players: [...this.players],
+      sessionToken: this.sessionToken ?? undefined,
+      protocolVersion: this.protocolVersion ?? undefined,
+      serverVersion: this.serverVersion ?? undefined,
     }
   }
 
