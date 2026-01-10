@@ -22,6 +22,10 @@ export class TrackScene {
   private readonly guardRailBuilder: GuardRailBuilder
   private readonly mainLight: THREE.DirectionalLight | null
   private readonly mainLightDistance: number
+  private readonly fillLight: THREE.DirectionalLight | null
+  private readonly fillLightDistance: number
+  private readonly rimLight: THREE.DirectionalLight | null
+  private readonly rimLightDistance: number
   private readonly cars: Map<string, CarEntity>
   private readonly missiles: Map<string, MissileEntity>
   private readonly items: Map<string, ItemEntity>
@@ -49,6 +53,8 @@ export class TrackScene {
     cameraRig: CameraRig,
     store: GameStateStore,
     mainLight: THREE.DirectionalLight | null,
+    fillLight: THREE.DirectionalLight | null,
+    rimLight: THREE.DirectionalLight | null,
     audioManager: AudioManager | null,
     onPlayerAutoFollow?: () => void,
   ) {
@@ -60,6 +66,14 @@ export class TrackScene {
     this.mainLight = mainLight
     this.mainLightDistance = mainLight
       ? mainLight.position.distanceTo(mainLight.target.position)
+      : 0
+    this.fillLight = fillLight
+    this.fillLightDistance = fillLight
+      ? fillLight.position.distanceTo(fillLight.target.position)
+      : 0
+    this.rimLight = rimLight
+    this.rimLightDistance = rimLight
+      ? rimLight.position.distanceTo(rimLight.target.position)
       : 0
     this.carModelLoader = new CarModelLoader()
     this.guardRailBuilder = new GuardRailBuilder()
@@ -354,7 +368,7 @@ export class TrackScene {
   }
 
   private updateLighting(track: TrackBuildResult): void {
-    if (!this.mainLight) {
+    if (!this.mainLight && !this.fillLight && !this.rimLight) {
       return
     }
 
@@ -364,40 +378,62 @@ export class TrackScene {
     const halfSpan = Math.max(size.x, size.z) / 2 + margin
     const height = size.y + margin
 
-    const direction = this.mainLight.position
-      .clone()
-      .sub(this.mainLight.target.position)
-      .normalize()
+    if (this.mainLight) {
+      const direction = this.mainLight.position
+        .clone()
+        .sub(this.mainLight.target.position)
+        .normalize()
 
-    const distance = Math.max(this.mainLightDistance, halfSpan + height)
-    this.mainLight.position.copy(center).addScaledVector(direction, distance)
-    this.mainLight.target.position.copy(center)
-    this.mainLight.target.updateMatrixWorld()
-
-    // Snap light and target to shadow texels to reduce shimmering when moving.
-    const shadowSize = this.mainLight.shadow.mapSize.width || 1024
-    const texelSize = (halfSpan * 2) / shadowSize
-    if (texelSize > 0) {
-      const snap = (v: THREE.Vector3): void => {
-        v.set(
-          Math.round(v.x / texelSize) * texelSize,
-          Math.round(v.y / texelSize) * texelSize,
-          Math.round(v.z / texelSize) * texelSize,
-        )
-      }
-      snap(this.mainLight.position)
-      snap(this.mainLight.target.position)
+      const distance = Math.max(this.mainLightDistance, halfSpan + height)
+      this.mainLight.position.copy(center).addScaledVector(direction, distance)
+      this.mainLight.target.position.copy(center)
       this.mainLight.target.updateMatrixWorld()
+
+      // Snap light and target to shadow texels to reduce shimmering when moving.
+      const shadowSize = this.mainLight.shadow.mapSize.width || 1024
+      const texelSize = (halfSpan * 2) / shadowSize
+      if (texelSize > 0) {
+        const snap = (v: THREE.Vector3): void => {
+          v.set(
+            Math.round(v.x / texelSize) * texelSize,
+            Math.round(v.y / texelSize) * texelSize,
+            Math.round(v.z / texelSize) * texelSize,
+          )
+        }
+        snap(this.mainLight.position)
+        snap(this.mainLight.target.position)
+        this.mainLight.target.updateMatrixWorld()
+      }
+
+      const shadowCamera = this.mainLight.shadow.camera as THREE.OrthographicCamera
+      shadowCamera.left = -halfSpan
+      shadowCamera.right = halfSpan
+      shadowCamera.top = halfSpan
+      shadowCamera.bottom = -halfSpan
+      shadowCamera.near = Math.max(0.5, distance - (halfSpan + height))
+      shadowCamera.far = distance + halfSpan + height
+      shadowCamera.updateProjectionMatrix()
     }
 
-    const shadowCamera = this.mainLight.shadow.camera as THREE.OrthographicCamera
-    shadowCamera.left = -halfSpan
-    shadowCamera.right = halfSpan
-    shadowCamera.top = halfSpan
-    shadowCamera.bottom = -halfSpan
-    shadowCamera.near = Math.max(0.5, distance - (halfSpan + height))
-    shadowCamera.far = distance + halfSpan + height
-    shadowCamera.updateProjectionMatrix()
+    this.updateSecondaryLight(this.fillLight, this.fillLightDistance, center, halfSpan, height)
+    this.updateSecondaryLight(this.rimLight, this.rimLightDistance, center, halfSpan, height)
+  }
+
+  private updateSecondaryLight(
+    light: THREE.DirectionalLight | null,
+    baseDistance: number,
+    center: THREE.Vector3,
+    halfSpan: number,
+    height: number,
+  ): void {
+    if (!light) {
+      return
+    }
+    const direction = light.position.clone().sub(light.target.position).normalize()
+    const distance = Math.max(baseDistance, halfSpan + height * 0.6)
+    light.position.copy(center).addScaledVector(direction, distance)
+    light.target.position.copy(center)
+    light.target.updateMatrixWorld()
   }
 
   private updateCameraFollow(): void {
