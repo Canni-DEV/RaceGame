@@ -461,7 +461,7 @@ export class TrackScene {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
-    if (event.key.toLowerCase() !== 'f') {
+    if (event.key.toLowerCase() !== 'v') {
       return
     }
     this.cameraMode =

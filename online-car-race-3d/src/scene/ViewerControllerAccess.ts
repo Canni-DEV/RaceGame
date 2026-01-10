@@ -24,7 +24,7 @@ export class ViewerControllerAccess {
 
     const title = document.createElement('div')
     title.className = 'viewer-controller-access__title'
-    title.textContent = 'Entre con tu celu'
+    title.textContent = 'Join on your phone'
     this.root.appendChild(title)
 
     this.qrCanvas = document.createElement('canvas')

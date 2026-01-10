@@ -116,7 +116,7 @@ export class ControllerApp {
     this.overlayMessage = createElement('div', 'controller-overlay__message')
     this.overlayDetails = createElement('div', 'controller-overlay__details')
     this.permissionButton = createElement('button', 'controller-overlay__button')
-    this.permissionButton.textContent = 'Activar sensores'
+    this.permissionButton.textContent = 'Enable sensors'
     this.permissionButton.type = 'button'
     this.permissionButton.onclick = () => this.handleOverlayButton()
 
@@ -180,7 +180,7 @@ export class ControllerApp {
       })
       this.socketClient.connect()
     } else {
-      this.statusText.textContent = 'Faltan roomId/playerId en la URL'
+      this.statusText.textContent = 'Missing roomId/playerId in the URL'
       this.socketClient = null
     }
 
@@ -389,7 +389,7 @@ export class ControllerApp {
 
     const label = createElement('label', 'controller-username__label')
     const inputId = 'controller-username-input'
-    label.textContent = 'Nombre en la partida'
+    label.textContent = 'In-game name'
     label.setAttribute('for', inputId)
 
     const input = document.createElement('input')
@@ -403,7 +403,7 @@ export class ControllerApp {
 
     const button = createElement('button', 'controller-username__button') as HTMLButtonElement
     button.type = 'button'
-    button.textContent = 'Actualizar nombre'
+    button.textContent = 'Update name'
     button.addEventListener('click', (event) => {
       event.preventDefault()
       this.handleUsernameSubmit()
@@ -446,7 +446,7 @@ export class ControllerApp {
 
     this.calibrateButton = createElement('button', 'controller-calibrate-button')
     this.calibrateButton.type = 'button'
-    this.calibrateButton.textContent = 'Calibrar'
+    this.calibrateButton.textContent = 'Calibrate'
     this.calibrateButton.addEventListener('click', () => {
       this.inputStore.calibrate(this.lastRollValue)
       this.pendingCalibration = false
@@ -456,8 +456,8 @@ export class ControllerApp {
 
     this.steeringStatus = createElement('div', 'controller-steering-status')
     this.steeringHint = createElement('div', 'controller-steering-hint')
-    this.steeringStatus.textContent = 'Sensores inactivos'
-    this.steeringHint.textContent = 'Mantén la barra paralela al piso'
+    this.steeringStatus.textContent = 'Sensors inactive'
+    this.steeringHint.textContent = 'Keep the bar parallel to the floor'
     zone.appendChild(this.steeringStatus)
     zone.appendChild(this.steeringHint)
 
@@ -517,7 +517,7 @@ export class ControllerApp {
 
     const race = this.lastRaceState
     if (!race) {
-      this.raceStatus.textContent = 'Esperando estado de carrera'
+      this.raceStatus.textContent = 'Waiting for race state'
       this.raceInputBlocked = false
       return
     }
@@ -528,25 +528,25 @@ export class ControllerApp {
       race.leaderboard.find((entry) => entry.playerId === this.playerId) ??
       race.players.find((entry) => entry.playerId === this.playerId)
 
-    let message = 'Lobby libre'
+    let message = 'Open lobby'
     if (race.phase === 'lobby') {
       message =
         humans.length === 0
-          ? 'Lobby libre'
+          ? 'Open lobby'
           : `Lobby · Ready ${readyCount}/${humans.length}`
       this.raceInputBlocked = false
     } else if (race.phase === 'countdown') {
       const time = race.countdownRemaining ?? 0
-      message = `Preparando salida · ${time.toFixed(1)}s`
+      message = `Starting soon · ${time.toFixed(1)}s`
       this.raceInputBlocked = true
     } else if (race.phase === 'race') {
-      const lapText = me ? `V${me.lap}/${race.lapsRequired}` : `Vueltas ${race.lapsRequired}`
+      const lapText = me ? `L${me.lap}/${race.lapsRequired}` : `Laps ${race.lapsRequired}`
       const finished = Boolean(me?.isFinished)
-      message = finished ? 'Carrera finalizada' : `Carrera · ${lapText}`
+      message = finished ? 'Race finished' : `Race · ${lapText}`
       this.raceInputBlocked = finished
     } else {
       const remaining = race.postRaceRemaining ?? 0
-      message = `Resultados · ${remaining.toFixed(1)}s`
+      message = `Results · ${remaining.toFixed(1)}s`
       this.raceInputBlocked = true
     }
 
@@ -576,23 +576,23 @@ export class ControllerApp {
     const raceBlocked = this.errorMessage ? this.isRaceBlockedError(this.errorMessage) : false
 
     if (!this.hasRoomParameters) {
-      message = 'Configura el acceso a la sala'
-      details = 'Agrega roomId y playerId en la URL para continuar.'
+      message = 'Set up room access'
+      details = 'Add roomId and playerId in the URL to continue.'
     } else if (raceBlocked) {
-      message = 'Carrera en curso'
-      details = 'Espera a que termine la carrera y actualiza el controlador para entrar al lobby.'
+      message = 'Race in progress'
+      details = 'Wait for the race to finish and refresh the controller to enter the lobby.'
       showButton = true
       this.overlayAction = 'refresh'
     } else if (!this.isLandscape) {
-      message = 'Girá el teléfono'
-      details = 'Usa el controlador en orientación horizontal. En vertical puedes editar tu nombre.'
+      message = 'Rotate your phone'
+      details = 'Use the controller in landscape. In portrait you can edit your name.'
     } else if (!this.permissionGranted) {
-      message = 'Permite el acceso a los sensores'
-      details = 'Necesitamos leer la orientación del dispositivo para el volante.'
+      message = 'Allow sensor access'
+      details = 'We need to read the device orientation for steering.'
       showButton = true
       this.overlayAction = 'permission'
     } else if (this.errorMessage) {
-      message = 'Sin conexión'
+      message = 'Disconnected'
       details = this.errorMessage
     } else {
       message = ''
@@ -613,9 +613,9 @@ export class ControllerApp {
 
     if (showButton) {
       if (this.overlayAction === 'refresh') {
-        this.permissionButton.textContent = 'Actualizar'
+        this.permissionButton.textContent = 'Refresh'
       } else {
-        this.permissionButton.textContent = 'Activar sensores'
+        this.permissionButton.textContent = 'Enable sensors'
       }
       this.permissionButton.classList.remove('is-hidden')
     } else {
@@ -645,19 +645,19 @@ export class ControllerApp {
     }
     const desired = this.usernameInput.value.trim()
     if (!desired) {
-      this.usernameStatus.textContent = 'Ingresa un nombre válido.'
+      this.usernameStatus.textContent = 'Enter a valid name.'
       return
     }
     if (desired === this.playerUsername) {
-      this.usernameStatus.textContent = 'Ya estás usando ese nombre.'
+      this.usernameStatus.textContent = 'You are already using that name.'
       return
     }
     if (!this.socketClient || !this.socketClient.isConnected()) {
-      this.usernameStatus.textContent = 'Conectando con el servidor...'
+      this.usernameStatus.textContent = 'Connecting to server...'
       return
     }
 
-    this.usernameStatus.textContent = 'Actualizando nombre...'
+    this.usernameStatus.textContent = 'Updating name...'
     this.socketClient.updateUsername(desired)
   }
 
@@ -676,13 +676,13 @@ export class ControllerApp {
     this.usernameButton.disabled = !ready || !proposed || proposed === this.playerUsername
 
     if (!ready) {
-      this.usernameStatus.textContent = 'Conectando con el servidor...'
+      this.usernameStatus.textContent = 'Connecting to server...'
     } else if (!proposed) {
-      this.usernameStatus.textContent = 'Ingresa un nombre para mostrarlo en la carrera.'
+      this.usernameStatus.textContent = 'Enter a name to show in the race.'
     } else if (proposed === this.playerUsername) {
-      this.usernameStatus.textContent = 'Este es tu nombre actual.'
+      this.usernameStatus.textContent = 'This is your current name.'
     } else {
-      this.usernameStatus.textContent = 'Toca actualizar para compartir tu nombre.'
+      this.usernameStatus.textContent = 'Tap update to share your name.'
     }
   }
 
@@ -692,7 +692,8 @@ export class ControllerApp {
   }
 
   private isRaceBlockedError(message: string): boolean {
-    return message.toLowerCase().includes('carrera en curso')
+    const normalized = message.toLowerCase()
+    return normalized.includes('carrera en curso') || normalized.includes('race in progress')
   }
 
   private updateThrottleVisual(value: number): void {
@@ -720,25 +721,25 @@ export class ControllerApp {
     let manualAllowed = this.shouldAllowManualSteer()
 
     if (!this.sensorsSupported) {
-      status = 'Sensores no soportados en este navegador'
-      hint = 'Arrastrá el volante para dirigir manualmente.'
+      status = 'Sensors not supported in this browser'
+      hint = 'Drag the wheel to steer manually.'
       manualAllowed = true
     } else if (!this.secureContext) {
-      status = 'HTTPS requerido para habilitar los sensores'
-      hint = 'Abrí la app con https:// o arrastrá el volante táctil.'
+      status = 'HTTPS required to enable sensors'
+      hint = 'Open the app with https:// or drag the touch wheel.'
       manualAllowed = true
     } else if (!this.sensorsActive) {
-      status = 'Girá el teléfono y permite el acceso a los sensores'
-      hint = 'Mantén el teléfono en orientación horizontal.'
+      status = 'Rotate your phone and allow sensor access'
+      hint = 'Keep the phone in landscape orientation.'
       manualAllowed = false
     } else if (this.sensorAvailable) {
       const angle = this.inputStore.getSteeringAngle().toFixed(0)
-      status = `Sensores activos · ${angle}°`
-      hint = 'Mantén la barra paralela al piso.'
+      status = `Sensors active · ${angle}°`
+      hint = 'Keep the bar parallel to the floor.'
       manualAllowed = false
     } else {
-      status = 'Esperando datos de los sensores...'
-      hint = 'Podés arrastrar el volante mientras tanto.'
+      status = 'Waiting for sensor data...'
+      hint = 'You can drag the wheel in the meantime.'
       manualAllowed = true
     }
 

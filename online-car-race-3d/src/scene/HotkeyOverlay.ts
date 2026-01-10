@@ -6,12 +6,12 @@ export class HotkeyOverlay {
     this.root.className = 'hotkey-overlay'
 
     const entries: Array<[string, string]> = [
-      ['S', 'Sonido'],
-      ['F', 'Cambiar vista'],
-      ['R', 'Rotacion camara'],
-      ['Q', 'Panel QR'],
+      ['S', 'Sound'],
+      ['V', 'View'],
+      ['R', 'Camera rotation'],
+      ['Q', 'QR'],
       ['P', 'Players'],
-      ['C', 'HUD'],
+      ['H', 'HUD'],
     ]
     entries.forEach(([key, description], index) => {
       this.root.appendChild(this.createEntry(key, description))

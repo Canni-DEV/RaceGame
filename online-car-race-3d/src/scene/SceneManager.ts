@@ -384,7 +384,7 @@ export class SceneManager {
     } else if (matchesKey('p')) {
       this.playerListOverlay.toggleVisibility()
       consume()
-    } else if (matchesKey('c')) {
+    } else if (matchesKey('h')) {
       this.raceHud.toggleVisibility()
       consume()
     } else if (matchesKey('r')) {
