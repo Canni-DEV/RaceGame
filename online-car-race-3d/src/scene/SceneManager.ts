@@ -53,7 +53,6 @@ export class SceneManager {
   private readonly playerListOverlay: PlayerListOverlay
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
-  private readonly gameAudio: GameAudioSystem
   private readonly loadingScreen: LoadingScreen
   private keyLight: THREE.DirectionalLight | null = null
   private fillLight: THREE.DirectionalLight | null = null
@@ -75,18 +74,7 @@ export class SceneManager {
 
   constructor(container: HTMLElement) {
     this.container = container
-    const devicePixelRatio = window.devicePixelRatio || 1
-    this.renderer = new THREE.WebGLRenderer({ antialias: devicePixelRatio > 1 })
-    this.renderer.setPixelRatio(Math.min(devicePixelRatio, this.maxPixelRatio))
-    this.renderer.setSize(container.clientWidth, container.clientHeight)
-    this.renderer.shadowMap.enabled = true
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
-    this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
-    this.renderer.toneMappingExposure = 0.8
-    this.renderer.physicallyCorrectLights = false
-    this.renderer.domElement.classList.add('canvas-container')
-    this.container.appendChild(this.renderer.domElement)
+    this.renderer = this.createRenderer(container)
 
     this.loadingScreen = new LoadingScreen(this.container)
     this.loadingScreen.bindLoadingManager()
@@ -94,8 +82,7 @@ export class SceneManager {
     this.scene = new THREE.Scene()
     this.setupEnvironment()
 
-    const aspect = container.clientWidth / container.clientHeight
-    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 20000)
+    this.camera = this.createCamera(container)
 
     // Mantener el listener de audio acoplado a la cámara y dentro de la escena
     this.scene.add(this.camera)
@@ -108,8 +95,7 @@ export class SceneManager {
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
     this.updateProceduralSky(this.gameStateStore.getRoomId())
-    this.gameAudio = new GameAudioSystem(this.audioManager, this.gameStateStore)
-    void this.gameAudio
+    new GameAudioSystem(this.audioManager, this.gameStateStore)
     this.trackScene = new TrackScene(
       this.scene,
       this.camera,
@@ -134,50 +120,44 @@ export class SceneManager {
     new HotkeyOverlay(this.container)
 
     this.socketClient = new SocketClient()
-    this.socketClient.onRoomInfo((info) => {
-      this.updateProceduralSky(info.roomId)
-      this.gameStateStore.setRoomInfo(info.roomId, info.playerId, info.track, info.players, {
-        sessionToken: info.sessionToken,
-        protocolVersion: info.protocolVersion,
-        serverVersion: info.serverVersion,
-      })
-      this.loadingScreen.markRoomReady()
-    })
-    this.socketClient.onState((state) => {
-      this.gameStateStore.updateState(state)
-      this.loadingScreen.markStateReady()
-    })
-    this.socketClient.onStateDelta((delta) => {
-      const applied = this.gameStateStore.applyDelta(delta)
-      if (applied) {
-        this.loadingScreen.markStateReady()
-      }
-      if (!applied) {
-        this.socketClient.requestStateFull(this.gameStateStore.getRoomId() ?? undefined)
-      }
-    })
-    this.socketClient.onPlayerUpdate((player) => {
-      this.gameStateStore.updatePlayer({
-        playerId: player.playerId,
-        username: player.username,
-        isNpc: false,
-      })
-    })
-    this.socketClient.onError((message) => {
-      console.error(`[SceneManager] ${message}`)
-    })
+    this.bindSocketHandlers()
     this.socketClient.connect()
 
-    window.addEventListener('resize', this.handleResize)
-    window.addEventListener('keydown', this.handleGlobalKeyDown)
-    this.renderer.domElement.addEventListener('contextmenu', this.preventContextMenu)
-    this.renderer.domElement.addEventListener('pointerdown', this.handlePointerDown)
-    this.renderer.domElement.addEventListener('pointermove', this.handlePointerMove)
-    this.renderer.domElement.addEventListener('pointerup', this.handlePointerUp)
-    this.renderer.domElement.addEventListener('pointerleave', this.handlePointerUp)
-    this.renderer.domElement.addEventListener('pointercancel', this.handlePointerUp)
-    this.renderer.domElement.addEventListener('wheel', this.handleWheel, { passive: false })
+    this.bindDomEvents()
     this.animate()
+  }
+
+  private createRenderer(container: HTMLElement): THREE.WebGLRenderer {
+    const devicePixelRatio = window.devicePixelRatio || 1
+    const renderer = new THREE.WebGLRenderer({ antialias: devicePixelRatio > 1 })
+    renderer.setPixelRatio(Math.min(devicePixelRatio, this.maxPixelRatio))
+    renderer.setSize(container.clientWidth, container.clientHeight)
+    renderer.shadowMap.enabled = true
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap
+    renderer.outputColorSpace = THREE.SRGBColorSpace
+    renderer.toneMapping = THREE.ACESFilmicToneMapping
+    renderer.toneMappingExposure = 0.7
+    renderer.physicallyCorrectLights = false
+    renderer.domElement.classList.add('canvas-container')
+    container.appendChild(renderer.domElement)
+    return renderer
+  }
+
+  private createCamera(container: HTMLElement): THREE.PerspectiveCamera {
+    const aspect = container.clientWidth / container.clientHeight
+    return new THREE.PerspectiveCamera(45, aspect, 0.1, 20000)
+  }
+
+  private addDirectionalLight(
+    color: number,
+    intensity: number,
+    position: { x: number; y: number; z: number },
+  ): THREE.DirectionalLight {
+    const light = new THREE.DirectionalLight(color, intensity)
+    light.position.set(position.x, position.y, position.z)
+    this.scene.add(light)
+    this.scene.add(light.target)
+    return light
   }
 
   private setupLights(): void {
@@ -187,8 +167,7 @@ export class SceneManager {
     const hemisphere = new THREE.HemisphereLight(0xcad8ff, 0x6b4b38, 0.2)
     this.scene.add(hemisphere)
 
-    const keyLight = new THREE.DirectionalLight(0xfff1d6, 0.8)
-    keyLight.position.set(70, 220, 60)
+    const keyLight = this.addDirectionalLight(0xfff1d6, 0.8, { x: 70, y: 220, z: 60 })
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
     keyLight.shadow.bias = -0.0001
@@ -199,20 +178,8 @@ export class SceneManager {
     keyLight.shadow.camera.right = 140
     keyLight.shadow.camera.top = 140
     keyLight.shadow.camera.bottom = -140
-    this.scene.add(keyLight)
-    this.scene.add(keyLight.target)
-
-    const fillLight = new THREE.DirectionalLight(0xffe3bf, 0.3)
-    fillLight.position.set(-140, 180, 120)
-    fillLight.castShadow = false
-    this.scene.add(fillLight)
-    this.scene.add(fillLight.target)
-
-    const rimLight = new THREE.DirectionalLight(0xa8c2ff, 0.2)
-    rimLight.position.set(150, 160, -140)
-    rimLight.castShadow = false
-    this.scene.add(rimLight)
-    this.scene.add(rimLight.target)
+    const fillLight = this.addDirectionalLight(0xffe3bf, 0.3, { x: -140, y: 180, z: 120 })
+    const rimLight = this.addDirectionalLight(0xa8c2ff, 0.2, { x: 150, y: 160, z: -140 })
 
     this.keyLight = keyLight
     this.fillLight = fillLight
@@ -314,6 +281,59 @@ export class SceneManager {
     } finally {
       pmremGenerator.dispose()
     }
+  }
+
+  private bindSocketHandlers(): void {
+    this.socketClient.onRoomInfo((info) => {
+      this.updateProceduralSky(info.roomId)
+      this.gameStateStore.setRoomInfo(info.roomId, info.playerId, info.track, info.players, {
+        sessionToken: info.sessionToken,
+        protocolVersion: info.protocolVersion,
+        serverVersion: info.serverVersion,
+      })
+      this.loadingScreen.markRoomReady()
+    })
+    this.socketClient.onState((state) => {
+      this.gameStateStore.updateState(state)
+      this.loadingScreen.markStateReady()
+    })
+    this.socketClient.onStateDelta((delta) => {
+      const applied = this.gameStateStore.applyDelta(delta)
+      if (applied) {
+        this.loadingScreen.markStateReady()
+      }
+      if (!applied) {
+        this.socketClient.requestStateFull(this.gameStateStore.getRoomId() ?? undefined)
+      }
+    })
+    this.socketClient.onPlayerUpdate((player) => {
+      this.gameStateStore.updatePlayer({
+        playerId: player.playerId,
+        username: player.username,
+        isNpc: false,
+      })
+    })
+    this.socketClient.onError((message) => {
+      console.error(`[SceneManager] ${message}`)
+    })
+  }
+
+  private bindDomEvents(): void {
+    const canvas = this.renderer.domElement
+    window.addEventListener('resize', this.handleResize)
+    window.addEventListener('keydown', this.handleGlobalKeyDown)
+    canvas.addEventListener('contextmenu', this.preventContextMenu)
+    canvas.addEventListener('pointerdown', this.handlePointerDown)
+    canvas.addEventListener('pointermove', this.handlePointerMove)
+    const pointerEndEvents: Array<'pointerup' | 'pointerleave' | 'pointercancel'> = [
+      'pointerup',
+      'pointerleave',
+      'pointercancel',
+    ]
+    for (const eventType of pointerEndEvents) {
+      canvas.addEventListener(eventType, this.handlePointerUp)
+    }
+    canvas.addEventListener('wheel', this.handleWheel, { passive: false })
   }
 
   private readonly handleResize = (): void => {
