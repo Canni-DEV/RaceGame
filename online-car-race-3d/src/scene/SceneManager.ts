@@ -12,6 +12,7 @@ import { AudioManager } from '../audio/AudioManager'
 import { GameAudioSystem } from '../audio/GameAudioSystem'
 import { RaceHud } from './RaceHud'
 import { ProceduralSky } from '../render/ProceduralSky'
+import { LoadingScreen } from './LoadingScreen'
 
 const DEFAULT_HDR_SKYBOX = 'textures/empty_play_room_4k.hdr'
 const SKYBOX_BACKGROUND_CONFIG = {
@@ -53,6 +54,7 @@ export class SceneManager {
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
   private readonly gameAudio: GameAudioSystem
+  private readonly loadingScreen: LoadingScreen
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
@@ -83,6 +85,9 @@ export class SceneManager {
     this.renderer.physicallyCorrectLights = false
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
+
+    this.loadingScreen = new LoadingScreen(this.container)
+    this.loadingScreen.bindLoadingManager()
 
     this.scene = new THREE.Scene()
     this.setupEnvironment()
@@ -132,12 +137,17 @@ export class SceneManager {
         protocolVersion: info.protocolVersion,
         serverVersion: info.serverVersion,
       })
+      this.loadingScreen.markRoomReady()
     })
     this.socketClient.onState((state) => {
       this.gameStateStore.updateState(state)
+      this.loadingScreen.markStateReady()
     })
     this.socketClient.onStateDelta((delta) => {
       const applied = this.gameStateStore.applyDelta(delta)
+      if (applied) {
+        this.loadingScreen.markStateReady()
+      }
       if (!applied) {
         this.socketClient.requestStateFull(this.gameStateStore.getRoomId() ?? undefined)
       }
