@@ -78,6 +78,16 @@ export const PROTOCOL_VERSION = 2
 
 const BASE_PATH = normalizeBasePath(RAW_BASE_URL)
 
+const RAW_PROCEDURAL_SKY_ROOMS = String(import.meta.env?.VITE_PROCEDURAL_SKY_ROOMS ?? '').trim()
+const PROCEDURAL_SKY_ALL =
+  RAW_PROCEDURAL_SKY_ROOMS === '*' || RAW_PROCEDURAL_SKY_ROOMS.toLowerCase() === 'all'
+const PROCEDURAL_SKY_ROOM_SET = new Set(
+  RAW_PROCEDURAL_SKY_ROOMS
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0 && entry !== '*' && entry.toLowerCase() !== 'all'),
+)
+
 export function resolvePublicAssetUrl(path: string): string {
   if (!path) {
     return BASE_PATH
@@ -98,4 +108,14 @@ export function resolveServerAssetUrl(path: string): string {
   }
   const suffix = path.startsWith('/') ? path : `/${path}`
   return `${SERVER_URL}${suffix}`
+}
+
+export function isProceduralSkyEnabled(roomId: string | null): boolean {
+  if (PROCEDURAL_SKY_ALL) {
+    return true
+  }
+  if (!roomId) {
+    return false
+  }
+  return PROCEDURAL_SKY_ROOM_SET.has(roomId)
 }

@@ -98,8 +98,6 @@ export class PlayerListOverlay {
   }
 
   private render(): void {
-    this.playerLookup.clear()
-
     if (this.players.length === 0) {
       this.clearRows()
       const empty = document.createElement('div')
@@ -110,6 +108,8 @@ export class PlayerListOverlay {
       this.updateVisibility()
       return
     }
+
+    this.playerLookup.clear()
 
     if (this.rows.size === 0) {
       this.list.textContent = ''
@@ -201,11 +201,7 @@ export class PlayerListOverlay {
   }
 
   private readonly handleRowClick = (event: Event): void => {
-    const target = event.currentTarget as HTMLElement | null
-    const playerId = target?.dataset.playerId
-    if (playerId) {
-      this.handleSelect(playerId)
-    }
+    this.handleRowSelect(event)
   }
 
   private readonly handleRowKeyPress = (event: KeyboardEvent): void => {
@@ -213,6 +209,10 @@ export class PlayerListOverlay {
       return
     }
     event.preventDefault()
+    this.handleRowSelect(event)
+  }
+
+  private handleRowSelect(event: Event): void {
     const target = event.currentTarget as HTMLElement | null
     const playerId = target?.dataset.playerId
     if (playerId) {
@@ -238,16 +238,7 @@ export class PlayerListOverlay {
   }
 
   private canSelectTarget(player: PlayerSummary): boolean {
-    if (!this.onSelectPlayer) {
-      return false
-    }
-    if (!this.localPlayerId) {
-      return false
-    }
-    if (this.localHasCar) {
-      return false
-    }
-    return !player.isNpc
+    return Boolean(this.onSelectPlayer) && !!this.localPlayerId && !this.localHasCar && !player.isNpc
   }
 
   private handleSelect(playerId: string): void {

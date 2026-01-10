@@ -265,7 +265,7 @@ export class TrackScene {
     this.activeItemIds.clear()
     for (const state of states) {
       this.activeItemIds.add(state.id)
-      const entity = await this.getOrCreateItem(state)
+      const entity = this.getOrCreateItem(state)
       await entity.setState(state)
     }
 
@@ -309,7 +309,7 @@ export class TrackScene {
     return missile
   }
 
-  private async getOrCreateItem(state: ItemState): Promise<ItemEntity> {
+  private getOrCreateItem(state: ItemState): ItemEntity {
     let item = this.items.get(state.id)
     if (!item) {
       item = new ItemEntity(state.id, state.type, this.scene, this.itemModelLoader)
