@@ -18,7 +18,7 @@ export class ProceduralSky {
 
   constructor(options: ProceduralSkyOptions = {}) {
     const {
-      radius = 560,
+      radius = 15000,
       topColor = '#6fa8ff',
       middleColor = '#9cd0ff',
       bottomColor = '#f7efe5',

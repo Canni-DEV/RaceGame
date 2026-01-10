@@ -99,7 +99,7 @@ export class SceneManager {
     this.setupEnvironment()
 
     const aspect = container.clientWidth / container.clientHeight
-    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 1000)
+    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 20000)
 
     // Mantener el listener de audio acoplado a la cámara y dentro de la escena
     this.scene.add(this.camera)
@@ -180,7 +180,7 @@ export class SceneManager {
     this.scene.add(hemisphere)
 
     const keyLight = new THREE.DirectionalLight(0xffe2b3, 1.15)
-    keyLight.position.set(60, 120, 80)
+    keyLight.position.set(60, 1000, 80)
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
     keyLight.shadow.bias = -0.00005
