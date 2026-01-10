@@ -39,14 +39,20 @@ interface BroadphaseCell {
   indices: number[];
   x: number;
   z: number;
+  key: string;
 }
 
 const broadphaseCells = new Map<string, BroadphaseCell>();
 const occupiedCells: BroadphaseCell[] = [];
 const candidatePairs: number[] = [];
+const cellPool: BroadphaseCell[] = [];
 
 function normalizeAngle(angle: number): number {
   return ((angle + Math.PI) % TAU + TAU) % TAU - Math.PI;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
 }
 
 export function updateCarsForRoom(room: Room, dt: number): void {
@@ -59,8 +65,8 @@ export function updateCarsForRoom(room: Room, dt: number): void {
     const acceleration = ACCELERATION * movement.accelerationMultiplier;
     const baseMaxSpeed = MAX_SPEED * movement.maxSpeedMultiplier;
 
-    const throttleAccel = Math.max(0, Math.min(1, input.throttle)) * acceleration;
-    const brakeForce = Math.max(0, Math.min(1, input.brake)) * BRAKE_DECELERATION;
+    const throttleAccel = clamp(input.throttle, 0, 1) * acceleration;
+    const brakeForce = clamp(input.brake, 0, 1) * BRAKE_DECELERATION;
 
     car.speed += (throttleAccel - brakeForce) * dt;
 
@@ -72,9 +78,9 @@ export function updateCarsForRoom(room: Room, dt: number): void {
 
     const trackSpeedMultiplier = room.isOnTrack(car) ? 1 : OFF_TRACK_SPEED_MULTIPLIER;
     const maxSpeed = baseMaxSpeed * trackSpeedMultiplier;
-    car.speed = Math.min(maxSpeed, Math.max(0, car.speed));
+    car.speed = clamp(car.speed, 0, maxSpeed);
 
-    const steerValue = Math.max(-1, Math.min(1, input.steer));
+    const steerValue = clamp(input.steer, -1, 1);
     const speedFactor = baseMaxSpeed > 0 ? car.speed / baseMaxSpeed : 0;
     car.angle += steerValue * STEER_SENSITIVITY * speedFactor * dt;
     car.angle = normalizeAngle(car.angle);
@@ -164,7 +170,11 @@ function populateBroadphase(bodies: CollisionBody[]): void {
 
     let cell = broadphaseCells.get(key);
     if (!cell) {
-      cell = { indices: [], x: cellX, z: cellZ };
+      cell = cellPool.pop() ?? { indices: [], x: cellX, z: cellZ, key };
+      cell.indices.length = 0;
+      cell.x = cellX;
+      cell.z = cellZ;
+      cell.key = key;
       broadphaseCells.set(key, cell);
     }
 
@@ -185,6 +195,8 @@ function populateBroadphase(bodies: CollisionBody[]): void {
 function resetBroadphase(): void {
   for (const cell of occupiedCells) {
     cell.indices.length = 0;
+    broadphaseCells.delete(cell.key);
+    cellPool.push(cell);
   }
   occupiedCells.length = 0;
 }

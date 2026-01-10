@@ -25,6 +25,7 @@ export interface NpcBehaviorConfig {
 
 export interface NpcControllerState {
   targetIndex: number;
+  closestIndex: number;
   mistakeCooldown: number;
   mistakeDuration: number;
   mistakeDirection: number;
@@ -53,9 +54,22 @@ const DEFAULT_NPC_CONFIG: NpcBehaviorConfig = {
   approachDistanceRatio: 0.75
 };
 
+const MAX_SPEED_SAFE = Math.max(1, MAX_SPEED);
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+interface CenterlineSpatialIndex {
+  cellSize: number;
+  cells: Map<string, number[]>;
+  minCellX: number;
+  maxCellX: number;
+  minCellZ: number;
+  maxCellZ: number;
+}
+
+const centerlineIndexCache = new WeakMap<ReadonlyArray<{ x: number; z: number }>, CenterlineSpatialIndex>();
 
 function normalizeAngle(angle: number): number {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -67,20 +81,144 @@ function squaredDistance(a: { x: number; z: number }, b: { x: number; z: number 
   return dx * dx + dz * dz;
 }
 
+function getCenterlineIndex(centerline: { x: number; z: number }[]): CenterlineSpatialIndex {
+  const cached = centerlineIndexCache.get(centerline);
+  if (cached) {
+    return cached;
+  }
+
+  const cellSize = resolveCenterlineCellSize(centerline);
+  const cells = new Map<string, number[]>();
+  let minCellX = Number.POSITIVE_INFINITY;
+  let maxCellX = Number.NEGATIVE_INFINITY;
+  let minCellZ = Number.POSITIVE_INFINITY;
+  let maxCellZ = Number.NEGATIVE_INFINITY;
+
+  for (let i = 0; i < centerline.length; i++) {
+    const point = centerline[i];
+    const cellX = Math.floor(point.x / cellSize);
+    const cellZ = Math.floor(point.z / cellSize);
+    const key = `${cellX},${cellZ}`;
+    let bucket = cells.get(key);
+    if (!bucket) {
+      bucket = [];
+      cells.set(key, bucket);
+    }
+    bucket.push(i);
+    if (cellX < minCellX) minCellX = cellX;
+    if (cellX > maxCellX) maxCellX = cellX;
+    if (cellZ < minCellZ) minCellZ = cellZ;
+    if (cellZ > maxCellZ) maxCellZ = cellZ;
+  }
+
+  if (!Number.isFinite(minCellX)) {
+    minCellX = 0;
+    maxCellX = 0;
+    minCellZ = 0;
+    maxCellZ = 0;
+  }
+
+  const built = { cellSize, cells, minCellX, maxCellX, minCellZ, maxCellZ };
+  centerlineIndexCache.set(centerline, built);
+  return built;
+}
+
+function resolveCenterlineCellSize(centerline: { x: number; z: number }[]): number {
+  if (centerline.length < 2) {
+    return 1;
+  }
+  let total = 0;
+  for (let i = 0; i < centerline.length; i++) {
+    const current = centerline[i];
+    const next = centerline[(i + 1) % centerline.length];
+    total += Math.max(0.001, Math.hypot(next.x - current.x, next.z - current.z));
+  }
+  const average = total / centerline.length;
+  return Math.max(1, average);
+}
+
 function findClosestIndex(
   centerline: { x: number; z: number }[],
-  position: { x: number; z: number }
+  position: { x: number; z: number },
+  hintIndex?: number
 ): number {
-  let closestIndex = 0;
-  let closestDistance = Number.POSITIVE_INFINITY;
-  for (let i = 0; i < centerline.length; i++) {
-    const distance = squaredDistance(centerline[i], position);
-    if (distance < closestDistance) {
-      closestDistance = distance;
-      closestIndex = i;
+  if (centerline.length === 0) {
+    return 0;
+  }
+
+  const index = getCenterlineIndex(centerline);
+  const cellSize = index.cellSize;
+  const cellX = Math.floor(position.x / cellSize);
+  const cellZ = Math.floor(position.z / cellSize);
+  const fallbackHint = hintIndex ?? 0;
+  let bestIndex = clamp(Math.floor(fallbackHint), 0, centerline.length - 1);
+  let bestDistanceSq = squaredDistance(centerline[bestIndex], position);
+
+  const maxRadius = Math.max(
+    Math.max(Math.abs(cellX - index.minCellX), Math.abs(cellX - index.maxCellX)),
+    Math.max(Math.abs(cellZ - index.minCellZ), Math.abs(cellZ - index.maxCellZ))
+  );
+
+  const updateFromCell = (key: string): void => {
+    const indices = index.cells.get(key);
+    if (!indices) {
+      return;
+    }
+    for (const candidateIndex of indices) {
+      const distance = squaredDistance(centerline[candidateIndex], position);
+      if (distance < bestDistanceSq || (distance === bestDistanceSq && candidateIndex < bestIndex)) {
+        bestDistanceSq = distance;
+        bestIndex = candidateIndex;
+      }
+    }
+  };
+
+  for (let radius = 0; radius <= maxRadius; radius++) {
+    if (radius === 0) {
+      updateFromCell(`${cellX},${cellZ}`);
+    } else {
+      const minX = cellX - radius;
+      const maxX = cellX + radius;
+      const minZ = cellZ - radius;
+      const maxZ = cellZ + radius;
+
+      for (let x = minX; x <= maxX; x++) {
+        updateFromCell(`${x},${minZ}`);
+        updateFromCell(`${x},${maxZ}`);
+      }
+      for (let z = minZ + 1; z <= maxZ - 1; z++) {
+        updateFromCell(`${minX},${z}`);
+        updateFromCell(`${maxX},${z}`);
+      }
+    }
+
+    if (bestDistanceSq === 0) {
+      break;
+    }
+
+    const boundaryDistance = distanceToBoundary(position, cellX, cellZ, radius, cellSize);
+    if (boundaryDistance * boundaryDistance > bestDistanceSq) {
+      break;
     }
   }
-  return closestIndex;
+
+  return bestIndex;
+}
+
+function distanceToBoundary(
+  position: { x: number; z: number },
+  cellX: number,
+  cellZ: number,
+  radius: number,
+  cellSize: number
+): number {
+  const minX = (cellX - radius) * cellSize;
+  const maxX = (cellX + radius + 1) * cellSize;
+  const minZ = (cellZ - radius) * cellSize;
+  const maxZ = (cellZ + radius + 1) * cellSize;
+  const dx = Math.min(position.x - minX, maxX - position.x);
+  const dz = Math.min(position.z - minZ, maxZ - position.z);
+  return Math.max(0, Math.min(dx, dz));
 }
 
 function pickTargetIndex(
@@ -140,6 +278,7 @@ export function createNpcBehaviorConfig(overrides: Partial<NpcBehaviorConfig> = 
 export function createNpcState(config: NpcBehaviorConfig, startIndex: number): NpcControllerState {
   return {
     targetIndex: startIndex,
+    closestIndex: startIndex,
     mistakeCooldown: randomInRange(...config.mistakeCooldownRange),
     mistakeDuration: 0,
     mistakeDirection: 0,
@@ -164,16 +303,19 @@ export function updateNpcControllers(
     }
 
     const config = controller.config ?? DEFAULT_NPC_CONFIG;
+    const trackWidth = room.track.width;
+    const thresholdBase = trackWidth * config.targetThresholdFactor;
 
     const onTrack = room.isOnTrack(car);
-    const closestIndex = findClosestIndex(centerline, car);
+    const closestIndex = findClosestIndex(centerline, car, controller.closestIndex);
     const lookahead = clamp(
-      room.track.width * config.targetThresholdFactor + config.minLookahead + car.speed * config.lookaheadSpeedFactor,
+      thresholdBase + config.minLookahead + car.speed * config.lookaheadSpeedFactor,
       config.minLookahead,
       config.maxLookahead
     );
     const targetIndex = pickTargetIndex(centerline, closestIndex, lookahead);
     const targetPoint = centerline[targetIndex];
+    controller.closestIndex = closestIndex;
     controller.targetIndex = targetIndex;
 
     const dx = targetPoint.x - car.x;
@@ -185,7 +327,7 @@ export function updateNpcControllers(
     const steer = clamp(angleDiff / config.steerResponse, -1, 1);
 
     const steeringDemand = Math.min(1, Math.abs(angleDiff) / Math.PI);
-    const speedRatio = car.speed / Math.max(1, MAX_SPEED);
+    const speedRatio = car.speed / MAX_SPEED_SAFE;
     let throttle = clamp(
       config.baseThrottle * (1 - config.throttleCornerPenalty * steeringDemand) + (1 - speedRatio) * 0.25,
       config.minThrottle,
@@ -206,7 +348,7 @@ export function updateNpcControllers(
     }
 
     const distance = Math.hypot(dx, dz);
-    const threshold = Math.max(config.minTargetThreshold, room.track.width * config.targetThresholdFactor);
+    const threshold = Math.max(config.minTargetThreshold, thresholdBase);
     if (distance < threshold * config.approachDistanceRatio && car.speed > MAX_SPEED * 0.6) {
       throttle = Math.min(throttle, config.baseThrottle * config.approachThrottleScale);
       brake = Math.max(brake, config.approachBrake);

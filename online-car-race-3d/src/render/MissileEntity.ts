@@ -50,15 +50,14 @@ export class MissileEntity {
     const forwardX = Math.cos(state.angle)
     const forwardZ = Math.sin(state.angle)
     const yaw = Math.atan2(forwardX, forwardZ)
-    if (!this.hasReceivedState) {
-      this.currentPosition.copy(this.targetPosition)
-      // PERF: Reuse Euler to avoid per-frame allocations while updating missiles.
-      TEMP_EULER.set(0, yaw, 0)
-      this.orientation.setFromEuler(TEMP_EULER)
-      this.hasReceivedState = true
-    }
+    // PERF: Reuse Euler to avoid per-frame allocations while updating missiles.
     TEMP_EULER.set(0, yaw, 0)
     this.targetOrientation.setFromEuler(TEMP_EULER)
+    if (!this.hasReceivedState) {
+      this.currentPosition.copy(this.targetPosition)
+      this.orientation.copy(this.targetOrientation)
+      this.hasReceivedState = true
+    }
   }
 
   update(dt: number): void {

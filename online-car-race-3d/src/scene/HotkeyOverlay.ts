@@ -5,17 +5,20 @@ export class HotkeyOverlay {
     this.root = document.createElement('div')
     this.root.className = 'hotkey-overlay'
 
-    this.root.appendChild(this.createEntry('S', 'Sonido'))
-    this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('F', 'Cambiar vista'))
-    this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('R', 'Rotacion camara'))
-    this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('Q', 'Panel QR'))
-    this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('P', 'Players'))
-    this.root.appendChild(this.createDot())
-    this.root.appendChild(this.createEntry('C', 'HUD'))
+    const entries: Array<[string, string]> = [
+      ['S', 'Sound'],
+      ['V', 'View'],
+      ['R', 'Camera rotation'],
+      ['Q', 'QR'],
+      ['P', 'Players'],
+      ['H', 'HUD'],
+    ]
+    entries.forEach(([key, description], index) => {
+      this.root.appendChild(this.createEntry(key, description))
+      if (index < entries.length - 1) {
+        this.root.appendChild(this.createDot())
+      }
+    })
     container.appendChild(this.root)
   }
 

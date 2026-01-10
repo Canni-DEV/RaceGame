@@ -21,12 +21,15 @@ interface TrackSegment {
 export class TrackNavigator {
   private readonly segments: TrackSegment[];
   private readonly totalLength: number;
+  private readonly testedMarkers: Uint32Array;
+  private testMarkerId = 0;
 
   constructor(centerline: Vec2[]) {
     this.segments = this.buildSegments(centerline);
     this.totalLength = this.segments.length > 0
       ? this.segments[this.segments.length - 1].cumulativeDistance + this.segments[this.segments.length - 1].length
       : 0;
+    this.testedMarkers = new Uint32Array(this.segments.length);
   }
 
   project(point: Vec2, hint?: TrackProgress): ProjectedProgress {
@@ -37,13 +40,14 @@ export class TrackNavigator {
     let bestIndex = 0;
     let bestDistanceSq = Number.POSITIVE_INFINITY;
     let bestDistanceAlong = 0;
-    const tested = new Set<number>();
+    const tested = this.testedMarkers;
+    const marker = this.nextTestMarker();
 
     const checkSegment = (index: number): void => {
-      if (tested.has(index)) {
+      if (tested[index] === marker) {
         return;
       }
-      tested.add(index);
+      tested[index] = marker;
       const segment = this.segments[index];
       const px = point.x - segment.start.x;
       const pz = point.z - segment.start.z;
@@ -71,7 +75,7 @@ export class TrackNavigator {
 
     if (bestDistanceSq !== 0) {
       for (let i = 0; i < this.segments.length; i++) {
-        if (tested.has(i)) {
+        if (tested[i] === marker) {
           continue;
         }
         checkSegment(i);
@@ -162,6 +166,16 @@ export class TrackNavigator {
       cumulative += length;
     }
     return segments;
+  }
+
+  private nextTestMarker(): number {
+    let next = (this.testMarkerId + 1) >>> 0;
+    if (next === 0) {
+      this.testedMarkers.fill(0);
+      next = 1;
+    }
+    this.testMarkerId = next;
+    return next;
   }
 }
 

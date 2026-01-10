@@ -12,6 +12,8 @@ export class ViewerControllerAccess {
   private readonly serverParam: string | null
   private isReady = false
   private userHidden = false
+  private localPlayerId: string | null = null
+  private localPlayerActive = false
 
   constructor(container: HTMLElement, store: GameStateStore) {
     this.serverParam = this.resolveServerParam()
@@ -22,7 +24,7 @@ export class ViewerControllerAccess {
 
     const title = document.createElement('div')
     title.className = 'viewer-controller-access__title'
-    title.textContent = 'Controller'
+    title.textContent = 'Join on your phone'
     this.root.appendChild(title)
 
     this.qrCanvas = document.createElement('canvas')
@@ -47,6 +49,16 @@ export class ViewerControllerAccess {
     store.onRoomInfo((info) => {
       this.handleRoomInfo(info)
     })
+    store.onState((state) => {
+      if (!this.localPlayerId) {
+        return
+      }
+      const hasCar = state.cars.some((car) => car.playerId === this.localPlayerId)
+      if (hasCar !== this.localPlayerActive) {
+        this.localPlayerActive = hasCar
+        this.updateVisibility()
+      }
+    })
   }
 
   toggleVisibility(): void {
@@ -65,11 +77,14 @@ export class ViewerControllerAccess {
   private handleRoomInfo(info: RoomInfoSnapshot): void {
     if (!info.roomId || !info.playerId) {
       this.isReady = false
+      this.localPlayerId = null
+      this.localPlayerActive = false
       this.updateVisibility()
       return
     }
 
     this.isReady = true
+    this.localPlayerId = info.playerId
     const controllerUrl = this.buildControllerUrl(
       info.roomId,
       info.playerId,

@@ -50,7 +50,6 @@ export class GameStateStore {
   private sessionToken: string | null = null
   private protocolVersion: number | null = null
   private serverVersion: string | null = null
-  private readonly playerNames = new Map<string, string>()
   private lastState: RoomState | null = null
   private lastStateTimestamp = 0
   private readonly snapshots: Snapshot[] = []
@@ -510,7 +509,6 @@ export class GameStateStore {
 
   private replacePlayers(players: PlayerSummary[]): void {
     this.players = players.map((player) => this.normalizePlayer(player))
-    this.refreshPlayerNames(this.players)
   }
 
   private mergePlayersFromState(roomState: RoomState): void {
@@ -537,7 +535,6 @@ export class GameStateStore {
     const removed = filtered.length !== this.players.length
     if (removed) {
       this.players = filtered
-      this.refreshPlayerNames(this.players)
     }
     if (updated || removed) {
       this.notifyRoomInfo()
@@ -548,7 +545,6 @@ export class GameStateStore {
     let changed = false
     for (const player of updates) {
       const normalized = this.normalizePlayer(player)
-      this.playerNames.set(normalized.playerId, normalized.username)
       const index = this.players.findIndex((p) => p.playerId === normalized.playerId)
       if (index >= 0) {
         const existing = this.players[index]
@@ -571,13 +567,6 @@ export class GameStateStore {
     return {
       ...player,
       username: player.username || player.playerId,
-    }
-  }
-
-  private refreshPlayerNames(players: PlayerSummary[]): void {
-    this.playerNames.clear()
-    for (const player of players) {
-      this.playerNames.set(player.playerId, player.username || player.playerId)
     }
   }
 }

@@ -1,4 +1,4 @@
-import { TrackData, TrackDecoration, Vec2 } from "../types/trackTypes";
+import { TrackData, Vec2 } from "../types/trackTypes";
 import { planAssetDecorations } from "./TrackAssetPlanner";
 import { planTrackItems } from "./TrackItemPlanner";
 
@@ -11,6 +11,13 @@ interface Direction {
   dx: number;
   dy: number;
 }
+
+const CARDINAL_DIRECTIONS: Direction[] = [
+  { dx: 1, dy: 0 },
+  { dx: -1, dy: 0 },
+  { dx: 0, dy: 1 },
+  { dx: 0, dy: -1 }
+];
 
 export interface ProceduralTrackConfig {
   gridWidth: number;
@@ -43,7 +50,7 @@ export class ProceduralTrackGenerator {
     const smoothed = this.smoothPoints(rounded, this.config.smoothingPasses);
     const oriented = this.alignToStartingStraight(smoothed);
     const width = this.lerp(this.config.widthRange[0], this.config.widthRange[1], random());
-    const decorations = this.createDecorations(oriented, width, seed);
+    const decorations = planAssetDecorations(oriented, width, seed);
     const itemSpawns = planTrackItems(oriented, width, seed);
 
     return {
@@ -204,13 +211,7 @@ export class ProceduralTrackGenerator {
   }
 
   private randomDirection(random: () => number): Direction {
-    const directions: Direction[] = [
-      { dx: 1, dy: 0 },
-      { dx: -1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: 0, dy: -1 }
-    ];
-    return directions[this.randomInt(random, 0, directions.length - 1)];
+    return CARDINAL_DIRECTIONS[this.randomInt(random, 0, CARDINAL_DIRECTIONS.length - 1)];
   }
 
   private getNeighborDirections(cell: GridCell): { cell: GridCell; direction: Direction }[] {
@@ -281,11 +282,6 @@ export class ProceduralTrackGenerator {
       current = next;
     }
     return current;
-  }
-
-  private createDecorations(centerline: Vec2[], width: number, seed: number): TrackDecoration[] {
-    const decorations = planAssetDecorations(centerline, width, seed);
-    return decorations;
   }
 
   private smoothPoints(points: Vec2[], passes: number): Vec2[] {

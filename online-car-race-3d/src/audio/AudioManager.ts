@@ -27,6 +27,7 @@ export class AudioManager {
   private readonly bufferCache = new Map<string, AudioBuffer>()
   private readonly bufferLoads = new Map<string, Promise<AudioBuffer>>()
   private contextRunning = false
+  private userEnabled = false
 
   constructor(camera: THREE.Camera, scene: THREE.Scene) {
     this.listener = new THREE.AudioListener()
@@ -37,16 +38,13 @@ export class AudioManager {
 
     this.stateChangeHandler = () => {
       this.contextRunning = this.isContextRunning()
-      if (!this.contextRunning) {
+      if (!this.contextRunning || !this.userEnabled) {
         return
       }
       this.startPendingSounds()
     }
     this.listener.context.addEventListener('statechange', this.stateChangeHandler)
-    if (this.isContextRunning()) {
-      this.contextRunning = true
-      this.startPendingSounds()
-    }
+    this.contextRunning = this.isContextRunning()
 
     this.unlockHandler = () => {
       if (this.contextRunning) {
@@ -66,15 +64,28 @@ export class AudioManager {
   }
 
   toggle(): void {
-    if (this.isContextRunning()) {
-      void this.listener.context
-        .suspend()
-        .then(() => {
-          this.contextRunning = false
-        })
-        .catch(() => {
-          // Ignorado: algunos navegadores no permiten suspender en ciertos estados.
-        })
+    if (this.userEnabled) {
+      this.userEnabled = false
+      this.pendingActions.length = 0
+      if (this.isContextRunning()) {
+        void this.listener.context
+          .suspend()
+          .then(() => {
+            this.contextRunning = false
+          })
+          .catch(() => {
+            // Ignorado: algunos navegadores no permiten suspender en ciertos estados.
+          })
+      } else {
+        this.contextRunning = false
+      }
+      return
+    }
+
+    this.userEnabled = true
+    this.contextRunning = this.isContextRunning()
+    if (this.contextRunning) {
+      this.startPendingSounds()
       return
     }
     this.unlockHandler()
@@ -96,6 +107,9 @@ export class AudioManager {
   }
 
   playUiSound(url: string, volume = 1): void {
+    if (!this.userEnabled) {
+      return
+    }
     this.enqueueOrRun(() => {
       void this.playOneShot({
         url,
@@ -109,6 +123,9 @@ export class AudioManager {
     position: THREE.Vector3,
     options?: PositionalSfxOptions,
   ): void {
+    if (!this.userEnabled) {
+      return
+    }
     const positionCopy = position.clone()
     this.enqueueOrRun(() => {
       void this.playOneShot({
@@ -128,7 +145,7 @@ export class AudioManager {
   }
 
   private startSoundIfReady(sound: EngineSound): void {
-    if (!this.contextRunning || sound.isDisposed()) {
+    if (!this.contextRunning || !this.userEnabled || sound.isDisposed()) {
       return
     }
     sound.start()
@@ -146,6 +163,9 @@ export class AudioManager {
   }
 
   private enqueueOrRun(action: () => void): void {
+    if (!this.userEnabled) {
+      return
+    }
     if (this.contextRunning) {
       action()
       return
@@ -155,7 +175,7 @@ export class AudioManager {
   }
 
   private flushPendingActions(): void {
-    if (!this.contextRunning || this.pendingActions.length === 0) {
+    if (!this.contextRunning || !this.userEnabled || this.pendingActions.length === 0) {
       return
     }
     const pending = this.pendingActions.splice(0)
@@ -196,6 +216,9 @@ export class AudioManager {
   }
 
   private async playOneShot(request: SfxRequest): Promise<void> {
+    if (!this.userEnabled) {
+      return
+    }
     let buffer: AudioBuffer
     try {
       buffer = await this.loadBuffer(request.url)
@@ -203,6 +226,9 @@ export class AudioManager {
       return
     }
 
+    if (!this.userEnabled) {
+      return
+    }
     if (!this.contextRunning) {
       this.pendingActions.push(() => {
         void this.playOneShot(request)

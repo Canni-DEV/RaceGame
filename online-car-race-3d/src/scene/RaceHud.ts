@@ -11,13 +11,13 @@ function formatCountdown(value: number | null): string {
 function phaseLabel(phase: RacePhase): string {
   switch (phase) {
     case 'countdown':
-      return 'Preparando carrera'
+      return 'Preparing race'
     case 'race':
-      return 'Carrera en curso'
+      return 'Race in progress'
     case 'postrace':
-      return 'Resultados'
+      return 'Results'
     default:
-      return 'Lobby libre'
+      return 'Open lobby'
   }
 }
 
@@ -77,18 +77,18 @@ export class RaceHud {
 
   private render(race: RaceState): void {
     this.status.textContent = phaseLabel(race.phase)
-    this.laps.textContent = `Vueltas: ${race.lapsRequired}`
+    this.laps.textContent = `Laps: ${race.lapsRequired}`
 
     if (race.phase === 'countdown') {
-      this.countdown.textContent = `Largada en ${formatCountdown(race.countdownRemaining)}s`
+      this.countdown.textContent = `Start in ${formatCountdown(race.countdownRemaining)}s`
     } else {
       this.countdown.textContent = ''
     }
 
     if (race.phase === 'race' && race.finishTimeoutRemaining !== null) {
-      this.timers.textContent = `Tiempo restante meta: ${race.finishTimeoutRemaining.toFixed(1)}s`
+      this.timers.textContent = `Finish time remaining: ${race.finishTimeoutRemaining.toFixed(1)}s`
     } else if (race.phase === 'postrace' && race.postRaceRemaining !== null) {
-      this.timers.textContent = `Volviendo al lobby en ${race.postRaceRemaining.toFixed(1)}s`
+      this.timers.textContent = `Returning to lobby in ${race.postRaceRemaining.toFixed(1)}s`
     } else {
       const readyStats = this.resolveReadyStats(race)
       this.timers.textContent =
@@ -121,7 +121,7 @@ export class RaceHud {
     if (entries.length === 0) {
       const empty = document.createElement('div')
       empty.className = 'race-hud__empty'
-      empty.textContent = 'Esperando jugadores...'
+      empty.textContent = 'Waiting for players...'
       this.leaderboard.appendChild(empty)
       return
     }
@@ -143,13 +143,13 @@ export class RaceHud {
 
       const lap = document.createElement('div')
       lap.className = 'race-hud__col race-hud__col--lap'
-      lap.textContent = `V${entry.lap}`
+      lap.textContent = `L${entry.lap}`
       row.appendChild(lap)
 
       const gap = document.createElement('div')
       gap.className = 'race-hud__col race-hud__col--gap'
       if (entry.position === 1) {
-        gap.textContent = entry.isFinished ? 'Ganador' : 'Líder'
+        gap.textContent = entry.isFinished ? 'Winner' : 'Leader'
       } else if (entry.gapToFirst !== null) {
         gap.textContent = `+${entry.gapToFirst.toFixed(1)}`
       }
@@ -158,7 +158,7 @@ export class RaceHud {
       if (phase === 'lobby') {
         const ready = document.createElement('div')
         ready.className = 'race-hud__col race-hud__col--ready'
-        ready.textContent = entry.ready ? 'Ready' : 'Pendiente'
+        ready.textContent = entry.ready ? 'Ready' : 'Pending'
         row.appendChild(ready)
       } else if (phase === 'postrace') {
         const finish = document.createElement('div')

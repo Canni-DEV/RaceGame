@@ -42,7 +42,7 @@ export class PlayerListOverlay {
 
     const title = document.createElement('div')
     title.className = 'player-list-overlay__title'
-    title.textContent = 'Players conectados'
+    title.textContent = 'Connected players'
     this.root.appendChild(title)
 
     this.list = document.createElement('div')
@@ -98,18 +98,18 @@ export class PlayerListOverlay {
   }
 
   private render(): void {
-    this.playerLookup.clear()
-
     if (this.players.length === 0) {
       this.clearRows()
       const empty = document.createElement('div')
       empty.className = 'player-list-overlay__empty'
-      empty.textContent = 'Esperando jugadores...'
+      empty.textContent = 'Waiting for players...'
       this.list.appendChild(empty)
       this.isReady = false
       this.updateVisibility()
       return
     }
+
+    this.playerLookup.clear()
 
     if (this.rows.size === 0) {
       this.list.textContent = ''
@@ -183,7 +183,7 @@ export class PlayerListOverlay {
     const speedValue = this.playerSpeeds.get(player.playerId)
     const turbo = this.turboCharges.get(player.playerId) ?? 0
     const missiles = this.missileCharges.get(player.playerId) ?? 0
-    const speedText = speedValue === undefined ? 'sin datos' : `${speedValue.toFixed(1)}u`
+    const speedText = speedValue === undefined ? 'no data' : `${speedValue.toFixed(1)}u`
     row.status.textContent = `${speedText} · ⚡${turbo} · 🎯${missiles}`
 
     const selectable = this.canSelectTarget(player)
@@ -201,11 +201,7 @@ export class PlayerListOverlay {
   }
 
   private readonly handleRowClick = (event: Event): void => {
-    const target = event.currentTarget as HTMLElement | null
-    const playerId = target?.dataset.playerId
-    if (playerId) {
-      this.handleSelect(playerId)
-    }
+    this.handleRowSelect(event)
   }
 
   private readonly handleRowKeyPress = (event: KeyboardEvent): void => {
@@ -213,6 +209,10 @@ export class PlayerListOverlay {
       return
     }
     event.preventDefault()
+    this.handleRowSelect(event)
+  }
+
+  private handleRowSelect(event: Event): void {
     const target = event.currentTarget as HTMLElement | null
     const playerId = target?.dataset.playerId
     if (playerId) {
@@ -238,16 +238,7 @@ export class PlayerListOverlay {
   }
 
   private canSelectTarget(player: PlayerSummary): boolean {
-    if (!this.onSelectPlayer) {
-      return false
-    }
-    if (!this.localPlayerId) {
-      return false
-    }
-    if (this.localHasCar) {
-      return false
-    }
-    return !player.isNpc
+    return Boolean(this.onSelectPlayer) && !!this.localPlayerId && !this.localHasCar && !player.isNpc
   }
 
   private handleSelect(playerId: string): void {

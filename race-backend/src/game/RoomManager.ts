@@ -66,7 +66,6 @@ export class RoomManager {
 
     if (!playerId) {
       playerId = this.generatePlayerId(room);
-      console.log(playerId);
     } else if (room.isPlayerIdTaken(playerId)) {
       throw new Error("Player already assigned");
     }
@@ -342,7 +341,6 @@ export class RoomManager {
     }
 
     const newRoomId = this.generateRoomId();
-    console.log(newRoomId);
     const track = trackRepository.getDefaultTrack();
     const room = new Room(newRoomId, track);
     this.rooms.set(newRoomId, room);

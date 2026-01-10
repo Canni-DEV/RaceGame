@@ -16,7 +16,7 @@ const TURBO_LIFT_SETTINGS = {
   lowerSpeed: THREE.MathUtils.degToRad(55),
   pivotOffset: new THREE.Vector3(0, -0.3, -1.35),
 }
-const TURBO_LIFT_AXIS = new THREE.Vector3()
+const TURBO_PIVOT_HAS_OFFSET = TURBO_LIFT_SETTINGS.pivotOffset.lengthSq() > 0
 const TURBO_LIFT_PIVOT_WORLD = new THREE.Vector3()
 const TURBO_LIFT_PIVOT_WORLD_AFTER = new THREE.Vector3()
 const TEMP_EULER = new THREE.Euler()
@@ -160,13 +160,12 @@ export class CarEntity {
       this.object.position.copy(this.currentPosition)
       this.composedOrientation.copy(this.orientation)
       if (hasTurboPitch) {
-        TURBO_LIFT_AXIS.copy(PITCH_AXIS)
-        this.pitchQuaternion.setFromAxisAngle(TURBO_LIFT_AXIS, -this.currentTurboPitch)
+        this.pitchQuaternion.setFromAxisAngle(PITCH_AXIS, -this.currentTurboPitch)
         this.composedOrientation.multiply(this.pitchQuaternion)
       }
       this.object.quaternion.copy(this.composedOrientation)
 
-      if (hasTurboPitch && TURBO_LIFT_SETTINGS.pivotOffset.lengthSq() > 0) {
+      if (hasTurboPitch && TURBO_PIVOT_HAS_OFFSET) {
         // Offset the pivot so turbo lift rotates around the rear axle instead of the car center.
         TURBO_LIFT_PIVOT_WORLD.copy(TURBO_LIFT_SETTINGS.pivotOffset)
         TURBO_LIFT_PIVOT_WORLD.applyQuaternion(this.orientation)

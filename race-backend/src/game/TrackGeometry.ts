@@ -4,6 +4,10 @@ interface TrackSegment {
   start: Vec2;
   direction: Vec2;
   length: number;
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
 }
 
 const DEFAULT_TOLERANCE = 0.25;
@@ -23,12 +27,12 @@ export class TrackGeometry {
     }
 
     const clearance = this.halfWidth + DEFAULT_TOLERANCE;
-    const minDistanceSq = minimumDistanceToSegmentsSq(position, this.segments);
+    const closest = findClosestSegment(position, this.segments);
+    if (!closest) {
+      return false;
+    }
+    const minDistanceSq = closest.distanceSq;
     return minDistanceSq < clearance * clearance;
-  }
-
-  resolveSpeedMultiplier(position: Vec2, offTrackPenalty: number): number {
-    return this.isPointOnTrack(position) ? 1 : Math.max(0, 1 - offTrackPenalty);
   }
 
   resolveBoundaryCollision(position: Vec2, radius: number, offset: number): TrackBoundaryCollision | null {
@@ -38,31 +42,12 @@ export class TrackGeometry {
 
     const targetDistance = this.halfWidth + Math.max(0, offset);
 
-    let bestDistanceSq = Number.POSITIVE_INFINITY;
-    let bestDeltaX = 0;
-    let bestDeltaZ = 0;
-    let bestDirection: Vec2 | null = null;
-
-    for (const segment of this.segments) {
-      const dx = position.x - segment.start.x;
-      const dz = position.z - segment.start.z;
-      const projection = dx * segment.direction.x + dz * segment.direction.z;
-      const clamped = clamp(projection, 0, segment.length);
-      const closestX = segment.start.x + segment.direction.x * clamped;
-      const closestZ = segment.start.z + segment.direction.z * clamped;
-      const offsetX = position.x - closestX;
-      const offsetZ = position.z - closestZ;
-      const distanceSq = offsetX * offsetX + offsetZ * offsetZ;
-
-      if (distanceSq < bestDistanceSq) {
-        bestDistanceSq = distanceSq;
-        bestDeltaX = offsetX;
-        bestDeltaZ = offsetZ;
-        bestDirection = segment.direction;
-      }
+    const closest = findClosestSegment(position, this.segments);
+    if (!closest) {
+      return null;
     }
 
-    const distance = Math.sqrt(bestDistanceSq);
+    const distance = Math.sqrt(closest.distanceSq);
     const effectiveDistance = distance + radius;
     if (effectiveDistance <= targetDistance) {
       return null;
@@ -70,9 +55,9 @@ export class TrackGeometry {
 
     const penetration = effectiveDistance - targetDistance;
     const baseNormal = distance > 1e-6
-      ? { x: bestDeltaX / distance, z: bestDeltaZ / distance }
-      : bestDirection
-        ? { x: -bestDirection.z, z: bestDirection.x }
+      ? { x: closest.deltaX / distance, z: closest.deltaZ / distance }
+      : closest.direction
+        ? { x: -closest.direction.z, z: closest.direction.x }
         : { x: 1, z: 0 };
 
     return { normal: baseNormal, penetration };
@@ -95,23 +80,52 @@ function buildSegments(centerline: Vec2[]): TrackSegment[] {
     const next = centerline[(i + 1) % centerline.length];
     const direction = normalize({ x: next.x - current.x, z: next.z - current.z });
     const length = Math.max(0.001, distance(current, next));
-    segments.push({ start: current, direction, length });
+    const minX = Math.min(current.x, next.x);
+    const maxX = Math.max(current.x, next.x);
+    const minZ = Math.min(current.z, next.z);
+    const maxZ = Math.max(current.z, next.z);
+    segments.push({ start: current, direction, length, minX, maxX, minZ, maxZ });
   }
   return segments;
 }
 
-function minimumDistanceToSegmentsSq(point: Vec2, segments: TrackSegment[]): number {
-  let best = Number.POSITIVE_INFINITY;
+function findClosestSegment(
+  point: Vec2,
+  segments: TrackSegment[]
+): { distanceSq: number; deltaX: number; deltaZ: number; direction: Vec2 | null } | null {
+  if (segments.length === 0) {
+    return null;
+  }
+
+  let bestDistanceSq = Number.POSITIVE_INFINITY;
+  let bestDeltaX = 0;
+  let bestDeltaZ = 0;
+  let bestDirection: Vec2 | null = null;
+
   for (const segment of segments) {
-    const candidate = distanceToSegmentSq(point, segment);
-    if (candidate < best) {
-      best = candidate;
+    if (bestDistanceSq !== Number.POSITIVE_INFINITY) {
+      const aabbDistanceSq = distanceToAabbSq(point, segment);
+      if (aabbDistanceSq > bestDistanceSq) {
+        continue;
+      }
+    }
+
+    const result = distanceToSegmentSq(point, segment);
+    if (result.distanceSq < bestDistanceSq) {
+      bestDistanceSq = result.distanceSq;
+      bestDeltaX = result.deltaX;
+      bestDeltaZ = result.deltaZ;
+      bestDirection = segment.direction;
     }
   }
-  return best;
+
+  return { distanceSq: bestDistanceSq, deltaX: bestDeltaX, deltaZ: bestDeltaZ, direction: bestDirection };
 }
 
-function distanceToSegmentSq(point: Vec2, segment: TrackSegment): number {
+function distanceToSegmentSq(
+  point: Vec2,
+  segment: TrackSegment
+): { distanceSq: number; deltaX: number; deltaZ: number } {
   const dx = point.x - segment.start.x;
   const dz = point.z - segment.start.z;
   const projection = dx * segment.direction.x + dz * segment.direction.z;
@@ -120,7 +134,13 @@ function distanceToSegmentSq(point: Vec2, segment: TrackSegment): number {
   const closestZ = segment.start.z + segment.direction.z * clamped;
   const offsetX = point.x - closestX;
   const offsetZ = point.z - closestZ;
-  return offsetX * offsetX + offsetZ * offsetZ;
+  return { distanceSq: offsetX * offsetX + offsetZ * offsetZ, deltaX: offsetX, deltaZ: offsetZ };
+}
+
+function distanceToAabbSq(point: Vec2, segment: TrackSegment): number {
+  const dx = point.x < segment.minX ? segment.minX - point.x : point.x > segment.maxX ? point.x - segment.maxX : 0;
+  const dz = point.z < segment.minZ ? segment.minZ - point.z : point.z > segment.maxZ ? point.z - segment.maxZ : 0;
+  return dx * dx + dz * dz;
 }
 
 function normalize(vec: Vec2): Vec2 {

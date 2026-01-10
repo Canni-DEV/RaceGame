@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
-import { resolvePublicAssetUrl } from '../config'
+import { isProceduralSkyEnabled, resolvePublicAssetUrl } from '../config'
 import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
 import { GameStateStore } from '../state/GameStateStore'
@@ -45,7 +45,7 @@ export class SceneManager {
   private readonly cameraRig: CameraRig
   private readonly clock: THREE.Clock
   private readonly trackScene: TrackScene
-  private readonly sky: ProceduralSky
+  private sky: ProceduralSky | null = null
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
@@ -53,13 +53,10 @@ export class SceneManager {
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
   private readonly gameAudio: GameAudioSystem
-  private readonly skyAnimationEnabled = false
-  private readonly skyAnimationInterval = 0.5
   private keyLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private readonly lastPointerPosition = new THREE.Vector2()
-  private hasLastPointerPosition = false
   private readonly orbitRotateSpeed = 0.005
   private readonly orbitTiltSpeed = 0.0035
   private readonly zoomStep = 0.08
@@ -67,7 +64,6 @@ export class SceneManager {
   private readonly maxShadowMapSize = 1024
   private readonly maxPixelRatio = 1
   private lastShadowMapSize: number | null = null
-  private skyUpdateAccumulator = 0
   private environmentMap: THREE.Texture | null = null
   private hdrBackground: THREE.Mesh | null = null
   private readonly hdrLoader = new HDRLoader()
@@ -89,13 +85,6 @@ export class SceneManager {
     this.container.appendChild(this.renderer.domElement)
 
     this.scene = new THREE.Scene()
-    this.sky = new ProceduralSky({
-      topColor: '#6d9eff',
-      middleColor: '#9ccfff',
-      bottomColor: '#f6e5d6',
-      timeOfDay: 0.25,
-    })
-    this.scene.add(this.sky.mesh)
     this.setupEnvironment()
 
     const aspect = container.clientWidth / container.clientHeight
@@ -111,6 +100,7 @@ export class SceneManager {
 
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
+    this.updateProceduralSky(this.gameStateStore.getRoomId())
     this.gameAudio = new GameAudioSystem(this.audioManager, this.gameStateStore)
     void this.gameAudio
     this.trackScene = new TrackScene(
@@ -136,6 +126,7 @@ export class SceneManager {
 
     this.socketClient = new SocketClient()
     this.socketClient.onRoomInfo((info) => {
+      this.updateProceduralSky(info.roomId)
       this.gameStateStore.setRoomInfo(info.roomId, info.playerId, info.track, info.players, {
         sessionToken: info.sessionToken,
         protocolVersion: info.protocolVersion,
@@ -283,7 +274,9 @@ export class SceneManager {
       const envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture
 
       this.setEnvironmentMap(envMap)
-      this.sky.mesh.visible = false
+      if (this.sky) {
+        this.sky.mesh.visible = false
+      }
       this.setHdrBackground(hdrTexture)
     } catch (error) {
       console.error(`[SceneManager] Failed to load HDR skybox from "${this.skyboxPath}".`, error)
@@ -323,21 +316,9 @@ export class SceneManager {
   private readonly animate = (): void => {
     requestAnimationFrame(this.animate)
     const delta = this.clock.getDelta()
-    if (this.skyAnimationEnabled) {
-      this.skyUpdateAccumulator += delta
-      if (this.skyUpdateAccumulator >= this.skyAnimationInterval) {
-        const dayPhase = THREE.MathUtils.clamp(
-          0.25 + Math.sin(this.clock.getElapsedTime() * 0.05) * 0.22,
-          0,
-          1,
-        )
-        this.sky.setTimeOfDay(dayPhase)
-        this.skyUpdateAccumulator = 0
-      }
-    }
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
-    if (this.sky.mesh.visible) {
+    if (this.sky && this.sky.mesh.visible) {
       this.sky.update(delta, this.camera.position)
     }
     if (this.hdrBackground) {
@@ -348,6 +329,30 @@ export class SceneManager {
       )
     }
     this.renderer.render(this.scene, this.camera)
+  }
+
+  private updateProceduralSky(roomId: string | null): void {
+    const shouldEnable = isProceduralSkyEnabled(roomId)
+    if (!shouldEnable) {
+      if (this.sky?.mesh.parent) {
+        this.scene.remove(this.sky.mesh)
+      }
+      return
+    }
+
+    if (!this.sky) {
+      this.sky = new ProceduralSky({
+        topColor: '#6d9eff',
+        middleColor: '#9ccfff',
+        bottomColor: '#f6e5d6',
+        timeOfDay: 0.25,
+      })
+    }
+
+    if (!this.sky.mesh.parent) {
+      this.scene.add(this.sky.mesh)
+    }
+    this.sky.mesh.visible = !this.hdrBackground
   }
 
   private readonly preventContextMenu = (event: Event): void => {
@@ -365,27 +370,26 @@ export class SceneManager {
     const matchesKey = (expected: string): boolean => {
       return key === expected || code === `key${expected}`
     }
+    const consume = (): void => {
+      event.preventDefault()
+      event.stopPropagation()
+    }
 
     if (matchesKey('s')) {
       this.audioManager.toggle()
-      event.preventDefault()
-      event.stopPropagation()
+      consume()
     } else if (matchesKey('q')) {
       this.controllerAccess.toggleVisibility()
-      event.preventDefault()
-      event.stopPropagation()
+      consume()
     } else if (matchesKey('p')) {
       this.playerListOverlay.toggleVisibility()
-      event.preventDefault()
-      event.stopPropagation()
-    } else if (matchesKey('c')) {
+      consume()
+    } else if (matchesKey('h')) {
       this.raceHud.toggleVisibility()
-      event.preventDefault()
-      event.stopPropagation()
+      consume()
     } else if (matchesKey('r')) {
       this.cameraRig.toggleAutoOrbit()
-      event.preventDefault()
-      event.stopPropagation()
+      consume()
     }
   }
 
@@ -404,13 +408,12 @@ export class SceneManager {
     this.isOrbitDragging = true
     this.orbitPointerId = event.pointerId
     this.lastPointerPosition.set(event.clientX, event.clientY)
-    this.hasLastPointerPosition = true
     this.renderer.domElement.setPointerCapture(event.pointerId)
     this.cameraRig.beginManualOrbit()
   }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
-    if (!this.isOrbitDragging || this.orbitPointerId !== event.pointerId || !this.hasLastPointerPosition) {
+    if (!this.isOrbitDragging || this.orbitPointerId !== event.pointerId) {
       return
     }
     const deltaX = event.clientX - this.lastPointerPosition.x
@@ -429,7 +432,6 @@ export class SceneManager {
     this.renderer.domElement.releasePointerCapture(event.pointerId)
     this.isOrbitDragging = false
     this.orbitPointerId = null
-    this.hasLastPointerPosition = false
     this.cameraRig.endManualOrbit()
   }
 
