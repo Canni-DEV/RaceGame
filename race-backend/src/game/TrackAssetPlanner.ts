@@ -38,13 +38,23 @@ export function planAssetDecorations(centerline: Vec2[], width: number, seed: nu
     return [];
   }
 
+  const primaryDescriptors: AssetDescriptor[] = [];
+  const gapFillDescriptors: AssetDescriptor[] = [];
+  for (const descriptor of descriptors) {
+    if (descriptor.fillEmpty) {
+      gapFillDescriptors.push(descriptor);
+    } else {
+      primaryDescriptors.push(descriptor);
+    }
+  }
+
   const frames = buildFrames(centerline);
   const segments = buildSegments(centerline, frames);
   const occupied: Vec2[] = [];
   const decorations: InstancedDecoration[] = [];
   const windingOrder = calculateWindingOrder(centerline);
 
-  for (const descriptor of descriptors.filter((d) => !d.fillEmpty)) {
+  for (const descriptor of primaryDescriptors) {
     const descriptorSeed = mixSeeds(baseSeed, descriptor.seedOffset ?? 0, descriptor.id);
     const descriptorRandom = createRandom(descriptorSeed);
     const chance = descriptor.chance ?? 1;
@@ -70,7 +80,6 @@ export function planAssetDecorations(centerline: Vec2[], width: number, seed: nu
     });
   }
 
-  const gapFillDescriptors = descriptors.filter((d) => d.fillEmpty);
   if (gapFillDescriptors.length > 0) {
     for (const descriptor of gapFillDescriptors) {
       const descriptorSeed = mixSeeds(baseSeed, descriptor.seedOffset ?? 0x73fa142d, descriptor.id);
@@ -131,6 +140,7 @@ function planInstances(
   const limit = descriptor.maxInstances ?? Number.POSITIVE_INFINITY;
   const minInstances = descriptor.minInstances ?? (descriptor.placement === "required" ? 1 : 0);
   let distanceToNext = spacing * random();
+  const allowOnTrack = descriptor.allowOnTrack === true;
 
   const targetNodes = collectTargetNodes(descriptor, centerline.length);
   if (targetNodes.length > 0) {
@@ -143,7 +153,7 @@ function planInstances(
       }
       for (const instance of instanceSet) {
         if (
-          (descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+          (allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
           canPlace(instance.position, descriptor, occupied)
         ) {
           instances.push(instance);
@@ -168,7 +178,7 @@ function planInstances(
     if (instanceSet) {
       for (const instance of instanceSet) {
         if (
-          (descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+          (allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
           canPlace(instance.position, descriptor, occupied)
         ) {
           instances.push(instance);
@@ -222,7 +232,7 @@ function planInstances(
       if (instanceSet) {
         for (const instance of instanceSet) {
           if (
-            (descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+            (allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
             canPlace(instance.position, descriptor, occupied)
           ) {
             instances.push(instance);
@@ -273,6 +283,7 @@ function ensureMinimumInstances(
   }
 
   const { random, width, occupied, windingOrder } = context;
+  const allowOnTrack = descriptor.allowOnTrack === true;
   let searchIndex = 0;
   while (instances.length < minInstances && searchIndex < centerline.length) {
     const idx = searchIndex % centerline.length;
@@ -282,7 +293,7 @@ function ensureMinimumInstances(
     if (instanceSet) {
       for (const instance of instanceSet) {
         if (
-          (descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+          (allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
           canPlace(instance.position, descriptor, occupied)
         ) {
           instances.push(instance);
@@ -317,6 +328,7 @@ function planGapFillInstances(
   const limit = descriptor.maxInstances ?? Number.POSITIVE_INFINITY;
   const minInstances = descriptor.minInstances ?? 0;
   const chance = descriptor.chance ?? 1;
+  const allowOnTrack = descriptor.allowOnTrack === true;
   if (chance < 1 && descriptor.placement !== "required" && random() > chance) {
     return instances;
   }
@@ -337,7 +349,7 @@ function planGapFillInstances(
         z: z + (random() - 0.5) * cellSize
       };
       const distanceSq = minimumDistanceToSegmentsSq(sample, segments);
-      if (!descriptor.allowOnTrack && distanceSq < clearance * clearance) {
+      if (!allowOnTrack && distanceSq < clearance * clearance) {
         continue;
       }
       if (!canPlace(sample, descriptor, occupied)) {
@@ -353,7 +365,7 @@ function planGapFillInstances(
       if (instanceSet) {
         for (const instance of instanceSet) {
           if (
-            (descriptor.allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
+            (allowOnTrack || isOutsideTrack(instance.position, segments, width, descriptor)) &&
             canPlace(instance.position, descriptor, occupied)
           ) {
             instances.push(instance);

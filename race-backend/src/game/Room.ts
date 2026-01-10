@@ -562,7 +562,7 @@ export class Room {
     }
 
     const removals: string[] = [];
-    const maxRange = this.trackNavigator.getTotalLength() * MISSILE_MAX_RANGE_FACTOR;
+    const maxRange = this.trackLength * MISSILE_MAX_RANGE_FACTOR;
     const acquisitionRadiusSq = MISSILE_ACQUISITION_RADIUS * MISSILE_ACQUISITION_RADIUS;
 
     for (const missile of this.missiles.values()) {
@@ -596,7 +596,8 @@ export class Room {
         missile.x += dirX * travel;
         missile.z += dirZ * travel;
         const desiredAngle = Math.atan2(dirZ, dirX);
-        missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+        const angleDelta = normalizeAngle(desiredAngle - missile.angle);
+        missile.angle = normalizeAngle(missile.angle + angleDelta);
       } else {
         let remaining = travel;
 
@@ -613,7 +614,8 @@ export class Room {
               missile.x += dirX * remaining;
               missile.z += dirZ * remaining;
               const desiredAngle = Math.atan2(dirZ, dirX);
-              missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+              const angleDelta = normalizeAngle(desiredAngle - missile.angle);
+              missile.angle = normalizeAngle(missile.angle + angleDelta);
               remaining = 0;
             } else {
               missile.x = snap.position.x;
@@ -624,7 +626,8 @@ export class Room {
               };
               missile.onTrack = true;
               const desiredAngle = Math.atan2(snap.direction.z, snap.direction.x);
-              missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+              const angleDelta = normalizeAngle(desiredAngle - missile.angle);
+              missile.angle = normalizeAngle(missile.angle + angleDelta);
               remaining -= distanceToTrack;
             }
           } else {
@@ -641,7 +644,8 @@ export class Room {
           missile.x = progress.position.x;
           missile.z = progress.position.z;
           const desiredAngle = Math.atan2(progress.direction.z, progress.direction.x);
-          missile.angle = normalizeAngle(missile.angle + normalizeAngle(desiredAngle - missile.angle));
+          const angleDelta = normalizeAngle(desiredAngle - missile.angle);
+          missile.angle = normalizeAngle(missile.angle + angleDelta);
         }
       }
 
@@ -794,7 +798,17 @@ export class Room {
   }
 
   private handleItemPickups(): void {
-    if (this.items.size === 0) {
+    if (this.items.size === 0 || this.cars.size === this.npcIds.size) {
+      return;
+    }
+
+    const activeItems: ItemRuntime[] = [];
+    for (const item of this.items.values()) {
+      if (item.active) {
+        activeItems.push(item);
+      }
+    }
+    if (activeItems.length === 0) {
       return;
     }
 
@@ -803,7 +817,7 @@ export class Room {
         continue;
       }
 
-      for (const item of this.items.values()) {
+      for (const item of activeItems) {
         if (!item.active) {
           continue;
         }
@@ -1312,15 +1326,17 @@ export class Room {
   }
 
   toRoomState(): RoomState {
-    return {
-      roomId: this.roomId,
-      trackId: this.track.id,
-      serverTime: this.serverTime,
-      cars: Array.from(this.cars.values()).map((car) => ({
+    const cars: CarState[] = [];
+    for (const car of this.cars.values()) {
+      cars.push({
         ...car,
         username: this.getUsername(car.playerId)
-      })),
-      missiles: Array.from(this.missiles.values()).map((missile) => ({
+      });
+    }
+
+    const missiles: MissileState[] = [];
+    for (const missile of this.missiles.values()) {
+      missiles.push({
         id: missile.id,
         ownerId: missile.ownerId,
         x: missile.x,
@@ -1328,16 +1344,30 @@ export class Room {
         angle: missile.angle,
         speed: missile.speed,
         targetId: missile.targetId
-      })),
-      items: Array.from(this.items.values())
-        .filter((item) => item.active)
-        .map((item) => ({
-          id: item.spawn.id,
-          type: item.type,
-          x: item.spawn.position.x,
-          z: item.spawn.position.z,
-          angle: item.spawn.rotation
-        })),
+      });
+    }
+
+    const items: RoomState["items"] = [];
+    for (const item of this.items.values()) {
+      if (!item.active) {
+        continue;
+      }
+      items.push({
+        id: item.spawn.id,
+        type: item.type,
+        x: item.spawn.position.x,
+        z: item.spawn.position.z,
+        angle: item.spawn.rotation
+      });
+    }
+
+    return {
+      roomId: this.roomId,
+      trackId: this.track.id,
+      serverTime: this.serverTime,
+      cars,
+      missiles,
+      items,
       race: this.toRaceState()
     };
   }
