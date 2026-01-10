@@ -836,10 +836,7 @@ export class ControllerApp {
   }
 
   private handleDeviceOrientation = (event: DeviceOrientationEvent): void => {
-    if (!this.sensorsActive) {
-      return
-    }
-    if (!this.secureContext || !this.sensorsSupported) {
+    if (!this.sensorsActive || !this.secureContext || !this.sensorsSupported) {
       return
     }
     const roll = this.extractRoll(event)
@@ -893,13 +890,7 @@ export class ControllerApp {
   }
 
   private pushInput(): void {
-    if (!this.socketClient) {
-      return
-    }
-    if (!this.hasRoomInfo) {
-      return
-    }
-    if (this.raceInputBlocked) {
+    if (!this.socketClient || !this.hasRoomInfo || this.raceInputBlocked) {
       return
     }
     const input = this.inputStore.getCurrentInput()

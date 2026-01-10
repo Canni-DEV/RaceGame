@@ -3,6 +3,8 @@ import type { TrackData, TrackDecoration, TrackObjectInstance } from './trackTyp
 import { createRandom } from './random'
 import { normalize, rightNormal, sub } from './math2d'
 
+const TREE_SIDES: ReadonlyArray<1 | -1> = [1, -1]
+
 export const SAMPLE_TRACK: TrackData = createTrack({
   id: 'sample-oval',
   seed: 12345,
@@ -69,7 +71,7 @@ function buildDecorations(width: number, centerline: TrackData['centerline'], se
     const dir = normalize(sub(next, current))
     const normal = rightNormal(dir)
 
-    for (let side of [1, -1] as const) {
+    for (const side of TREE_SIDES) {
       if (random() < 0.35) {
         continue
       }
