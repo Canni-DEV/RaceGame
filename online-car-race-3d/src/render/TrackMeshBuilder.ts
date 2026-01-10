@@ -88,15 +88,13 @@ export class TrackMeshBuilder {
       const prev = centerline[(i - 1 + count) % count]
       const dir = normalize(sub(next, curr))
       const normal = rightNormal(dir)
-      const leftNormal = scale(normal, -1)
 
       rightEdge.push(add(curr, scale(normal, halfWidth)))
-      leftEdge.push(add(curr, scale(leftNormal, halfWidth)))
+      leftEdge.push(add(curr, scale(normal, -halfWidth)))
       normals.push(normal)
 
       const signed = signedAngle(sub(curr, prev), sub(next, curr))
       curvature.push(signed)
-
     }
 
     return { leftEdge, rightEdge, normals, curvature }

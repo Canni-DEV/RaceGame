@@ -1,7 +1,6 @@
 import * as THREE from 'three'
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
 import type { TrackBuildResult } from './TrackMeshBuilder'
 import { resolvePublicAssetUrl, resolveServerAssetUrl } from '../config'
@@ -188,18 +187,19 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     base.updateMatrixWorld(true)
 
     const templateMeshes: THREE.Mesh[] = []
+    let hasSkinnedMesh = false
     base.traverse((child: THREE.Object3D) => {
       if ((child as THREE.Mesh).isMesh) {
         const mesh = child as THREE.Mesh
-        // InstancedMesh does not support skinned meshes; fall back to cloning in that case.
         if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
-          templateMeshes.length = 0
+          hasSkinnedMesh = true
         }
         templateMeshes.push(mesh)
       }
     })
 
-    if (templateMeshes.length === 0 || (templateMeshes[0] as THREE.SkinnedMesh).isSkinnedMesh) {
+    // InstancedMesh does not support skinned meshes; fall back to cloning in that case.
+    if (templateMeshes.length === 0 || hasSkinnedMesh) {
       for (const [index, instance] of instances.entries()) {
         const clone = SkeletonUtils.clone(base) as THREE.Object3D
         clone.userData.isTrackAsset = true
@@ -227,17 +227,16 @@ class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
     }
 
     uniqueTemplates.forEach((mesh, geometry) => {
-      const mergedGeometry = mergeGeometries([geometry], false) ?? geometry
       const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material
       if (!material) {
         return
       }
-      const instancedMesh = new THREE.InstancedMesh(mergedGeometry, material, instances.length)
+      const instancedMesh = new THREE.InstancedMesh(geometry, material, instances.length)
       instancedMesh.castShadow = mesh.castShadow
       instancedMesh.receiveShadow = mesh.receiveShadow
       instancedMesh.name = `${mesh.name || 'decor-submesh'}-instanced`
 
-      const meshMatrix = mesh.matrixWorld.clone()
+      const meshMatrix = mesh.matrixWorld
       instances.forEach((instance, index) => {
         instanceTransform.position.set(instance.position.x, 0, instance.position.z)
         instanceTransform.rotation.set(0, toRendererYaw(instance.rotation), 0)
@@ -297,7 +296,7 @@ export function applyDecorators(
   root: THREE.Object3D,
   random: () => number,
 ): void {
-  const bounds = trackMesh.bounds ?? new THREE.Box3().setFromObject(root)
+  const bounds = trackMesh.bounds
   const center = bounds.getCenter(new THREE.Vector3())
   const size = bounds.getSize(new THREE.Vector3())
   const maxSide = Math.max(size.x, size.z)

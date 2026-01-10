@@ -27,7 +27,6 @@ export class CameraRig {
   private followDistance = 10
   private followHeight = 12
   private followLookAhead = 12
-  private followLookUpOffset = 0
   private maxFollowLagFraction = 0.1
   private lagCorrectionSpeed = 140
   private firstPersonHeight = 1.5
@@ -38,7 +37,6 @@ export class CameraRig {
   private readonly tempForward = new THREE.Vector3(0, 0, 1)
   private readonly tempOffset = new THREE.Vector3()
   private readonly tempLagTarget = new THREE.Vector3()
-  private readonly worldUp = new THREE.Vector3(0, 1, 0)
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera
@@ -143,15 +141,6 @@ export class CameraRig {
     }
   }
 
-  setFollowLookOffset(offset: { forward?: number; up?: number }): void {
-    if (typeof offset.forward === 'number' && Number.isFinite(offset.forward)) {
-      this.followLookAhead = offset.forward
-    }
-    if (typeof offset.up === 'number' && Number.isFinite(offset.up)) {
-      this.followLookUpOffset = offset.up
-    }
-  }
-
   setFollowLag(options: { maxFraction?: number; correctionSpeed?: number }): void {
     if (typeof options.maxFraction === 'number' && Number.isFinite(options.maxFraction)) {
       this.maxFollowLagFraction = THREE.MathUtils.clamp(options.maxFraction, 0, 1)
@@ -172,9 +161,9 @@ export class CameraRig {
   update(_dt: number): void {
     // Clamp delta to avoid frame-rate dependent damping; keep spikes bounded.
     const dt = THREE.MathUtils.clamp(_dt, 0, 0.05)
-    const targetLerpSpeed = this.followMode === 'firstPerson' ? 6 : 3.5
+    const isFirstPerson = this.followMode === 'firstPerson'
+    const targetLerpSpeed = isFirstPerson ? 6 : 3.5
     const targetLerp = 1 - Math.exp(-dt * targetLerpSpeed)
-    this.lookTarget.copy(this.smoothedTarget)
 
     if (this.followTarget) {
       const targetPosition = this.followTarget.position
@@ -201,14 +190,14 @@ export class CameraRig {
       if (!this.followRotationLocked) {
         const targetForward = this.getTargetForward(this.followTarget)
         if (targetForward.lengthSq() > 1e-6) {
-          const forwardLerpSpeed = this.followMode === 'firstPerson' ? 10 : 6
+          const forwardLerpSpeed = isFirstPerson ? 10 : 6
           const forwardLerp = 1 - Math.exp(-dt * forwardLerpSpeed)
           this.followForward.lerp(targetForward, forwardLerp)
           this.followForward.normalize()
         }
       }
       this.desiredPosition.copy(this.smoothedTarget)
-      if (this.followMode === 'firstPerson') {
+      if (isFirstPerson) {
         this.desiredPosition.addScaledVector(this.followForward, this.firstPersonForwardOffset)
         this.desiredPosition.y = this.smoothedTarget.y + this.firstPersonHeight
         this.lookTarget
@@ -220,7 +209,6 @@ export class CameraRig {
         this.lookTarget
           .copy(this.smoothedTarget)
           .addScaledVector(this.followForward, this.followLookAhead)
-          .addScaledVector(this.worldUp, this.followLookUpOffset)
       }
     } else {
       this.smoothedTarget.lerp(this.manualTarget, targetLerp)
