@@ -39,7 +39,7 @@ export const DECORATOR_CONFIG = {
   room: {
     assetUrl: getRoomModelUrl(),
     offset: {
-      x: getNumberEnv('VITE_ROOM_MODEL_OFFSET_X', -900),
+      x: getNumberEnv('VITE_ROOM_MODEL_OFFSET_X', -850),
       y: getNumberEnv('VITE_ROOM_MODEL_OFFSET_Y', -174),
       z: getNumberEnv('VITE_ROOM_MODEL_OFFSET_Z', 0),
     },
