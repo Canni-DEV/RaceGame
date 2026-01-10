@@ -56,6 +56,8 @@ export class SceneManager {
   private readonly gameAudio: GameAudioSystem
   private readonly loadingScreen: LoadingScreen
   private keyLight: THREE.DirectionalLight | null = null
+  private fillLight: THREE.DirectionalLight | null = null
+  private rimLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private readonly lastPointerPosition = new THREE.Vector2()
@@ -80,8 +82,8 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = true
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
-    this.renderer.toneMapping = THREE.NoToneMapping
-    this.renderer.toneMappingExposure = 1
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+    this.renderer.toneMappingExposure = 0.8
     this.renderer.physicallyCorrectLights = false
     this.renderer.domElement.classList.add('canvas-container')
     this.container.appendChild(this.renderer.domElement)
@@ -114,6 +116,8 @@ export class SceneManager {
       this.cameraRig,
       this.gameStateStore,
       this.keyLight,
+      this.fillLight,
+      this.rimLight,
       this.audioManager,
       this.handlePlayerAutoFollow,
     )
@@ -177,25 +181,42 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const hemisphere = new THREE.HemisphereLight(0x6fa5ff, 0x7a552d, 0.35)
+    const ambient = new THREE.AmbientLight(0xf3e5cf, 0.32)
+    this.scene.add(ambient)
+
+    const hemisphere = new THREE.HemisphereLight(0xcad8ff, 0x6b4b38, 0.2)
     this.scene.add(hemisphere)
 
-    const keyLight = new THREE.DirectionalLight(0xffe2b3, 1.15)
-    keyLight.position.set(60, 1000, 80)
+    const keyLight = new THREE.DirectionalLight(0xfff1d6, 0.8)
+    keyLight.position.set(70, 220, 60)
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
-    keyLight.shadow.bias = -0.00005
-    keyLight.shadow.normalBias = 0.012
-    keyLight.shadow.camera.near = 0.5
-    keyLight.shadow.camera.far = 600
-    keyLight.shadow.camera.left = -150
-    keyLight.shadow.camera.right = 150
-    keyLight.shadow.camera.top = 150
-    keyLight.shadow.camera.bottom = -150
+    keyLight.shadow.bias = -0.0001
+    keyLight.shadow.normalBias = 0.02
+    keyLight.shadow.camera.near = 1
+    keyLight.shadow.camera.far = 450
+    keyLight.shadow.camera.left = -140
+    keyLight.shadow.camera.right = 140
+    keyLight.shadow.camera.top = 140
+    keyLight.shadow.camera.bottom = -140
     this.scene.add(keyLight)
     this.scene.add(keyLight.target)
 
+    const fillLight = new THREE.DirectionalLight(0xffe3bf, 0.3)
+    fillLight.position.set(-140, 180, 120)
+    fillLight.castShadow = false
+    this.scene.add(fillLight)
+    this.scene.add(fillLight.target)
+
+    const rimLight = new THREE.DirectionalLight(0xa8c2ff, 0.2)
+    rimLight.position.set(150, 160, -140)
+    rimLight.castShadow = false
+    this.scene.add(rimLight)
+    this.scene.add(rimLight.target)
+
     this.keyLight = keyLight
+    this.fillLight = fillLight
+    this.rimLight = rimLight
   }
 
   private setupEnvironment(): void {
@@ -220,8 +241,8 @@ export class SceneManager {
     }
 
     const gradient = context.createLinearGradient(0, 0, 0, height)
-    gradient.addColorStop(0, '#182c47')
-    gradient.addColorStop(1, '#0f0c17')
+    gradient.addColorStop(0, '#f4e8d5')
+    gradient.addColorStop(1, '#8c6b53')
     context.fillStyle = gradient
     context.fillRect(0, 0, width, height)
 
