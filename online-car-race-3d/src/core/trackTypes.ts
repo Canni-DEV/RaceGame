@@ -90,6 +90,7 @@ export interface RoomState {
   cars: CarState[]
   missiles: MissileState[]
   items: ItemState[]
+  radio: RoomRadioState
   race: RaceState
 }
 
@@ -100,6 +101,7 @@ export interface RoomStateDelta {
   cars?: EntityDelta<CarState>
   missiles?: EntityDelta<MissileState>
   items?: ItemDelta
+  radio?: RoomRadioState
   race?: RaceState
 }
 
@@ -142,4 +144,9 @@ export interface RaceState {
   startSegmentIndex: number
   leaderboard: LeaderboardEntry[]
   players: RacePlayerState[]
+}
+
+export interface RoomRadioState {
+  enabled: boolean
+  stationIndex: number
 }

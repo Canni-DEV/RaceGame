@@ -74,6 +74,7 @@ export function applyRoomStateDelta(base: RoomState | null, delta: RoomStateDelt
   const cars = applyCarDelta(base.cars, delta.cars)
   const missiles = applyMissileDelta(base.missiles, delta.missiles)
   const items = applyItemDelta(base.items, delta.items)
+  const radio = delta.radio ?? base.radio
 
   return {
     roomId: delta.roomId || base.roomId,
@@ -82,6 +83,7 @@ export function applyRoomStateDelta(base: RoomState | null, delta: RoomStateDelt
     cars,
     missiles,
     items,
+    radio,
     race: delta.race ?? base.race,
   }
 }

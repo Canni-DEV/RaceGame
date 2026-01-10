@@ -52,3 +52,7 @@ export interface UsernameUpdateMessage {
   playerId: string;
   username: string;
 }
+
+export interface RadioCycleMessage {
+  roomId?: string;
+}

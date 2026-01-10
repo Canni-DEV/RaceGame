@@ -102,6 +102,7 @@ export function serializeRoomState(state: RoomState): RoomState {
     cars: state.cars.map(serializeCarState),
     missiles: state.missiles.map(serializeMissile),
     items: state.items.map(serializeItem),
+    radio: state.radio,
     race: serializeRaceState(state.race)
   };
 }

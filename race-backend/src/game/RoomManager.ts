@@ -196,6 +196,25 @@ export class RoomManager {
     buffered.lastReceivedAt = Date.now();
   }
 
+  handleRadioCycle(socketId: string): { room: Room } {
+    const role = this.socketRoles.get(socketId);
+    if (!role) {
+      throw new Error("Socket no autorizado para radio");
+    }
+    const roomId = this.socketToRoom.get(socketId);
+    if (!roomId) {
+      throw new Error("Room not found");
+    }
+
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      throw new Error("Room not found");
+    }
+
+    room.cycleRadio();
+    return { room };
+  }
+
   handleUsernameUpdate(
     socketId: string,
     payload: UsernameUpdateMessage

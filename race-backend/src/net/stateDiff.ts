@@ -115,8 +115,15 @@ function raceEqual(a: RoomState["race"], b: RoomState["race"]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+function radioEqual(a: RoomState["radio"], b: RoomState["radio"]): boolean {
+  if (a === b) {
+    return true;
+  }
+  return a.enabled === b.enabled && a.stationIndex === b.stationIndex;
+}
+
 function hasAnyChanges(delta: RoomStateDelta | null | undefined): boolean {
-  return Boolean(delta && (delta.cars || delta.missiles || delta.items || delta.race));
+  return Boolean(delta && (delta.cars || delta.missiles || delta.items || delta.race || delta.radio));
 }
 
 function countEntityDelta<T extends { id?: string; playerId?: string }>(delta?: EntityDelta<T> | null): number {
@@ -138,8 +145,9 @@ export function computeStateDelta(previous: RoomState, next: RoomState): RoomSta
   const missiles = diffEntities(previous.missiles, next.missiles, (missile) => missile.id, missilesEqual);
   const items = diffEntities(previous.items, next.items, (item) => item.id, itemsEqual);
   const raceChanged = !raceEqual(previous.race, next.race);
+  const radioChanged = !radioEqual(previous.radio, next.radio);
 
-  if (!cars && !missiles && !items && !raceChanged) {
+  if (!cars && !missiles && !items && !raceChanged && !radioChanged) {
     return null;
   }
 
@@ -159,6 +167,9 @@ export function computeStateDelta(previous: RoomState, next: RoomState): RoomSta
   if (raceChanged) {
     delta.race = next.race;
   }
+  if (radioChanged) {
+    delta.radio = next.radio;
+  }
   return delta;
 }
 
@@ -167,7 +178,8 @@ export function shouldSendFullSnapshot(delta: RoomStateDelta, previous: RoomStat
     countEntityDelta(delta.cars) +
     countEntityDelta(delta.missiles) +
     countItemDelta(delta.items) +
-    (delta.race ? 1 : 0);
+    (delta.race ? 1 : 0) +
+    (delta.radio ? 1 : 0);
   const totalCount = Math.max(
     previous.cars.length +
     previous.missiles.length +

@@ -357,6 +357,7 @@ export class GameStateStore {
       cars: mergedCars,
       missiles,
       items,
+      radio: alpha < 0.5 ? a.radio : b.radio,
       race: alpha < 0.5 ? a.race : b.race,
     }
   }

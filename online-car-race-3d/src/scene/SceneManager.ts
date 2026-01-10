@@ -13,6 +13,7 @@ import { GameAudioSystem } from '../audio/GameAudioSystem'
 import { RaceHud } from './RaceHud'
 import { ProceduralSky } from '../render/ProceduralSky'
 import { LoadingScreen } from './LoadingScreen'
+import { RadioSystem } from './RadioSystem'
 
 const DEFAULT_HDR_SKYBOX = 'textures/empty_play_room_4k.hdr'
 const SKYBOX_BACKGROUND_CONFIG = {
@@ -54,12 +55,17 @@ export class SceneManager {
   private readonly raceHud: RaceHud
   private readonly audioManager: AudioManager
   private readonly loadingScreen: LoadingScreen
+  private readonly radioSystem: RadioSystem
   private keyLight: THREE.DirectionalLight | null = null
   private fillLight: THREE.DirectionalLight | null = null
   private rimLight: THREE.DirectionalLight | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private readonly lastPointerPosition = new THREE.Vector2()
+  private radioPointerId: number | null = null
+  private readonly radioPointerStart = new THREE.Vector2()
+  private radioPointerMoved = false
+  private readonly radioClickTolerance = 6
   private readonly orbitRotateSpeed = 0.005
   private readonly orbitTiltSpeed = 0.0035
   private readonly zoomStep = 0.08
@@ -120,6 +126,13 @@ export class SceneManager {
     new HotkeyOverlay(this.container)
 
     this.socketClient = new SocketClient()
+    this.radioSystem = new RadioSystem(
+      this.scene,
+      this.camera,
+      this.audioManager,
+      this.gameStateStore,
+      this.socketClient,
+    )
     this.bindSocketHandlers()
     this.socketClient.connect()
 
@@ -369,6 +382,7 @@ export class SceneManager {
     const delta = this.clock.getDelta()
     this.trackScene.update(delta)
     this.cameraRig.update(delta)
+    this.radioSystem.update()
     if (this.sky && this.sky.mesh.visible) {
       this.sky.update(delta, this.camera.position)
     }
@@ -441,7 +455,17 @@ export class SceneManager {
     } else if (matchesKey('r')) {
       this.cameraRig.toggleAutoOrbit()
       consume()
+    } else if (matchesKey('c')) {
+      this.logCameraPosition()
+      consume()
     }
+  }
+
+  private logCameraPosition(): void {
+    const { x, y, z } = this.camera.position
+    console.info(
+      `[Camera] position: x=${x.toFixed(3)} y=${y.toFixed(3)} z=${z.toFixed(3)}`,
+    )
   }
 
   private readonly handlePlayerAutoFollow = (): void => {
@@ -453,6 +477,14 @@ export class SceneManager {
   }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (event.button === 0) {
+      this.radioPointerId = event.pointerId
+      this.radioPointerStart.set(event.clientX, event.clientY)
+      this.radioPointerMoved = false
+      this.renderer.domElement.setPointerCapture(event.pointerId)
+      return
+    }
+
     if (event.button !== 2 || this.cameraRig.isFollowing()) {
       return
     }
@@ -464,6 +496,14 @@ export class SceneManager {
   }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (this.radioPointerId === event.pointerId && !this.radioPointerMoved) {
+      const dx = event.clientX - this.radioPointerStart.x
+      const dy = event.clientY - this.radioPointerStart.y
+      if (dx * dx + dy * dy > this.radioClickTolerance * this.radioClickTolerance) {
+        this.radioPointerMoved = true
+      }
+    }
+
     if (!this.isOrbitDragging || this.orbitPointerId !== event.pointerId) {
       return
     }
@@ -477,13 +517,20 @@ export class SceneManager {
   }
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
-    if (this.orbitPointerId !== event.pointerId) {
-      return
+    if (this.orbitPointerId === event.pointerId) {
+      this.renderer.domElement.releasePointerCapture(event.pointerId)
+      this.isOrbitDragging = false
+      this.orbitPointerId = null
+      this.cameraRig.endManualOrbit()
     }
-    this.renderer.domElement.releasePointerCapture(event.pointerId)
-    this.isOrbitDragging = false
-    this.orbitPointerId = null
-    this.cameraRig.endManualOrbit()
+
+    if (this.radioPointerId === event.pointerId) {
+      this.renderer.domElement.releasePointerCapture(event.pointerId)
+      this.radioPointerId = null
+      if (!this.radioPointerMoved && event.type === 'pointerup') {
+        this.radioSystem.handlePointerClick(event, this.renderer.domElement)
+      }
+    }
   }
 
   private readonly handleWheel = (event: WheelEvent): void => {

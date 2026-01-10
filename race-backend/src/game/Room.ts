@@ -6,6 +6,7 @@ import {
   MissileState,
   RacePhase,
   RaceState,
+  RoomRadioState,
   RoomState,
   TrackData,
   Vec2
@@ -39,7 +40,8 @@ import {
   RACE_POST_DURATION,
   RACE_SHORTCUT_MAX_RATIO,
   RACE_SHORTCUT_MIN_DISTANCE,
-  RACE_START_SEGMENT_INDEX
+  RACE_START_SEGMENT_INDEX,
+  RADIO_STATION_COUNT
 } from "../config";
 import { updateCarsForRoom } from "./Physics";
 import {
@@ -173,6 +175,7 @@ export class Room {
   private readonly lapsRequired = RACE_LAPS;
   private readonly startSegmentIndex = Math.max(0, Math.floor(RACE_START_SEGMENT_INDEX));
   private missileSequence = 0;
+  private radioState: RoomRadioState = { enabled: false, stationIndex: -1 };
   private readonly spinStates: Map<string, SpinState> = new Map();
   private readonly itemRandom: () => number;
   private readonly carSpatial = new SpatialHash(1);
@@ -1425,6 +1428,7 @@ export class Room {
       cars,
       missiles,
       items,
+      radio: this.radioState,
       race: this.toRaceState()
     };
   }
@@ -1443,6 +1447,22 @@ export class Room {
 
   getHumanPlayerCount(): number {
     return Math.max(0, this.cars.size - this.npcIds.size);
+  }
+
+  cycleRadio(): void {
+    if (RADIO_STATION_COUNT <= 0) {
+      this.radioState = { enabled: false, stationIndex: -1 };
+      return;
+    }
+
+    const currentIndex = this.radioState.enabled ? this.radioState.stationIndex : -1;
+    const nextIndex = currentIndex + 1;
+    if (nextIndex >= RADIO_STATION_COUNT) {
+      this.radioState = { enabled: false, stationIndex: -1 };
+      return;
+    }
+
+    this.radioState = { enabled: true, stationIndex: nextIndex };
   }
 
   isOnTrack(position: { x: number; z: number }): boolean {

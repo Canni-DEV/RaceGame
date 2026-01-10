@@ -66,6 +66,10 @@ export class SocketServer {
       this.handleUsernameUpdate(socket, payload);
     });
 
+    socket.on("radio_cycle", () => {
+      this.handleRadioCycle(socket);
+    });
+
     socket.on("request_state_full", (payload: { roomId?: string }) => {
       const targetRoomId = payload?.roomId ?? this.roomManager.getRoomIdForSocket(socket.id);
       this.handleFullStateRequest(socket, targetRoomId);
@@ -167,6 +171,15 @@ export class SocketServer {
         username: result.username
       };
       this.io.to(result.room.roomId).emit("player_updated", updateMessage);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      this.emitError(socket, message);
+    }
+  }
+
+  private handleRadioCycle(socket: Socket): void {
+    try {
+      this.roomManager.handleRadioCycle(socket.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       this.emitError(socket, message);

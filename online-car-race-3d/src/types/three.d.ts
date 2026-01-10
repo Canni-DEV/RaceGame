@@ -68,6 +68,7 @@ declare module 'three' {
     add(...objects: Object3D[]): this
     remove(...objects: Object3D[]): this
     removeFromParent(): this
+    getObjectByName(name: string): Object3D | undefined
     traverse(callback: (object: Object3D) => void): void
     updateMatrix(): void
     updateMatrixWorld(force?: boolean): void
@@ -401,6 +402,18 @@ declare module 'three' {
     getCenter(target: Vector3): Vector3
     getSize(target: Vector3): Vector3
     clone(): Box3
+  }
+
+  export type Intersection = {
+    distance: number
+    object: Object3D
+    point: Vector3
+  }
+
+  export class Raycaster {
+    constructor(origin?: Vector3, direction?: Vector3, near?: number, far?: number)
+    setFromCamera(coords: Vector2, camera: Object3D): void
+    intersectObject(object: Object3D, recursive?: boolean): Intersection[]
   }
 
   export class Buffer {
