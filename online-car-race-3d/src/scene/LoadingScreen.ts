@@ -76,11 +76,11 @@ export class LoadingScreen {
     const prevLoad = manager.onLoad
     const prevError = manager.onError
 
-    manager.onStart = (url, itemsLoaded, itemsTotal) => {
+    manager.onStart = (url: string, itemsLoaded: number, itemsTotal: number) => {
       prevStart?.(url, itemsLoaded, itemsTotal)
       this.handleAssetStart(itemsLoaded, itemsTotal)
     }
-    manager.onProgress = (url, itemsLoaded, itemsTotal) => {
+    manager.onProgress = (url: string, itemsLoaded: number, itemsTotal: number) => {
       prevProgress?.(url, itemsLoaded, itemsTotal)
       this.handleAssetProgress(itemsLoaded, itemsTotal)
     }
@@ -88,7 +88,7 @@ export class LoadingScreen {
       prevLoad?.()
       this.handleAssetLoad()
     }
-    manager.onError = (url) => {
+    manager.onError = (url: string) => {
       prevError?.(url)
       this.handleAssetError(url)
     }

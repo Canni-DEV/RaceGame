@@ -378,6 +378,15 @@ declare module 'three' {
     dispose(): void
   }
 
+  export class LoadingManager {
+    onStart?: (url: string, itemsLoaded: number, itemsTotal: number) => void
+    onProgress?: (url: string, itemsLoaded: number, itemsTotal: number) => void
+    onLoad?: () => void
+    onError?: (url: string) => void
+  }
+
+  export const DefaultLoadingManager: LoadingManager
+
   export const MathUtils: {
     lerp(a: number, b: number, t: number): number
     clamp(value: number, min: number, max: number): number
