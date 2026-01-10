@@ -4,7 +4,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
 import type { TrackBuildResult } from './TrackMeshBuilder'
-import { resolveServerAssetUrl } from '../config'
+import { resolvePublicAssetUrl, resolveServerAssetUrl } from '../config'
 
 // Backend rotations use the game angle convention (0 = +X). Three.js yaw expects 0 = +Z,
 // so we convert to the same mapping cars/missiles use.
@@ -12,12 +12,38 @@ function toRendererYaw(angle: number): number {
   return Math.atan2(Math.cos(angle), Math.sin(angle))
 }
 
+const DEFAULT_ROOM_MODEL_PATH = 'models/room.glb'
+
+const getNumberEnv = (key: string, defaultValue: number): number => {
+  const raw = import.meta.env?.[key]
+  if (typeof raw !== 'string') {
+    return defaultValue
+  }
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : defaultValue
+}
+
+const getRoomModelUrl = (): string => {
+  const candidate = import.meta.env?.VITE_ROOM_MODEL_URL
+  if (typeof candidate === 'string' && candidate.trim().length > 0) {
+    return resolvePublicAssetUrl(candidate.trim())
+  }
+  return resolvePublicAssetUrl(DEFAULT_ROOM_MODEL_PATH)
+}
+
 export const DECORATOR_CONFIG = {
   ground: {
-    minSize: 10000,
-    sizeMultiplier: 1.15,
-    padding: 35,
+    margin: getNumberEnv('VITE_GROUND_PLANE_MARGIN', 65),
     offsetY: -0.02,
+  },
+  room: {
+    assetUrl: getRoomModelUrl(),
+    offset: {
+      x: getNumberEnv('VITE_ROOM_MODEL_OFFSET_X', -900),
+      y: getNumberEnv('VITE_ROOM_MODEL_OFFSET_Y', -174),
+      z: getNumberEnv('VITE_ROOM_MODEL_OFFSET_Z', 0),
+    },
+    scale: getNumberEnv('VITE_ROOM_MODEL_SCALE', 250),
   },
 }
 
@@ -29,21 +55,6 @@ interface Decorator<TInstruction extends TrackDecoration = TrackDecoration> {
     root: THREE.Object3D,
     random: () => number,
   ): void
-}
-
-export function createGroundPlane(size: number): THREE.Mesh {
-  const geometry = new THREE.PlaneGeometry(size, size)
-  geometry.rotateX(-Math.PI / 2)
-
-  const material = new THREE.MeshStandardMaterial({
-    color: 0x1a2b1f,
-    roughness: 1,
-    metalness: 0,
-  })
-
-  const mesh = new THREE.Mesh(geometry, material)
-  mesh.receiveShadow = true
-  return mesh
 }
 
 class TrackAssetLoader {
@@ -99,6 +110,45 @@ class TrackAssetLoader {
 }
 
 const trackAssetLoader = new TrackAssetLoader()
+const ROOM_MODEL_NAME = 'room-model'
+
+export function createGroundPlane(size: number): THREE.Mesh {
+  const geometry = new THREE.PlaneGeometry(size, size)
+  geometry.rotateX(-Math.PI / 2)
+
+  const material = new THREE.MeshStandardMaterial({
+    color: 0x1a2b1f,
+    roughness: 1,
+    metalness: 0,
+  })
+
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.receiveShadow = true
+  return mesh
+}
+
+async function addRoomModel(
+  root: THREE.Object3D,
+  trackCenter: THREE.Vector3,
+): Promise<void> {
+  const { assetUrl, offset, scale } = DECORATOR_CONFIG.room
+  if (!assetUrl) {
+    return
+  }
+  const instance = await trackAssetLoader.createInstance(assetUrl)
+  if (!instance) {
+    return
+  }
+  instance.name = ROOM_MODEL_NAME
+  instance.userData.isTrackAsset = true
+  instance.position.set(
+    trackCenter.x + offset.x,
+    trackCenter.y + offset.y,
+    trackCenter.z + offset.z,
+  )
+  instance.scale.setScalar(scale)
+  root.add(instance)
+}
 
 class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {
   readonly type = 'instanced-decoration'
@@ -248,16 +298,16 @@ export function applyDecorators(
   random: () => number,
 ): void {
   const bounds = trackMesh.bounds ?? new THREE.Box3().setFromObject(root)
-  const size = bounds.getSize(new THREE.Vector3())
   const center = bounds.getCenter(new THREE.Vector3())
+  const size = bounds.getSize(new THREE.Vector3())
   const maxSide = Math.max(size.x, size.z)
-  const groundSize = Math.max(
-    DECORATOR_CONFIG.ground.minSize,
-    maxSide * DECORATOR_CONFIG.ground.sizeMultiplier + DECORATOR_CONFIG.ground.padding,
-  )
+  const margin = Math.max(0, DECORATOR_CONFIG.ground.margin)
+  const groundSize = maxSide + margin * 2
   const ground = createGroundPlane(groundSize)
   ground.position.set(center.x, DECORATOR_CONFIG.ground.offsetY, center.z)
   root.add(ground)
+
+  void addRoomModel(root, center)
 
   const decorations = track.decorations ?? []
   for (const decoration of decorations) {
