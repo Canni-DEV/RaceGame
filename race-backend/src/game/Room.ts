@@ -50,6 +50,7 @@ import {
 import { NpcManager, NpcProfile } from "./NpcManager";
 import { TrackBoundaryCollision, TrackGeometry } from "./TrackGeometry";
 import { ProjectedProgress, TrackNavigator } from "./TrackNavigator";
+import { SpatialHash } from "./SpatialHash";
 
 export interface PlayerInput {
   steer: number;
@@ -174,6 +175,10 @@ export class Room {
   private missileSequence = 0;
   private readonly spinStates: Map<string, SpinState> = new Map();
   private readonly itemRandom: () => number;
+  private readonly carSpatial = new SpatialHash(1);
+  private readonly carSpatialCandidates: number[] = [];
+  private readonly itemSpatial = new SpatialHash(1);
+  private readonly itemSpatialCandidates: number[] = [];
 
   constructor(public readonly roomId: string, public readonly track: TrackData) {
     this.trackGeometry = new TrackGeometry(track);
@@ -563,7 +568,17 @@ export class Room {
 
     const removals: string[] = [];
     const maxRange = this.trackLength * MISSILE_MAX_RANGE_FACTOR;
-    const acquisitionRadiusSq = MISSILE_ACQUISITION_RADIUS * MISSILE_ACQUISITION_RADIUS;
+    const acquisitionRadius = MISSILE_ACQUISITION_RADIUS;
+    const acquisitionRadiusSq = acquisitionRadius * acquisitionRadius;
+    const carEntries = Array.from(this.cars.entries());
+    const useSpatial = carEntries.length > 1;
+    if (useSpatial) {
+      this.carSpatial.reset(acquisitionRadius);
+      for (let i = 0; i < carEntries.length; i++) {
+        const car = carEntries[i][1];
+        this.carSpatial.insert(i, car.x, car.z);
+      }
+    }
 
     for (const missile of this.missiles.values()) {
       const travel = missile.speed * dt;
@@ -573,7 +588,13 @@ export class Room {
       }
 
       if (!missile.targetId) {
-        const nearbyTarget = this.findNearbyTarget(missile, acquisitionRadiusSq);
+        const nearbyTarget = this.findNearbyTarget(
+          missile,
+          acquisitionRadius,
+          acquisitionRadiusSq,
+          carEntries,
+          useSpatial ? this.carSpatial : null
+        );
         if (nearbyTarget) {
           missile.targetId = nearbyTarget;
         }
@@ -602,7 +623,7 @@ export class Room {
         let remaining = travel;
 
         if (!missile.onTrack) {
-          const snap = this.trackNavigator.project({ x: missile.x, z: missile.z }, missile.progress);
+          const snap = this.trackNavigator.project(missile, missile.progress);
           const dx = snap.position.x - missile.x;
           const dz = snap.position.z - missile.z;
           const distanceToTrack = Math.hypot(dx, dz);
@@ -661,13 +682,41 @@ export class Room {
     }
   }
 
-  private findNearbyTarget(missile: MissileRuntime, acquisitionRadiusSq: number): string | null {
+  private findNearbyTarget(
+    missile: MissileRuntime,
+    acquisitionRadius: number,
+    acquisitionRadiusSq: number,
+    carEntries: Array<[string, CarState]>,
+    spatial: SpatialHash | null
+  ): string | null {
     let closestId: string | null = null;
     let closestDistance = acquisitionRadiusSq;
     const forwardX = Math.cos(missile.angle);
     const forwardZ = Math.sin(missile.angle);
 
-    for (const [playerId, car] of this.cars.entries()) {
+    if (!spatial) {
+      for (const [playerId, car] of carEntries) {
+        if (playerId === missile.ownerId) {
+          continue;
+        }
+        const dx = car.x - missile.x;
+        const dz = car.z - missile.z;
+        const forwardDot = dx * forwardX + dz * forwardZ;
+        if (forwardDot <= 0) {
+          continue;
+        }
+        const distanceSq = dx * dx + dz * dz;
+        if (distanceSq <= closestDistance) {
+          closestDistance = distanceSq;
+          closestId = playerId;
+        }
+      }
+      return closestId;
+    }
+
+    spatial.queryIndices(missile.x, missile.z, acquisitionRadius, this.carSpatialCandidates);
+    for (const index of this.carSpatialCandidates) {
+      const [playerId, car] = carEntries[index];
       if (playerId === missile.ownerId) {
         continue;
       }
@@ -812,12 +861,20 @@ export class Room {
       return;
     }
 
+    this.itemSpatial.reset(ITEM_PICKUP_RADIUS);
+    for (let i = 0; i < activeItems.length; i++) {
+      const item = activeItems[i];
+      this.itemSpatial.insert(i, item.spawn.position.x, item.spawn.position.z);
+    }
+
     for (const [playerId, car] of this.cars.entries()) {
       if (car.isNpc) {
         continue;
       }
 
-      for (const item of activeItems) {
+      this.itemSpatial.queryIndices(car.x, car.z, ITEM_PICKUP_RADIUS, this.itemSpatialCandidates);
+      for (const index of this.itemSpatialCandidates) {
+        const item = activeItems[index];
         if (!item.active) {
           continue;
         }
@@ -921,7 +978,7 @@ export class Room {
 
     for (const [playerId, car] of this.cars.entries()) {
       const progress = this.ensureRaceProgress(playerId, car);
-      const projection = this.trackNavigator.project({ x: car.x, z: car.z }, progress.progress);
+      const projection = this.trackNavigator.project(car, progress.progress);
       const previousDistance = this.normalizeDistance(progress.progress.distanceAlongTrack);
       const currentDistance = this.normalizeDistance(projection.distanceAlongTrack);
       const delta = this.computeSignedDelta(previousDistance, currentDistance);
@@ -1144,7 +1201,7 @@ export class Room {
     if (!progress) {
       const reference = car ?? this.cars.get(playerId);
       const projection = reference
-        ? this.trackNavigator.project({ x: reference.x, z: reference.z })
+        ? this.trackNavigator.project(reference)
         : this.trackNavigator.project({ x: 0, z: 0 });
       progress = {
         playerId,

@@ -39,11 +39,13 @@ interface BroadphaseCell {
   indices: number[];
   x: number;
   z: number;
+  key: string;
 }
 
 const broadphaseCells = new Map<string, BroadphaseCell>();
 const occupiedCells: BroadphaseCell[] = [];
 const candidatePairs: number[] = [];
+const cellPool: BroadphaseCell[] = [];
 
 function normalizeAngle(angle: number): number {
   return ((angle + Math.PI) % TAU + TAU) % TAU - Math.PI;
@@ -168,7 +170,11 @@ function populateBroadphase(bodies: CollisionBody[]): void {
 
     let cell = broadphaseCells.get(key);
     if (!cell) {
-      cell = { indices: [], x: cellX, z: cellZ };
+      cell = cellPool.pop() ?? { indices: [], x: cellX, z: cellZ, key };
+      cell.indices.length = 0;
+      cell.x = cellX;
+      cell.z = cellZ;
+      cell.key = key;
       broadphaseCells.set(key, cell);
     }
 
@@ -189,6 +195,8 @@ function populateBroadphase(bodies: CollisionBody[]): void {
 function resetBroadphase(): void {
   for (const cell of occupiedCells) {
     cell.indices.length = 0;
+    broadphaseCells.delete(cell.key);
+    cellPool.push(cell);
   }
   occupiedCells.length = 0;
 }
