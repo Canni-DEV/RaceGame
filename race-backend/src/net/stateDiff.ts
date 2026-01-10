@@ -116,13 +116,7 @@ function raceEqual(a: RoomState["race"], b: RoomState["race"]): boolean {
 }
 
 function hasAnyChanges(delta: RoomStateDelta | null | undefined): boolean {
-  if (!delta) {
-    return false;
-  }
-  if (delta.cars || delta.missiles || delta.items || delta.race) {
-    return true;
-  }
-  return false;
+  return Boolean(delta && (delta.cars || delta.missiles || delta.items || delta.race));
 }
 
 function countEntityDelta<T extends { id?: string; playerId?: string }>(delta?: EntityDelta<T> | null): number {

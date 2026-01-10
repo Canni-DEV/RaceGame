@@ -27,10 +27,6 @@ export class TrackGeometry {
     return minDistanceSq < clearance * clearance;
   }
 
-  resolveSpeedMultiplier(position: Vec2, offTrackPenalty: number): number {
-    return this.isPointOnTrack(position) ? 1 : Math.max(0, 1 - offTrackPenalty);
-  }
-
   resolveBoundaryCollision(position: Vec2, radius: number, offset: number): TrackBoundaryCollision | null {
     if (this.segments.length === 0 || this.halfWidth === 0) {
       return null;

@@ -30,6 +30,8 @@ function resolveHttpsOptions(): https.ServerOptions | null {
 const ALLOWED_ORIGIN = process.env.CORS_ORIGIN ?? "*";
 
 const app = express();
+const publicDirExists = fs.existsSync(PUBLIC_DIR);
+const assetDirExists = fs.existsSync(TRACK_ASSET_LIBRARY.directory);
 
 app.use((req, res, next) => {
   res.header("Access-Control-Allow-Origin", ALLOWED_ORIGIN);
@@ -46,11 +48,11 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
-if (fs.existsSync(PUBLIC_DIR)) {
+if (publicDirExists) {
   app.use(express.static(PUBLIC_DIR));
 }
 
-if (fs.existsSync(TRACK_ASSET_LIBRARY.directory)) {
+if (assetDirExists) {
   app.use(TRACK_ASSET_LIBRARY.route, express.static(TRACK_ASSET_LIBRARY.directory));
 } else {
   console.warn(
@@ -66,7 +68,7 @@ const gameLoop = new GameLoop(roomManager, (roomId, state) => {
   socketServer.broadcastState(roomId, state);
 });
 
-if (fs.existsSync(PUBLIC_DIR)) {
+if (publicDirExists) {
   const indexPath = path.join(PUBLIC_DIR, "index.html");
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/socket.io/")) {

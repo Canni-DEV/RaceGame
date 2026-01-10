@@ -235,10 +235,7 @@ export class Room {
   }
 
   isPlayerIdTaken(playerId: string): boolean {
-    if (this.cars.has(playerId)) {
-      return true;
-    }
-    return this.hasViewerForPlayer(playerId);
+    return this.cars.has(playerId) || this.hasViewerForPlayer(playerId);
   }
 
   addPlayer(playerId: string): CarState {
@@ -341,7 +338,8 @@ export class Room {
       return;
     }
 
-    const effectiveInput = this.isControlLocked(playerId)
+    const controlLocked = this.isControlLocked(playerId);
+    const effectiveInput = controlLocked
       ? NEUTRAL_INPUT
       : {
           steer: input.steer,
@@ -350,7 +348,7 @@ export class Room {
         };
 
     this.latestInputs.set(playerId, effectiveInput);
-    if (!this.isControlLocked(playerId)) {
+    if (!controlLocked) {
       this.handleActions(playerId, input.actions);
     }
   }
@@ -359,7 +357,8 @@ export class Room {
     if (!this.npcIds.has(playerId)) {
       return;
     }
-    if (this.isControlLocked(playerId)) {
+    const controlLocked = this.isControlLocked(playerId);
+    if (controlLocked) {
       this.latestInputs.set(playerId, NEUTRAL_INPUT);
       return;
     }

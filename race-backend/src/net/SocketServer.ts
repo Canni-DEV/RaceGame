@@ -99,7 +99,8 @@ export class SocketServer {
         };
 
         socket.emit("room_info", info);
-        this.sendFullToSocket(socket, result.room.roomId, serializeRoomState(result.room.toRoomState()));
+        const state = serializeRoomState(result.room.toRoomState());
+        this.sendFullToSocket(socket, result.room.roomId, state);
 
       } else if (payload.role === "controller") {
         const result = this.roomManager.handleControllerJoin(socket.id, payload);
@@ -127,7 +128,8 @@ export class SocketServer {
           this.io.to(result.room.roomId).emit("player_joined", joinMessage);
         }
 
-        this.sendFullToSocket(socket, result.room.roomId, serializeRoomState(result.room.toRoomState()));
+        const state = serializeRoomState(result.room.toRoomState());
+        this.sendFullToSocket(socket, result.room.roomId, state);
       } else {
         this.emitError(socket, "Unsupported role");
       }
