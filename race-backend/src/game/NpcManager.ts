@@ -12,6 +12,26 @@ type RawNpcDefinition = Record<string, unknown>;
 type RangeNpcKey = "mistakeDurationRange" | "mistakeCooldownRange";
 type NumericNpcKey = Exclude<keyof NpcBehaviorConfig, RangeNpcKey>;
 
+const NUMERIC_NPC_KEYS: NumericNpcKey[] = [
+  "minTargetThreshold",
+  "targetThresholdFactor",
+  "minLookahead",
+  "maxLookahead",
+  "lookaheadSpeedFactor",
+  "baseThrottle",
+  "minThrottle",
+  "throttleCornerPenalty",
+  "recoveryBrakeAngle",
+  "offTrackThrottleScale",
+  "offTrackBrake",
+  "steerResponse",
+  "mistakeSteerBias",
+  "mistakeTriggerChance",
+  "approachThrottleScale",
+  "approachBrake",
+  "approachDistanceRatio"
+];
+
 const PROJECT_ROOT = path.resolve(__dirname, "..", "..");
 const DEFAULT_CONFIG_FILES = [
   "npcs.yml",
@@ -124,27 +144,9 @@ export class NpcManager {
   private extractBehavior(definition: RawNpcDefinition): Partial<NpcBehaviorConfig> {
     const overrides: Partial<NpcBehaviorConfig> = {};
 
-    const numericKeys: NumericNpcKey[] = [
-      "minTargetThreshold",
-      "targetThresholdFactor",
-      "minLookahead",
-      "maxLookahead",
-      "lookaheadSpeedFactor",
-      "baseThrottle",
-      "minThrottle",
-      "throttleCornerPenalty",
-      "recoveryBrakeAngle",
-      "offTrackThrottleScale",
-      "offTrackBrake",
-      "steerResponse",
-      "mistakeSteerBias",
-      "mistakeTriggerChance",
-      "approachThrottleScale",
-      "approachBrake",
-      "approachDistanceRatio"
-    ];
-
-    numericKeys.forEach((key) => this.assignNumber(definition, overrides, key));
+    for (const key of NUMERIC_NPC_KEYS) {
+      this.assignNumber(definition, overrides, key);
+    }
     this.assignRange(definition, overrides, "mistakeDurationRange");
     this.assignRange(definition, overrides, "mistakeCooldownRange");
 

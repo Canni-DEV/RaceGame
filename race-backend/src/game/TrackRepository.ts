@@ -17,7 +17,7 @@ const SAMPLE_CENTERLINE: Vec2[] = [
 
 const DEFAULT_TRACK = createDefaultTrack();
 
-let acu = -1;
+let dailySeedOffset = -1;
 
 export class TrackRepository {
   private readonly generator = new ProceduralTrackGenerator(PROCEDURAL_TRACK_SETTINGS);
@@ -43,9 +43,9 @@ export class TrackRepository {
     if (TRACK_GENERATION.seedOverride !== undefined) {
       return TRACK_GENERATION.seedOverride;
     }
-    acu++;
-    acu = acu % TRACK_GENERATION.dailyVariance;
-    return this.getDailySeed() + acu;
+    dailySeedOffset += 1;
+    dailySeedOffset = dailySeedOffset % TRACK_GENERATION.dailyVariance;
+    return this.getDailySeed() + dailySeedOffset;
   }
 
   private getDailySeed(): number {

@@ -53,6 +53,8 @@ const DEFAULT_NPC_CONFIG: NpcBehaviorConfig = {
   approachDistanceRatio: 0.75
 };
 
+const MAX_SPEED_SAFE = Math.max(1, MAX_SPEED);
+
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -164,11 +166,13 @@ export function updateNpcControllers(
     }
 
     const config = controller.config ?? DEFAULT_NPC_CONFIG;
+    const trackWidth = room.track.width;
+    const thresholdBase = trackWidth * config.targetThresholdFactor;
 
     const onTrack = room.isOnTrack(car);
     const closestIndex = findClosestIndex(centerline, car);
     const lookahead = clamp(
-      room.track.width * config.targetThresholdFactor + config.minLookahead + car.speed * config.lookaheadSpeedFactor,
+      thresholdBase + config.minLookahead + car.speed * config.lookaheadSpeedFactor,
       config.minLookahead,
       config.maxLookahead
     );
@@ -185,7 +189,7 @@ export function updateNpcControllers(
     const steer = clamp(angleDiff / config.steerResponse, -1, 1);
 
     const steeringDemand = Math.min(1, Math.abs(angleDiff) / Math.PI);
-    const speedRatio = car.speed / Math.max(1, MAX_SPEED);
+    const speedRatio = car.speed / MAX_SPEED_SAFE;
     let throttle = clamp(
       config.baseThrottle * (1 - config.throttleCornerPenalty * steeringDemand) + (1 - speedRatio) * 0.25,
       config.minThrottle,
@@ -206,7 +210,7 @@ export function updateNpcControllers(
     }
 
     const distance = Math.hypot(dx, dz);
-    const threshold = Math.max(config.minTargetThreshold, room.track.width * config.targetThresholdFactor);
+    const threshold = Math.max(config.minTargetThreshold, thresholdBase);
     if (distance < threshold * config.approachDistanceRatio && car.speed > MAX_SPEED * 0.6) {
       throttle = Math.min(throttle, config.baseThrottle * config.approachThrottleScale);
       brake = Math.max(brake, config.approachBrake);
