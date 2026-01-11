@@ -74,6 +74,11 @@ export class GameStateStore {
     players: PlayerSummary[],
     info?: { sessionToken?: string; protocolVersion?: number; serverVersion?: string },
   ): void {
+    const roomChanged = this.roomId !== null && this.roomId !== roomId
+    const trackChanged = this.track !== null && this.track.id !== track.id
+    if (roomChanged || trackChanged) {
+      this.resetInterpolationState()
+    }
     this.roomId = roomId
     this.playerId = playerId
     this.track = track
@@ -89,6 +94,9 @@ export class GameStateStore {
   }
 
   applyDelta(delta: RoomStateDelta): boolean {
+    if (this.roomId && delta.roomId !== this.roomId) {
+      return false
+    }
     const merged = applyRoomStateDelta(this.lastState, delta)
     if (!merged) {
       return false
@@ -146,17 +154,19 @@ export class GameStateStore {
   }
 
   updateInterpolationConfig(config: InterpolationConfig): void {
-    if (typeof config.interpolationDelaySeconds === 'number') {
+    const interpolationDelaySeconds = config.interpolationDelaySeconds
+    if (typeof interpolationDelaySeconds === 'number' && Number.isFinite(interpolationDelaySeconds)) {
       this.interpolationDelaySeconds = Math.max(
         0,
-        config.interpolationDelaySeconds,
+        interpolationDelaySeconds,
       )
     }
 
-    if (typeof config.maxRenderBackstepSeconds === 'number') {
+    const maxRenderBackstepSeconds = config.maxRenderBackstepSeconds
+    if (typeof maxRenderBackstepSeconds === 'number' && Number.isFinite(maxRenderBackstepSeconds)) {
       this.maxRenderBackstepSeconds = Math.max(
         0,
-        config.maxRenderBackstepSeconds,
+        maxRenderBackstepSeconds,
       )
     }
   }
@@ -199,6 +209,9 @@ export class GameStateStore {
   }
 
   private consumeState(roomState: RoomState): void {
+    if (this.roomId && roomState.roomId !== this.roomId) {
+      return
+    }
     this.mergePlayersFromState(roomState)
     this.recordSnapshot(roomState)
     this.notifyState(roomState)
@@ -208,6 +221,9 @@ export class GameStateStore {
     const now = performance.now()
     this.lastState = state
     this.lastStateTimestamp = now
+    if (!Number.isFinite(state.serverTime)) {
+      return
+    }
     this.updateServerOffset(now, state.serverTime)
     const snapshot: Snapshot = {
       state,
@@ -237,6 +253,9 @@ export class GameStateStore {
 
   private updateServerOffset(nowMs: number, serverTime: number): void {
     const nowSeconds = nowMs / 1000
+    if (!Number.isFinite(serverTime) || !Number.isFinite(nowSeconds)) {
+      return
+    }
     const sample = nowSeconds - serverTime
     if (this.serverOffsetSeconds === null) {
       this.serverOffsetSeconds = sample
@@ -249,7 +268,7 @@ export class GameStateStore {
   }
 
   private getRenderServerTime(nowMs: number): number | null {
-    if (this.serverOffsetSeconds === null) {
+    if (this.serverOffsetSeconds === null || !Number.isFinite(this.serverOffsetSeconds)) {
       return null
     }
     const nowSeconds = nowMs / 1000
@@ -503,6 +522,14 @@ export class GameStateStore {
 
   private clamp(value: number, min: number, max: number): number {
     return Math.min(Math.max(value, min), max)
+  }
+
+  private resetInterpolationState(): void {
+    this.lastState = null
+    this.lastStateTimestamp = 0
+    this.snapshots.length = 0
+    this.serverOffsetSeconds = null
+    this.lastRenderServerTime = null
   }
 
   private getRoomInfoSnapshot(): RoomInfoSnapshot {
