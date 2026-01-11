@@ -64,7 +64,7 @@ assets:
     alignToTrack: true
     size: 35
 
-  - file: overheadRound.glb
+  - file: overheadRoundColored.glb
     id: start-arch
     placement: required
     placementTier: 0

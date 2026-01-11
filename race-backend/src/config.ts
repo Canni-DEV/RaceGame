@@ -6,6 +6,7 @@ export const SERVER_VERSION = process.env.SERVER_VERSION ?? "1";
 export const TICK_RATE = 60; // ticks per second
 export const STATE_BROADCAST_RATE = 20; // snapshots per second
 export const STATE_NUMBER_PRECISION = clamp(Number(process.env.STATE_NUMBER_PRECISION ?? 3), 0, 10);
+export const RADIO_STATION_COUNT = clamp(Number(process.env.RADIO_STATION_COUNT ?? 5), 0, 20);
 export const STATE_DELTA_MAX_RATIO = clamp(Number(process.env.STATE_DELTA_MAX_RATIO ?? 0.6), 0, 1);
 export const STATE_DELTA_MIN_CHANGES = clamp(Number(process.env.STATE_DELTA_MIN_CHANGES ?? 24), 1, 100000);
 export const INPUT_BURST_WINDOW_MS = clamp(Number(process.env.INPUT_BURST_WINDOW_MS ?? 50), 10, 1000);

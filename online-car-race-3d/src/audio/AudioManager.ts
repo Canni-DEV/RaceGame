@@ -23,6 +23,9 @@ export class AudioManager {
   private readonly unlockHandler: () => void
   private readonly engineSounds: Set<EngineSound> = new Set()
   private readonly stateChangeHandler: () => void
+  private readonly stateListeners = new Set<
+    (state: { userEnabled: boolean; contextRunning: boolean }) => void
+  >()
   private readonly pendingActions: Array<() => void> = []
   private readonly bufferCache = new Map<string, AudioBuffer>()
   private readonly bufferLoads = new Map<string, Promise<AudioBuffer>>()
@@ -38,6 +41,7 @@ export class AudioManager {
 
     this.stateChangeHandler = () => {
       this.contextRunning = this.isContextRunning()
+      this.notifyState()
       if (!this.contextRunning || !this.userEnabled) {
         return
       }
@@ -79,11 +83,13 @@ export class AudioManager {
       } else {
         this.contextRunning = false
       }
+      this.notifyState()
       return
     }
 
     this.userEnabled = true
     this.contextRunning = this.isContextRunning()
+    this.notifyState()
     if (this.contextRunning) {
       this.startPendingSounds()
       return
@@ -142,6 +148,21 @@ export class AudioManager {
   dispose(): void {
     this.listener.context.removeEventListener('statechange', this.stateChangeHandler)
     this.audioRoot.removeFromParent()
+    this.stateListeners.clear()
+  }
+
+  getListener(): THREE.AudioListener {
+    return this.listener
+  }
+
+  onStateChange(
+    listener: (state: { userEnabled: boolean; contextRunning: boolean }) => void,
+  ): () => void {
+    this.stateListeners.add(listener)
+    listener({ userEnabled: this.userEnabled, contextRunning: this.contextRunning })
+    return () => {
+      this.stateListeners.delete(listener)
+    }
   }
 
   private startSoundIfReady(sound: EngineSound): void {
@@ -156,6 +177,13 @@ export class AudioManager {
       this.startSoundIfReady(sound)
     }
     this.flushPendingActions()
+  }
+
+  private notifyState(): void {
+    const snapshot = { userEnabled: this.userEnabled, contextRunning: this.contextRunning }
+    for (const listener of this.stateListeners) {
+      listener(snapshot)
+    }
   }
 
   private isContextRunning(): boolean {
