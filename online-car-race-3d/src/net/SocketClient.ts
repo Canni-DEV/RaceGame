@@ -1,4 +1,6 @@
 import type {
+  ChatMessage,
+  ChatSendMessage,
   ErrorMessage,
   PlayerEventMessage,
   RoomInfoMessage,
@@ -17,6 +19,7 @@ type ErrorCallback = (message: string) => void
 type ConnectCallback = () => void
 type PlayerUpdateCallback = (player: PlayerEventMessage) => void
 type PlayerLeftCallback = (player: PlayerEventMessage) => void
+type ChatMessageCallback = (message: ChatMessage) => void
 
 type SocketLike = {
   on(event: string, listener: (...args: unknown[]) => void): SocketLike
@@ -113,6 +116,7 @@ export class SocketClient {
   private readonly connectListeners = new Set<ConnectCallback>()
   private readonly playerUpdateListeners = new Set<PlayerUpdateCallback>()
   private readonly playerLeftListeners = new Set<PlayerLeftCallback>()
+  private readonly chatMessageListeners = new Set<ChatMessageCallback>()
 
   constructor(options?: SocketClientOptions, url?: string) {
     this.url = url ?? SERVER_URL
@@ -201,6 +205,13 @@ export class SocketClient {
     }
   }
 
+  onChatMessage(callback: ChatMessageCallback): () => void {
+    this.chatMessageListeners.add(callback)
+    return () => {
+      this.chatMessageListeners.delete(callback)
+    }
+  }
+
   setJoinPayload(payload: Record<string, unknown>): void {
     this.joinPayload = sanitizeJoinPayload(payload)
     if (this.socket?.connected) {
@@ -214,6 +225,10 @@ export class SocketClient {
       return
     }
     this.socket.emit(event, payload)
+  }
+
+  sendChatMessage(payload: ChatSendMessage): void {
+    this.emit('chat_message', payload)
   }
 
   isConnected(): boolean {
@@ -283,6 +298,13 @@ export class SocketClient {
     }
 
     socket.on('player_left', dispatchPlayerLeft)
+
+    socket.on('chat_message', (message: unknown) => {
+      const payload = message as ChatMessage
+      for (const listener of this.chatMessageListeners) {
+        listener(payload)
+      }
+    })
 
     socket.on('error_message', (error: unknown) => {
       const payload = error as ErrorMessage

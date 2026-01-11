@@ -30,3 +30,17 @@ export interface PlayerEventMessage {
   playerId: string
   username: string
 }
+
+export interface ChatSendMessage {
+  roomId?: string
+  message: string
+}
+
+export interface ChatMessage {
+  roomId: string
+  playerId: string
+  username: string
+  message: string
+  sentAt: number
+  isSystem?: boolean
+}

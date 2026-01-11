@@ -1,12 +1,21 @@
 import { randomBytes } from "crypto";
 import {
+  CHAT_MESSAGE_BURST_LIMIT,
+  CHAT_MESSAGE_BURST_WINDOW_MS,
+  CHAT_MESSAGE_MAX_LENGTH,
   DEFAULT_ROOM_PREFIX,
   INPUT_BURST_LIMIT,
   INPUT_BURST_WINDOW_MS,
   MAX_PLAYERS_PER_ROOM,
   PROTOCOL_VERSION
 } from "../config";
-import { InputMessage, JoinRoomRequest, UsernameUpdateMessage } from "../types/messages";
+import {
+  ChatMessage,
+  ChatSendMessage,
+  InputMessage,
+  JoinRoomRequest,
+  UsernameUpdateMessage
+} from "../types/messages";
 import { PlayerRole } from "../types/trackTypes";
 import { trackRepository } from "./TrackRepository";
 import { Room, PlayerInput } from "./Room";
@@ -24,6 +33,11 @@ interface BufferedInputEntry {
   lastAppliedAnalog?: { steer: number; throttle: number; brake: number };
   lastReceivedAt: number;
   burstWindowStart: number;
+  burstCount: number;
+}
+
+interface ChatRateLimitEntry {
+  windowStart: number;
   burstCount: number;
 }
 
@@ -56,6 +70,7 @@ export class RoomManager {
   private controllerSocketToPlayer: Map<string, string> = new Map();
   private readonly sessionTokens: Map<string, Map<string, string>> = new Map();
   private readonly inputBuffers: Map<string, Map<string, BufferedInputEntry>> = new Map();
+  private readonly chatRateLimits: Map<string, ChatRateLimitEntry> = new Map();
 
   handleViewerJoin(socketId: string, payload: JoinRoomRequest): ViewerJoinResult {
     this.assertProtocolVersion(payload.protocolVersion);
@@ -239,6 +254,51 @@ export class RoomManager {
     return { room, playerId: boundPlayerId, username };
   }
 
+  handleChatMessage(socketId: string, payload: ChatSendMessage): ChatMessage {
+    if (!payload) {
+      throw new Error("Invalid chat payload");
+    }
+    const role = this.socketRoles.get(socketId);
+    if (!role) {
+      throw new Error("Socket no autorizado para chat");
+    }
+
+    const roomId = this.socketToRoom.get(socketId);
+    if (!roomId) {
+      throw new Error("Room not found");
+    }
+    if (payload.roomId && payload.roomId !== roomId) {
+      throw new Error("Chat room mismatch");
+    }
+
+    const room = this.rooms.get(roomId);
+    if (!room) {
+      throw new Error("Room not found");
+    }
+
+    const playerId = role === "viewer"
+      ? this.viewerSocketToPlayer.get(socketId)
+      : this.controllerSocketToPlayer.get(socketId);
+    if (!playerId) {
+      throw new Error("Player not bound");
+    }
+
+    const message = this.sanitizeChatMessage(payload.message);
+    if (!message) {
+      throw new Error("Mensaje vacío");
+    }
+
+    this.enforceChatBurstLimit(socketId);
+
+    return {
+      roomId,
+      playerId,
+      username: room.getUsername(playerId),
+      message,
+      sentAt: Date.now()
+    };
+  }
+
   handleDisconnect(socketId: string): DisconnectResult {
     const roomId = this.socketToRoom.get(socketId);
     const role = this.socketRoles.get(socketId);
@@ -390,6 +450,7 @@ export class RoomManager {
   private cleanupSocket(socketId: string): void {
     this.socketToRoom.delete(socketId);
     this.socketRoles.delete(socketId);
+    this.chatRateLimits.delete(socketId);
   }
 
   private getOrCreateBuffer(roomId: string, playerId: string): BufferedInputEntry {
@@ -471,6 +532,20 @@ export class RoomManager {
     };
   }
 
+  private sanitizeChatMessage(raw: unknown): string {
+    if (typeof raw !== "string") {
+      return "";
+    }
+    const normalized = raw.replace(/[\r\n\t]+/g, " ").trim();
+    if (!normalized) {
+      return "";
+    }
+    if (normalized.length <= CHAT_MESSAGE_MAX_LENGTH) {
+      return normalized;
+    }
+    return normalized.slice(0, CHAT_MESSAGE_MAX_LENGTH).trimEnd();
+  }
+
   private clampNumber(value: unknown, min: number, max: number, fallback: number): number {
     const numeric = typeof value === "number" && Number.isFinite(value) ? value : fallback;
     return Math.min(Math.max(numeric, min), max);
@@ -518,6 +593,26 @@ export class RoomManager {
     if (entry.burstCount > INPUT_BURST_LIMIT) {
       console.warn(`Input burst limit exceeded by socket ${socketId}`);
       throw new Error("Demasiados inputs en un intervalo corto");
+    }
+  }
+
+  private enforceChatBurstLimit(socketId: string): void {
+    const now = Date.now();
+    let entry = this.chatRateLimits.get(socketId);
+    if (!entry) {
+      entry = { windowStart: now, burstCount: 0 };
+      this.chatRateLimits.set(socketId, entry);
+    }
+
+    if (now - entry.windowStart > CHAT_MESSAGE_BURST_WINDOW_MS) {
+      entry.windowStart = now;
+      entry.burstCount = 0;
+    }
+
+    entry.burstCount += 1;
+    if (entry.burstCount > CHAT_MESSAGE_BURST_LIMIT) {
+      console.warn(`Chat burst limit exceeded by socket ${socketId}`);
+      throw new Error("Demasiados mensajes en un intervalo corto");
     }
   }
 }

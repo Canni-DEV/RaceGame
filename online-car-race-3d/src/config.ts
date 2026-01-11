@@ -50,6 +50,18 @@ function trimTrailingSlash(value: string): string {
   return value.endsWith('/') ? value.slice(0, -1) : value
 }
 
+function readNumberEnv(key: string, fallback: number, min: number, max: number): number {
+  const raw = import.meta.env?.[key]
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    return fallback
+  }
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed)) {
+    return fallback
+  }
+  return Math.min(Math.max(parsed, min), max)
+}
+
 export const SERVER_URL = trimTrailingSlash(
   ((): string => {
     const origin = getBrowserOrigin()
@@ -75,6 +87,14 @@ export const SERVER_URL = trimTrailingSlash(
 )
 
 export const PROTOCOL_VERSION = 2
+export const CHAT_MESSAGE_TTL_MS = readNumberEnv('VITE_CHAT_MESSAGE_TTL_MS', 30000, 1000, 300000)
+export const CHAT_MAX_MESSAGES = Math.round(readNumberEnv('VITE_CHAT_MAX_MESSAGES', 6, 1, 40))
+export const CHAT_MAX_MESSAGE_LENGTH = Math.round(
+  readNumberEnv('VITE_CHAT_MAX_MESSAGE_LENGTH', 140, 1, 500),
+)
+export const CHAT_SEND_COOLDOWN_MS = Math.round(
+  readNumberEnv('VITE_CHAT_SEND_COOLDOWN_MS', 400, 0, 5000),
+)
 
 const BASE_PATH = normalizeBasePath(RAW_BASE_URL)
 
