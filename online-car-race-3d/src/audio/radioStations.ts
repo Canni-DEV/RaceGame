@@ -21,7 +21,7 @@ export const RADIO_STATIONS: RadioStation[] = [
     url: 'https://cast1.torontocast.com:4660/stream',
   },
   {
-    name: '	Radio Paradise Main Mix',
-    url: '	http://stream-uk1.radioparadise.com/aac-320',
+    name: 'Radio Paradise Main Mix',
+    url: 'http://stream-uk1.radioparadise.com/aac-320',
   },
 ]

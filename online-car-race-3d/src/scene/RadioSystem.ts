@@ -14,8 +14,6 @@ type RadioConfig = {
   rolloff: number
   maxDistance: number
   nodeName: string | null
-  debugEnabled: boolean
-  debugRadius: number
 }
 
 const ROOM_MODEL_NAME = 'room-model'
@@ -38,21 +36,6 @@ const getStringEnv = (key: string, fallback: string): string | null => {
   return trimmed.length > 0 ? trimmed : null
 }
 
-const getBooleanEnv = (key: string, fallback: boolean): boolean => {
-  const raw = import.meta.env?.[key]
-  if (typeof raw !== 'string') {
-    return fallback
-  }
-  const normalized = raw.trim().toLowerCase()
-  if (normalized === 'true' || normalized === '1' || normalized === 'yes') {
-    return true
-  }
-  if (normalized === 'false' || normalized === '0' || normalized === 'no') {
-    return false
-  }
-  return fallback
-}
-
 const getRadioConfig = (): RadioConfig => ({
   offset: new THREE.Vector3(
     getNumberEnv('VITE_ROOM_RADIO_OFFSET_X', 0),
@@ -64,9 +47,7 @@ const getRadioConfig = (): RadioConfig => ({
   refDistance: getNumberEnv('VITE_ROOM_RADIO_REF_DISTANCE', 200),
   rolloff: getNumberEnv('VITE_ROOM_RADIO_ROLLOFF', 1.1),
   maxDistance: getNumberEnv('VITE_ROOM_RADIO_MAX_DISTANCE', 120),
-  nodeName: getStringEnv('VITE_ROOM_RADIO_NODE','Sketchfab_model.003'),
-  debugEnabled: getBooleanEnv('VITE_ROOM_RADIO_DEBUG', false),
-  debugRadius: getNumberEnv('VITE_ROOM_RADIO_DEBUG_RADIUS', 250),
+  nodeName: getStringEnv('VITE_ROOM_RADIO_NODE', 'Sketchfab_model.003'),
 })
 
 export class RadioSystem {
@@ -81,7 +62,6 @@ export class RadioSystem {
   private readonly pointerNdc = new THREE.Vector2()
   private anchor: THREE.Object3D | null = null
   private radioTarget: THREE.Object3D | null = null
-  private debugMesh: THREE.Mesh | null = null
   private radioState: RoomRadioState | null = null
   private userEnabled = false
   private audioEnabled = false
@@ -198,7 +178,6 @@ export class RadioSystem {
     this.anchor = anchor
     this.radioStream.attachTo(anchor)
     this.radioTarget = this.resolveClickTarget(anchor, roomModel)
-    this.updateDebugMesh(roomModel, anchor)
   }
 
   private isInScene(object: THREE.Object3D): boolean {
@@ -273,39 +252,5 @@ export class RadioSystem {
     target.scale.setScalar(this.config.hitRadius * inverseScale)
     anchor.add(target)
     return target
-  }
-
-  private updateDebugMesh(roomModel: THREE.Object3D, anchor: THREE.Object3D): void {
-    if (!this.config.debugEnabled) {
-      if (this.debugMesh) {
-        this.debugMesh.removeFromParent()
-        this.debugMesh = null
-      }
-      return
-    }
-
-    if (this.debugMesh && this.debugMesh.parent !== anchor) {
-      this.debugMesh.removeFromParent()
-      this.debugMesh = null
-    }
-
-    if (!this.debugMesh) {
-      const geometry = new THREE.SphereGeometry(1, 16, 12)
-      const material = new THREE.MeshStandardMaterial({
-        color: 0xff4d4d,
-        emissive: new THREE.Color(0xff4d4d),
-        emissiveIntensity: 0.85,
-      })
-      const mesh = new THREE.Mesh(geometry, material)
-      mesh.name = 'room-radio-debug'
-      mesh.userData.isRadioDebug = true
-      anchor.add(mesh)
-      this.debugMesh = mesh
-    }
-
-    const baseScale = roomModel.scale.x || 1
-    const inverseScale = baseScale !== 0 ? 1 / baseScale : 1
-    const radius = this.config.debugRadius > 0 ? this.config.debugRadius : this.config.hitRadius
-    this.debugMesh.scale.setScalar(radius * inverseScale)
   }
 }

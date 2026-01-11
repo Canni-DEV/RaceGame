@@ -455,17 +455,7 @@ export class SceneManager {
     } else if (matchesKey('r')) {
       this.cameraRig.toggleAutoOrbit()
       consume()
-    } else if (matchesKey('c')) {
-      this.logCameraPosition()
-      consume()
     }
-  }
-
-  private logCameraPosition(): void {
-    const { x, y, z } = this.camera.position
-    console.info(
-      `[Camera] position: x=${x.toFixed(3)} y=${y.toFixed(3)} z=${z.toFixed(3)}`,
-    )
   }
 
   private readonly handlePlayerAutoFollow = (): void => {
