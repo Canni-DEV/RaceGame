@@ -296,6 +296,185 @@ body {
   color: #c8d3e0;
 }
 
+.race-results {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  z-index: 12;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.45s ease;
+}
+
+.race-results::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 45%,
+    rgba(12, 16, 20, 0.25),
+    rgba(8, 10, 12, 0.65) 70%
+  );
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.race-results.is-active {
+  opacity: 1;
+}
+
+.race-results.is-active::before {
+  opacity: 1;
+}
+
+.race-results.is-hidden {
+  opacity: 0;
+}
+
+.race-results__card {
+  position: relative;
+  z-index: 1;
+  min-width: min(80vw, 520px);
+  max-width: 540px;
+  padding: 22px 24px 20px;
+  border-radius: 20px;
+  background: linear-gradient(140deg, rgba(15, 18, 22, 0.92), rgba(10, 13, 18, 0.86));
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #f5f7fa;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transform: translateY(18px) scale(0.98);
+  opacity: 0;
+  transition: transform 0.45s ease, opacity 0.45s ease;
+}
+
+.race-results.is-active .race-results__card {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.race-results.is-hidden .race-results__card {
+  opacity: 0;
+  transform: translateY(18px) scale(0.98);
+}
+
+.race-results__title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #d9e7f5;
+}
+
+.race-results__subtitle {
+  font-size: 0.9rem;
+  color: #c2cfdd;
+  font-variant-numeric: tabular-nums;
+}
+
+.race-results__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.race-results__row {
+  --accent: rgba(140, 170, 220, 0.22);
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.race-results__row::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 18% 50%, var(--accent), transparent 70%);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.race-results__row--pos1 {
+  --accent: rgba(255, 214, 125, 0.35);
+  border-color: rgba(255, 214, 125, 0.32);
+}
+
+.race-results__row--pos2 {
+  --accent: rgba(170, 210, 255, 0.28);
+  border-color: rgba(170, 210, 255, 0.25);
+}
+
+.race-results__row--pos3 {
+  --accent: rgba(255, 182, 120, 0.25);
+  border-color: rgba(255, 182, 120, 0.22);
+}
+
+.race-results__badge {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 0.9rem;
+  color: #0f1215;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.35), 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+.race-results__row--pos1 .race-results__badge {
+  background: linear-gradient(145deg, #ffe08b, #f2b562);
+  color: #3c2600;
+}
+
+.race-results__row--pos2 .race-results__badge {
+  background: linear-gradient(145deg, #e3edf7, #9fb6da);
+  color: #1c2a3a;
+}
+
+.race-results__row--pos3 .race-results__badge {
+  background: linear-gradient(145deg, #ffb27d, #d47b3a);
+  color: #3a1b00;
+}
+
+.race-results__name {
+  font-weight: 600;
+  font-size: 0.98rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.race-results__time {
+  font-weight: 600;
+  color: #e0e9f4;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+.race-results__empty {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px dashed rgba(255, 255, 255, 0.12);
+  text-align: center;
+  color: #c8d3e0;
+}
+
 .hotkey-overlay__description {
   font-size: 0.85rem;
   color: #dfe7f1;
@@ -457,6 +636,23 @@ body {
 }
 
 @media (max-width: 700px) {
+  .race-results__card {
+    min-width: min(90vw, 460px);
+    padding: 18px 18px 16px;
+  }
+
+  .race-results__row {
+    grid-template-columns: 32px 1fr auto;
+    padding: 8px 10px;
+    gap: 10px;
+  }
+
+  .race-results__badge {
+    width: 30px;
+    height: 30px;
+    font-size: 0.82rem;
+  }
+
   .loading-screen__title {
     letter-spacing: 0.12em;
   }
@@ -467,6 +663,9 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .race-results,
+  .race-results::before,
+  .race-results__card,
   .loading-screen,
   .loading-screen::before,
   .loading-screen::after,

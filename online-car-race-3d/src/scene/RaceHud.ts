@@ -8,6 +8,13 @@ function formatCountdown(value: number | null): string {
   return value <= 0 ? '0' : value.toFixed(1)
 }
 
+function formatFinishTime(entry: LeaderboardEntry): string {
+  if (!entry.isFinished || entry.finishTime === undefined || Number.isNaN(entry.finishTime)) {
+    return 'DNF'
+  }
+  return `${entry.finishTime.toFixed(2)}s`
+}
+
 function phaseLabel(phase: RacePhase): string {
   switch (phase) {
     case 'countdown':
@@ -28,6 +35,9 @@ export class RaceHud {
   private readonly laps: HTMLElement
   private readonly countdown: HTMLElement
   private readonly timers: HTMLElement
+  private readonly resultsOverlay: HTMLElement
+  private readonly resultsSubtitle: HTMLElement
+  private readonly resultsList: HTMLElement
   private userHidden = false
 
   constructor(container: HTMLElement, store: GameStateStore) {
@@ -61,6 +71,29 @@ export class RaceHud {
 
     container.appendChild(this.root)
 
+    this.resultsOverlay = document.createElement('div')
+    this.resultsOverlay.className = 'race-results'
+    this.resultsOverlay.setAttribute('aria-hidden', 'true')
+
+    const resultsCard = document.createElement('div')
+    resultsCard.className = 'race-results__card'
+
+    const resultsTitle = document.createElement('div')
+    resultsTitle.className = 'race-results__title'
+    resultsTitle.textContent = 'Final podium'
+    resultsCard.appendChild(resultsTitle)
+
+    this.resultsSubtitle = document.createElement('div')
+    this.resultsSubtitle.className = 'race-results__subtitle'
+    resultsCard.appendChild(this.resultsSubtitle)
+
+    this.resultsList = document.createElement('div')
+    this.resultsList.className = 'race-results__list'
+    resultsCard.appendChild(this.resultsList)
+
+    this.resultsOverlay.appendChild(resultsCard)
+    container.appendChild(this.resultsOverlay)
+
     store.onState((state) => {
       this.render(state.race)
     })
@@ -73,6 +106,7 @@ export class RaceHud {
 
   private updateVisibility(): void {
     this.root.hidden = this.userHidden
+    this.resultsOverlay.classList.toggle('is-hidden', this.userHidden)
   }
 
   private render(race: RaceState): void {
@@ -98,6 +132,7 @@ export class RaceHud {
     }
 
     this.renderLeaderboard(race.leaderboard, race.phase)
+    this.renderResults(race)
   }
 
   private resolveReadyStats(race: RaceState): { ready: number; total: number } {
@@ -163,14 +198,63 @@ export class RaceHud {
       } else if (phase === 'postrace') {
         const finish = document.createElement('div')
         finish.className = 'race-hud__col race-hud__col--finish'
-        finish.textContent =
-          entry.isFinished && entry.finishTime !== undefined
-            ? `${entry.finishTime.toFixed(2)}s`
-            : 'DNF'
+        finish.textContent = formatFinishTime(entry)
         row.appendChild(finish)
       }
 
       this.leaderboard.appendChild(row)
+    }
+  }
+
+  private renderResults(race: RaceState): void {
+    const isPostRace = race.phase === 'postrace'
+    this.resultsOverlay.classList.toggle('is-active', isPostRace)
+    this.resultsOverlay.setAttribute('aria-hidden', isPostRace ? 'false' : 'true')
+
+    if (!isPostRace) {
+      return
+    }
+
+    const countdown = formatCountdown(race.postRaceRemaining)
+    this.resultsSubtitle.textContent = countdown
+      ? `Returning to lobby in ${countdown}s`
+      : 'Returning to lobby...'
+
+    const podiumEntries = race.leaderboard
+      .filter((entry) => entry.position <= 3)
+      .sort((a, b) => a.position - b.position)
+
+    this.resultsList.replaceChildren()
+
+    if (podiumEntries.length === 0) {
+      const empty = document.createElement('div')
+      empty.className = 'race-results__empty'
+      empty.textContent = 'Final results are being tallied...'
+      this.resultsList.appendChild(empty)
+      return
+    }
+
+    for (const entry of podiumEntries) {
+      const row = document.createElement('div')
+      row.className = `race-results__row race-results__row--pos${entry.position}`
+
+      const badge = document.createElement('div')
+      badge.className = 'race-results__badge'
+      badge.textContent = entry.position.toString()
+      row.appendChild(badge)
+
+      const name = document.createElement('div')
+      name.className = 'race-results__name'
+      const displayName = entry.username ?? entry.playerId
+      name.textContent = entry.isNpc ? `${displayName} · NPC` : displayName
+      row.appendChild(name)
+
+      const time = document.createElement('div')
+      time.className = 'race-results__time'
+      time.textContent = formatFinishTime(entry)
+      row.appendChild(time)
+
+      this.resultsList.appendChild(row)
     }
   }
 }
