@@ -147,6 +147,13 @@ export class AudioManager {
 
   dispose(): void {
     this.listener.context.removeEventListener('statechange', this.stateChangeHandler)
+    for (const sound of this.engineSounds) {
+      sound.dispose()
+    }
+    this.engineSounds.clear()
+    this.pendingActions.length = 0
+    this.bufferCache.clear()
+    this.bufferLoads.clear()
     this.audioRoot.removeFromParent()
     this.stateListeners.clear()
   }

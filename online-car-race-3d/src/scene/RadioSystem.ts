@@ -5,6 +5,7 @@ import { AudioManager } from '../audio/AudioManager'
 import { RadioStream } from '../audio/RadioStream'
 import { RADIO_STATIONS, type RadioStation } from '../audio/radioStations'
 import { SocketClient } from '../net/SocketClient'
+import { getNumberEnv, getStringEnv } from '../core/env'
 
 type RadioConfig = {
   offset: THREE.Vector3
@@ -17,24 +18,6 @@ type RadioConfig = {
 }
 
 const ROOM_MODEL_NAME = 'room-model'
-
-const getNumberEnv = (key: string, fallback: number): number => {
-  const raw = import.meta.env?.[key]
-  if (typeof raw !== 'string') {
-    return fallback
-  }
-  const value = Number(raw)
-  return Number.isFinite(value) ? value : fallback
-}
-
-const getStringEnv = (key: string, fallback: string): string | null => {
-  const raw = import.meta.env?.[key]
-  if (typeof raw !== 'string') {
-    return fallback
-  }
-  const trimmed = raw.trim()
-  return trimmed.length > 0 ? trimmed : null
-}
 
 const getRadioConfig = (): RadioConfig => ({
   offset: new THREE.Vector3(
@@ -67,6 +50,8 @@ export class RadioSystem {
   private audioEnabled = false
   private lastUrl: string | null = null
   private lastShouldPlay = false
+  private readonly unsubscribeAudioState: () => void
+  private readonly unsubscribeState: () => void
 
   constructor(
     scene: THREE.Scene,
@@ -89,8 +74,8 @@ export class RadioSystem {
       maxDistance: this.config.maxDistance,
     })
 
-    audioManager.onStateChange(this.handleAudioState)
-    this.store.onState(this.handleState)
+    this.unsubscribeAudioState = audioManager.onStateChange(this.handleAudioState)
+    this.unsubscribeState = this.store.onState(this.handleState)
   }
 
   update(): void {
@@ -252,5 +237,13 @@ export class RadioSystem {
     target.scale.setScalar(this.config.hitRadius * inverseScale)
     anchor.add(target)
     return target
+  }
+
+  dispose(): void {
+    this.unsubscribeAudioState()
+    this.unsubscribeState()
+    this.radioStream.dispose()
+    this.anchor = null
+    this.radioTarget = null
   }
 }

@@ -35,7 +35,7 @@ declare global {
   }
 }
 
-let socketIoLoader: Promise<SocketIoFactory> | null = null
+const socketIoLoaders = new Map<string, Promise<SocketIoFactory>>()
 
 function loadSocketIo(baseUrl: string): Promise<SocketIoFactory> {
   if (typeof window === 'undefined') {
@@ -46,27 +46,40 @@ function loadSocketIo(baseUrl: string): Promise<SocketIoFactory> {
     return Promise.resolve(window.io)
   }
 
-  if (!socketIoLoader) {
-    socketIoLoader = new Promise<SocketIoFactory>((resolve, reject) => {
-      const script = document.createElement('script')
-      const scriptUrl = new URL(SOCKET_SCRIPT_PATH, baseUrl).toString()
-      script.src = scriptUrl
-      script.async = true
-      script.onload = () => {
-        if (window.io) {
-          resolve(window.io)
-        } else {
-          reject(new Error('Socket.IO client script loaded without exposing io()'))
-        }
-      }
-      script.onerror = () => {
-        reject(new Error(`Failed to load Socket.IO script from ${scriptUrl}`))
-      }
-      document.head.appendChild(script)
-    })
+  const existing = socketIoLoaders.get(baseUrl)
+  if (existing) {
+    return existing
   }
 
-  return socketIoLoader
+  const loader = new Promise<SocketIoFactory>((resolve, reject) => {
+    const script = document.createElement('script')
+    let scriptUrl: string
+    try {
+      scriptUrl = new URL(SOCKET_SCRIPT_PATH, baseUrl).toString()
+    } catch (error) {
+      reject(error)
+      return
+    }
+    script.src = scriptUrl
+    script.async = true
+    script.onload = () => {
+      if (window.io) {
+        resolve(window.io)
+      } else {
+        reject(new Error('Socket.IO client script loaded without exposing io()'))
+      }
+    }
+    script.onerror = () => {
+      reject(new Error(`Failed to load Socket.IO script from ${scriptUrl}`))
+    }
+    document.head.appendChild(script)
+  }).catch((error) => {
+    socketIoLoaders.delete(baseUrl)
+    throw error
+  })
+
+  socketIoLoaders.set(baseUrl, loader)
+  return loader
 }
 
 type SocketClientOptions = {

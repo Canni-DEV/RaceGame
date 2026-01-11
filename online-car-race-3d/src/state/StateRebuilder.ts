@@ -77,8 +77,8 @@ export function applyRoomStateDelta(base: RoomState | null, delta: RoomStateDelt
   const radio = delta.radio ?? base.radio
 
   return {
-    roomId: delta.roomId || base.roomId,
-    trackId: delta.trackId || base.trackId,
+    roomId: delta.roomId ?? base.roomId,
+    trackId: delta.trackId ?? base.trackId,
     serverTime: delta.serverTime ?? base.serverTime,
     cars,
     missiles,

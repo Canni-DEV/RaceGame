@@ -30,6 +30,8 @@ export class GameAudioSystem {
   private playersSeen = new Set<string>()
   private hasPlayerSnapshot = false
   private hasState = false
+  private readonly unsubscribeRoomInfo: () => void
+  private readonly unsubscribeState: () => void
 
   constructor(audioManager: AudioManager, store: GameStateStore) {
     this.audioManager = audioManager
@@ -37,8 +39,8 @@ export class GameAudioSystem {
     this.prepareSfxUrls()
     this.audioManager.preload([...this.sfxUrls.values()])
 
-    this.store.onRoomInfo(this.handleRoomInfo)
-    this.store.onState(this.handleState)
+    this.unsubscribeRoomInfo = this.store.onRoomInfo(this.handleRoomInfo)
+    this.unsubscribeState = this.store.onState(this.handleState)
   }
 
   private prepareSfxUrls(): void {
@@ -231,5 +233,13 @@ export class GameAudioSystem {
     this.lastCountdownTick = null
     this.lastRacePhase = null
     this.hasState = false
+  }
+
+  dispose(): void {
+    this.unsubscribeRoomInfo()
+    this.unsubscribeState()
+    this.resetStateCaches()
+    this.playersSeen.clear()
+    this.hasPlayerSnapshot = false
   }
 }
