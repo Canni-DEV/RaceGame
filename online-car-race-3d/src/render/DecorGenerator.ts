@@ -4,6 +4,7 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js'
 import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/trackTypes'
 import type { TrackBuildResult } from './TrackMeshBuilder'
 import { resolvePublicAssetUrl, resolveServerAssetUrl } from '../config'
+import { getNumberEnv } from '../core/env'
 
 // Backend rotations use the game angle convention (0 = +X). Three.js yaw expects 0 = +Z,
 // so we convert to the same mapping cars/missiles use.
@@ -12,15 +13,6 @@ function toRendererYaw(angle: number): number {
 }
 
 const DEFAULT_ROOM_MODEL_PATH = 'models/room.glb'
-
-const getNumberEnv = (key: string, defaultValue: number): number => {
-  const raw = import.meta.env?.[key]
-  if (typeof raw !== 'string') {
-    return defaultValue
-  }
-  const value = Number(raw)
-  return Number.isFinite(value) ? value : defaultValue
-}
 
 const getRoomModelUrl = (): string => {
   const candidate = import.meta.env?.VITE_ROOM_MODEL_URL

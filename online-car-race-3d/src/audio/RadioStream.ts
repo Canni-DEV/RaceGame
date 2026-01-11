@@ -80,4 +80,10 @@ export class RadioStream {
       this.audioElement.load()
     }
   }
+
+  dispose(): void {
+    this.stopPlayback()
+    this.sourceNode.disconnect()
+    this.audio.removeFromParent()
+  }
 }

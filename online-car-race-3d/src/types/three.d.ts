@@ -76,12 +76,6 @@ declare module 'three' {
     clone(): this
   }
 
-  export class Material {
-    type: string
-    needsUpdate: boolean
-    dispose(): void
-  }
-
   export class Texture {
     colorSpace: number
     mapping: number
@@ -90,10 +84,6 @@ declare module 'three' {
     wrapS: number
     wrapT: number
     dispose(): void
-  }
-
-  export class CanvasTexture extends Texture {
-    constructor(canvas: HTMLCanvasElement)
   }
 
   export class Scene extends Object3D {

@@ -51,7 +51,6 @@ export class GameStateStore {
   private protocolVersion: number | null = null
   private serverVersion: string | null = null
   private lastState: RoomState | null = null
-  private lastStateTimestamp = 0
   private readonly snapshots: Snapshot[] = []
   private serverOffsetSeconds: number | null = null
   private lastRenderServerTime: number | null = null
@@ -171,10 +170,6 @@ export class GameStateStore {
     }
   }
 
-  getLastStateTimestamp(): number {
-    return this.lastStateTimestamp
-  }
-
   onRoomInfo(listener: RoomInfoListener): () => void {
     this.roomInfoListeners.add(listener)
     if (this.roomId) {
@@ -220,7 +215,6 @@ export class GameStateStore {
   private recordSnapshot(state: RoomState): void {
     const now = performance.now()
     this.lastState = state
-    this.lastStateTimestamp = now
     if (!Number.isFinite(state.serverTime)) {
       return
     }
@@ -526,7 +520,6 @@ export class GameStateStore {
 
   private resetInterpolationState(): void {
     this.lastState = null
-    this.lastStateTimestamp = 0
     this.snapshots.length = 0
     this.serverOffsetSeconds = null
     this.lastRenderServerTime = null

@@ -69,6 +69,11 @@ export class SceneManager {
   private readonly orbitRotateSpeed = 0.005
   private readonly orbitTiltSpeed = 0.0035
   private readonly zoomStep = 0.08
+  private readonly pointerEndEvents: Array<'pointerup' | 'pointerleave' | 'pointercancel'> = [
+    'pointerup',
+    'pointerleave',
+    'pointercancel',
+  ]
   private readonly minShadowMapSize = 512
   private readonly maxShadowMapSize = 1024
   private readonly maxPixelRatio = 1
@@ -341,12 +346,7 @@ export class SceneManager {
     canvas.addEventListener('contextmenu', this.preventContextMenu)
     canvas.addEventListener('pointerdown', this.handlePointerDown)
     canvas.addEventListener('pointermove', this.handlePointerMove)
-    const pointerEndEvents: Array<'pointerup' | 'pointerleave' | 'pointercancel'> = [
-      'pointerup',
-      'pointerleave',
-      'pointercancel',
-    ]
-    for (const eventType of pointerEndEvents) {
+    for (const eventType of this.pointerEndEvents) {
       canvas.addEventListener(eventType, this.handlePointerUp)
     }
     canvas.addEventListener('wheel', this.handleWheel, { passive: false })
@@ -533,5 +533,25 @@ export class SceneManager {
     event.preventDefault()
     const factor = 1 + Math.sign(event.deltaY) * this.zoomStep
     this.cameraRig.adjustZoom(factor)
+  }
+
+  dispose(): void {
+    window.removeEventListener('resize', this.handleResize)
+    window.removeEventListener('keydown', this.handleGlobalKeyDown)
+    const canvas = this.renderer.domElement
+    canvas.removeEventListener('contextmenu', this.preventContextMenu)
+    canvas.removeEventListener('pointerdown', this.handlePointerDown)
+    canvas.removeEventListener('pointermove', this.handlePointerMove)
+    for (const eventType of this.pointerEndEvents) {
+      canvas.removeEventListener(eventType, this.handlePointerUp)
+    }
+    canvas.removeEventListener('wheel', this.handleWheel)
+    this.loadingScreen.unbindLoadingManager()
+    this.radioSystem.dispose()
+    this.trackScene.dispose()
+    this.playerListOverlay.dispose()
+    this.controllerAccess.dispose()
+    this.audioManager.dispose()
+    this.socketClient.disconnect()
   }
 }

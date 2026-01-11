@@ -21,6 +21,11 @@ export class LoadingScreen {
   private isComplete = false
   private idleAssetTimeoutId: number | null = null
   private removalTimeoutId: number | null = null
+  private boundManager: THREE.LoadingManager | null = null
+  private previousOnStart?: THREE.LoadingManager['onStart']
+  private previousOnProgress?: THREE.LoadingManager['onProgress']
+  private previousOnLoad?: THREE.LoadingManager['onLoad']
+  private previousOnError?: THREE.LoadingManager['onError']
 
   constructor(container: HTMLElement, title: string = DEFAULT_TITLE) {
     this.root = document.createElement('div')
@@ -71,27 +76,49 @@ export class LoadingScreen {
   }
 
   bindLoadingManager(manager: THREE.LoadingManager = THREE.DefaultLoadingManager): void {
-    const prevStart = manager.onStart
-    const prevProgress = manager.onProgress
-    const prevLoad = manager.onLoad
-    const prevError = manager.onError
+    if (this.boundManager === manager) {
+      return
+    }
+    if (this.boundManager) {
+      this.unbindLoadingManager()
+    }
+    this.boundManager = manager
+    this.previousOnStart = manager.onStart
+    this.previousOnProgress = manager.onProgress
+    this.previousOnLoad = manager.onLoad
+    this.previousOnError = manager.onError
 
     manager.onStart = (url: string, itemsLoaded: number, itemsTotal: number) => {
-      prevStart?.(url, itemsLoaded, itemsTotal)
+      this.previousOnStart?.(url, itemsLoaded, itemsTotal)
       this.handleAssetStart(itemsLoaded, itemsTotal)
     }
     manager.onProgress = (url: string, itemsLoaded: number, itemsTotal: number) => {
-      prevProgress?.(url, itemsLoaded, itemsTotal)
+      this.previousOnProgress?.(url, itemsLoaded, itemsTotal)
       this.handleAssetProgress(itemsLoaded, itemsTotal)
     }
     manager.onLoad = () => {
-      prevLoad?.()
+      this.previousOnLoad?.()
       this.handleAssetLoad()
     }
     manager.onError = (url: string) => {
-      prevError?.(url)
+      this.previousOnError?.(url)
       this.handleAssetError(url)
     }
+  }
+
+  unbindLoadingManager(): void {
+    if (!this.boundManager) {
+      return
+    }
+    this.boundManager.onStart = this.previousOnStart
+    this.boundManager.onProgress = this.previousOnProgress
+    this.boundManager.onLoad = this.previousOnLoad
+    this.boundManager.onError = this.previousOnError
+    this.boundManager = null
+    this.previousOnStart = undefined
+    this.previousOnProgress = undefined
+    this.previousOnLoad = undefined
+    this.previousOnError = undefined
   }
 
   markRoomReady(): void {

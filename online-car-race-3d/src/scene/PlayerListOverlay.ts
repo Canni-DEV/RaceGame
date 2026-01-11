@@ -1,6 +1,7 @@
 import type { GameStateStore } from '../state/GameStateStore'
 import type { PlayerSummary } from '../net/messages'
 import type { RoomState } from '../core/trackTypes'
+import { hashPlayerIdToHue } from '../core/playerColor'
 
 interface PlayerListOverlayOptions {
   onSelectPlayer?: (playerId: string) => void
@@ -23,6 +24,8 @@ export class PlayerListOverlay {
   private readonly rows: Map<string, PlayerListRow>
   private readonly playerLookup: Map<string, PlayerSummary>
   private readonly onSelectPlayer?: (playerId: string) => void
+  private readonly unsubscribeRoomInfo: () => void
+  private readonly unsubscribeState: () => void
   private players: PlayerSummary[] = []
   private userHidden = false
   private isReady = false
@@ -53,14 +56,14 @@ export class PlayerListOverlay {
 
     container.appendChild(this.root)
 
-    store.onRoomInfo((info) => {
+    this.unsubscribeRoomInfo = store.onRoomInfo((info) => {
       this.players = info.players
       this.localPlayerId = info.playerId
       this.updateReadiness()
       this.render()
     })
 
-    store.onState((state) => {
+    this.unsubscribeState = store.onState((state) => {
       this.handleState(state)
     })
   }
@@ -151,7 +154,7 @@ export class PlayerListOverlay {
     root.dataset.playerId = player.playerId
     root.tabIndex = -1
     root.addEventListener('click', this.handleRowClick)
-    root.addEventListener('keypress', this.handleRowKeyPress)
+    root.addEventListener('keydown', this.handleRowKeyPress)
 
     const badge = document.createElement('span')
     badge.className = 'player-list-overlay__color'
@@ -214,7 +217,7 @@ export class PlayerListOverlay {
   }
 
   private readonly handleRowKeyPress = (event: KeyboardEvent): void => {
-    if (event.key !== 'Enter' && event.key !== ' ') {
+    if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Space') {
       return
     }
     event.preventDefault()
@@ -260,12 +263,7 @@ export class PlayerListOverlay {
     if (player.isNpc) {
       return '#ffa133'
     }
-    let hash = 0
-    for (let i = 0; i < player.playerId.length; i++) {
-      hash = (hash * 31 + player.playerId.charCodeAt(i)) | 0
-    }
-    const normalized = (hash & 0xffff) / 0xffff
-    const hue = ((normalized + 1) % 1) * 360
+    const hue = hashPlayerIdToHue(player.playerId) * 360
     return `hsl(${hue.toFixed(0)}deg 65% 50%)`
   }
 
@@ -292,5 +290,12 @@ export class PlayerListOverlay {
 
   private getDisplayName(player: PlayerSummary): string {
     return player.username || player.playerId
+  }
+
+  dispose(): void {
+    this.unsubscribeRoomInfo()
+    this.unsubscribeState()
+    this.clearRows()
+    this.root.remove()
   }
 }

@@ -12,6 +12,7 @@ import type { AudioManager } from '../audio/AudioManager'
 import { MissileEntity } from '../render/MissileEntity'
 import { ItemEntity } from '../render/ItemEntity'
 import { ItemModelLoader } from '../render/ItemModelLoader'
+import { hashPlayerIdToHue } from '../core/playerColor'
 
 export class TrackScene {
   private readonly scene: THREE.Scene
@@ -348,13 +349,9 @@ export class TrackScene {
 
     let color = this.playerColors.get(playerId)
     if (!color) {
-      let hash = 0
-      for (let i = 0; i < playerId.length; i++) {
-        hash = (hash * 31 + playerId.charCodeAt(i)) | 0
-      }
-      const normalized = (hash & 0xffff) / 0xffff
+      const normalized = hashPlayerIdToHue(playerId)
       color = new THREE.Color()
-      color.setHSL((normalized + 1) % 1, 0.65, 0.5)
+      color.setHSL(normalized, 0.65, 0.5)
       this.playerColors.set(playerId, color)
     }
 
@@ -538,5 +535,19 @@ export class TrackScene {
       previous?.setVisible(true)
       this.firstPersonHiddenId = null
     }
+  }
+
+  dispose(): void {
+    window.removeEventListener('keydown', this.handleKeyDown)
+    this.disposeTrackRoot()
+    this.clearItems()
+    for (const car of this.cars.values()) {
+      car.dispose()
+    }
+    this.cars.clear()
+    for (const missile of this.missiles.values()) {
+      missile.dispose()
+    }
+    this.missiles.clear()
   }
 }
