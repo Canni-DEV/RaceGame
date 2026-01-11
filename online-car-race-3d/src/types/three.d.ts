@@ -169,7 +169,9 @@ declare module 'three' {
   }
 
   export const PCFSoftShadowMap: number
+  export const FrontSide: number
   export const BackSide: number
+  export const DoubleSide: number
   export const BasicShadowMap: number
   export const ClampToEdgeWrapping: number
   export const NoToneMapping: number
@@ -361,6 +363,10 @@ declare module 'three' {
 
   export class CanvasTexture extends Texture {
     constructor(canvas: HTMLCanvasElement)
+  }
+
+  export class VideoTexture extends Texture {
+    constructor(video: HTMLVideoElement)
   }
 
   export class PMREMGenerator {
