@@ -1,6 +1,7 @@
 import http from "http";
 import { Server, Socket } from "socket.io";
 import {
+  ChatSendMessage,
   ErrorMessage,
   InputMessage,
   JoinRoomRequest,
@@ -68,6 +69,10 @@ export class SocketServer {
 
     socket.on("radio_cycle", () => {
       this.handleRadioCycle(socket);
+    });
+
+    socket.on("chat_message", (payload: ChatSendMessage) => {
+      this.handleChatMessage(socket, payload);
     });
 
     socket.on("request_state_full", (payload: { roomId?: string }) => {
@@ -186,6 +191,16 @@ export class SocketServer {
   private handleRadioCycle(socket: Socket): void {
     try {
       this.roomManager.handleRadioCycle(socket.id);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      this.emitError(socket, message);
+    }
+  }
+
+  private handleChatMessage(socket: Socket, payload: ChatSendMessage): void {
+    try {
+      const message = this.roomManager.handleChatMessage(socket.id, payload);
+      this.io.to(message.roomId).emit("chat_message", message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       this.emitError(socket, message);

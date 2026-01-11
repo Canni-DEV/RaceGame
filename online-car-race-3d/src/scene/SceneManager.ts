@@ -16,6 +16,7 @@ import { LoadingScreen } from './LoadingScreen'
 import { RadioSystem } from './RadioSystem'
 import { RoomVideoScreen } from './RoomVideoScreen'
 import { DebugCameraController } from './DebugCameraController'
+import { ChatOverlay } from './ChatOverlay'
 
 const DEFAULT_HDR_SKYBOX = 'textures/empty_play_room_4k.hdr'
 const SKYBOX_BACKGROUND_CONFIG = {
@@ -137,6 +138,7 @@ export class SceneManager {
     new HotkeyOverlay(this.container)
 
     this.socketClient = new SocketClient()
+    new ChatOverlay(this.container, this.gameStateStore, this.socketClient)
     this.radioSystem = new RadioSystem(
       this.scene,
       this.camera,

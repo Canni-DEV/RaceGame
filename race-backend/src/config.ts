@@ -11,6 +11,13 @@ export const STATE_DELTA_MAX_RATIO = clamp(Number(process.env.STATE_DELTA_MAX_RA
 export const STATE_DELTA_MIN_CHANGES = clamp(Number(process.env.STATE_DELTA_MIN_CHANGES ?? 24), 1, 100000);
 export const INPUT_BURST_WINDOW_MS = clamp(Number(process.env.INPUT_BURST_WINDOW_MS ?? 50), 10, 1000);
 export const INPUT_BURST_LIMIT = clamp(Number(process.env.INPUT_BURST_LIMIT ?? 8), 1, 500);
+export const CHAT_MESSAGE_MAX_LENGTH = clamp(Number(process.env.CHAT_MESSAGE_MAX_LENGTH ?? 140), 1, 500);
+export const CHAT_MESSAGE_BURST_WINDOW_MS = clamp(
+  Number(process.env.CHAT_MESSAGE_BURST_WINDOW_MS ?? 4000),
+  200,
+  60000,
+);
+export const CHAT_MESSAGE_BURST_LIMIT = clamp(Number(process.env.CHAT_MESSAGE_BURST_LIMIT ?? 4), 1, 100);
 export const MAX_PLAYERS_PER_ROOM = 8;
 export const RACE_COUNTDOWN_SECONDS = clamp(Number(process.env.RACE_COUNTDOWN_SECONDS ?? 5), 1, 120);
 export const RACE_LAPS = clamp(Number(process.env.RACE_LAPS ?? 3), 1, 99);
