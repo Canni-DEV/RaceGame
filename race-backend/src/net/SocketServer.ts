@@ -103,6 +103,12 @@ export class SocketServer {
         };
 
         socket.emit("room_info", info);
+        const joinMessage: PlayerEventMessage = {
+          roomId: result.room.roomId,
+          playerId: result.playerId,
+          username: result.room.getUsername(result.playerId)
+        };
+        this.io.to(result.room.roomId).emit("player_joined", joinMessage);
         const state = serializeRoomState(result.room.toRoomState());
         this.sendFullToSocket(socket, result.room.roomId, state);
 

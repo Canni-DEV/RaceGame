@@ -104,6 +104,15 @@ export class GameStateStore {
     }
   }
 
+  removePlayer(playerId: string): void {
+    const nextPlayers = this.players.filter((player) => player.playerId !== playerId)
+    if (nextPlayers.length === this.players.length) {
+      return
+    }
+    this.players = nextPlayers
+    this.notifyRoomInfo()
+  }
+
   getTrack(): TrackData | null {
     return this.track
   }
@@ -531,13 +540,7 @@ export class GameStateStore {
     }
 
     const updated = this.upsertPlayers(updates)
-    const seenIds = new Set(updates.map((player) => player.playerId))
-    const filtered = this.players.filter((player) => seenIds.has(player.playerId))
-    const removed = filtered.length !== this.players.length
-    if (removed) {
-      this.players = filtered
-    }
-    if (updated || removed) {
+    if (updated) {
       this.notifyRoomInfo()
     }
   }

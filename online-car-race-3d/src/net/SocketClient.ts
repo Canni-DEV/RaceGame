@@ -16,6 +16,7 @@ type StateDeltaCallback = (delta: StateDeltaMessage) => void
 type ErrorCallback = (message: string) => void
 type ConnectCallback = () => void
 type PlayerUpdateCallback = (player: PlayerEventMessage) => void
+type PlayerLeftCallback = (player: PlayerEventMessage) => void
 
 type SocketLike = {
   on(event: string, listener: (...args: unknown[]) => void): SocketLike
@@ -98,6 +99,7 @@ export class SocketClient {
   private readonly errorListeners = new Set<ErrorCallback>()
   private readonly connectListeners = new Set<ConnectCallback>()
   private readonly playerUpdateListeners = new Set<PlayerUpdateCallback>()
+  private readonly playerLeftListeners = new Set<PlayerLeftCallback>()
 
   constructor(options?: SocketClientOptions, url?: string) {
     this.url = url ?? SERVER_URL
@@ -179,6 +181,13 @@ export class SocketClient {
     }
   }
 
+  onPlayerLeft(callback: PlayerLeftCallback): () => void {
+    this.playerLeftListeners.add(callback)
+    return () => {
+      this.playerLeftListeners.delete(callback)
+    }
+  }
+
   setJoinPayload(payload: Record<string, unknown>): void {
     this.joinPayload = sanitizeJoinPayload(payload)
     if (this.socket?.connected) {
@@ -252,6 +261,15 @@ export class SocketClient {
 
     socket.on('player_updated', dispatchPlayerUpdate)
     socket.on('player_joined', dispatchPlayerUpdate)
+
+    const dispatchPlayerLeft = (event: unknown) => {
+      const payload = event as PlayerEventMessage
+      for (const listener of this.playerLeftListeners) {
+        listener(payload)
+      }
+    }
+
+    socket.on('player_left', dispatchPlayerLeft)
 
     socket.on('error_message', (error: unknown) => {
       const payload = error as ErrorMessage
