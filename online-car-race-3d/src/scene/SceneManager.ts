@@ -14,6 +14,8 @@ import { RaceHud } from './RaceHud'
 import { ProceduralSky } from '../render/ProceduralSky'
 import { LoadingScreen } from './LoadingScreen'
 import { RadioSystem } from './RadioSystem'
+import { RoomVideoScreen } from './RoomVideoScreen'
+import { DebugCameraController } from './DebugCameraController'
 
 const DEFAULT_HDR_SKYBOX = 'textures/empty_play_room_4k.hdr'
 const SKYBOX_BACKGROUND_CONFIG = {
@@ -38,6 +40,7 @@ const getSkyboxUrl = (): string => {
 }
 
 const HDR_BACKGROUND_ENABLED = getEnvFlag('VITE_ENABLE_HDR_BACKGROUND', false)
+const DEBUG_CAMERA_ENABLED = getEnvFlag('VITE_DEBUG_CAMERA', false)
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -56,6 +59,8 @@ export class SceneManager {
   private readonly audioManager: AudioManager
   private readonly loadingScreen: LoadingScreen
   private readonly radioSystem: RadioSystem
+  private readonly roomVideoScreen: RoomVideoScreen
+  private readonly debugCamera: DebugCameraController | null
   private keyLight: THREE.DirectionalLight | null = null
   private fillLight: THREE.DirectionalLight | null = null
   private rimLight: THREE.DirectionalLight | null = null
@@ -100,6 +105,7 @@ export class SceneManager {
 
     this.cameraRig = new CameraRig(this.camera)
     this.audioManager = new AudioManager(this.camera, this.scene)
+    this.debugCamera = DEBUG_CAMERA_ENABLED ? new DebugCameraController(this.camera) : null
 
     this.setupLights()
 
@@ -138,6 +144,7 @@ export class SceneManager {
       this.gameStateStore,
       this.socketClient,
     )
+    this.roomVideoScreen = new RoomVideoScreen(this.scene)
     this.bindSocketHandlers()
     this.socketClient.connect()
 
@@ -343,6 +350,7 @@ export class SceneManager {
     const canvas = this.renderer.domElement
     window.addEventListener('resize', this.handleResize)
     window.addEventListener('keydown', this.handleGlobalKeyDown)
+    window.addEventListener('keyup', this.handleGlobalKeyUp)
     canvas.addEventListener('contextmenu', this.preventContextMenu)
     canvas.addEventListener('pointerdown', this.handlePointerDown)
     canvas.addEventListener('pointermove', this.handlePointerMove)
@@ -384,8 +392,13 @@ export class SceneManager {
     requestAnimationFrame(this.animate)
     const delta = this.clock.getDelta()
     this.trackScene.update(delta)
-    this.cameraRig.update(delta)
+    if (this.debugCamera) {
+      this.debugCamera.update(delta)
+    } else {
+      this.cameraRig.update(delta)
+    }
     this.radioSystem.update()
+    this.roomVideoScreen.update()
     if (this.sky && this.sky.mesh.visible) {
       this.sky.update(delta, this.camera.position)
     }
@@ -432,6 +445,11 @@ export class SceneManager {
     if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
       return
     }
+    if (this.debugCamera && this.debugCamera.handleKeyDown(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+      return
+    }
 
     const key = event.key?.toLowerCase()
     const code = event.code?.toLowerCase()
@@ -461,6 +479,13 @@ export class SceneManager {
     }
   }
 
+  private readonly handleGlobalKeyUp = (event: KeyboardEvent): void => {
+    if (this.debugCamera && this.debugCamera.handleKeyUp(event)) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }
+
   private readonly handlePlayerAutoFollow = (): void => {
     this.controllerAccess.hide()
   }
@@ -470,6 +495,10 @@ export class SceneManager {
   }
 
   private readonly handlePointerDown = (event: PointerEvent): void => {
+    if (this.debugCamera && this.debugCamera.handlePointerDown(event)) {
+      this.renderer.domElement.setPointerCapture(event.pointerId)
+      return
+    }
     if (event.button === 0) {
       this.radioPointerId = event.pointerId
       this.radioPointerStart.set(event.clientX, event.clientY)
@@ -489,6 +518,9 @@ export class SceneManager {
   }
 
   private readonly handlePointerMove = (event: PointerEvent): void => {
+    if (this.debugCamera && this.debugCamera.handlePointerMove(event)) {
+      return
+    }
     if (this.radioPointerId === event.pointerId && !this.radioPointerMoved) {
       const dx = event.clientX - this.radioPointerStart.x
       const dy = event.clientY - this.radioPointerStart.y
@@ -510,6 +542,10 @@ export class SceneManager {
   }
 
   private readonly handlePointerUp = (event: PointerEvent): void => {
+    if (this.debugCamera && this.debugCamera.handlePointerUp(event)) {
+      this.renderer.domElement.releasePointerCapture(event.pointerId)
+      return
+    }
     if (this.orbitPointerId === event.pointerId) {
       this.renderer.domElement.releasePointerCapture(event.pointerId)
       this.isOrbitDragging = false
@@ -527,6 +563,10 @@ export class SceneManager {
   }
 
   private readonly handleWheel = (event: WheelEvent): void => {
+    if (this.debugCamera) {
+      event.preventDefault()
+      return
+    }
     if (this.cameraRig.isFollowing()) {
       return
     }
@@ -538,6 +578,7 @@ export class SceneManager {
   dispose(): void {
     window.removeEventListener('resize', this.handleResize)
     window.removeEventListener('keydown', this.handleGlobalKeyDown)
+    window.removeEventListener('keyup', this.handleGlobalKeyUp)
     const canvas = this.renderer.domElement
     canvas.removeEventListener('contextmenu', this.preventContextMenu)
     canvas.removeEventListener('pointerdown', this.handlePointerDown)
