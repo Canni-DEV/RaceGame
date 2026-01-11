@@ -16,9 +16,7 @@ type ChatOverlayOptions = {
 }
 
 type ChatEntry = {
-  id: number
   payload: ChatMessage
-  receivedAt: number
   expiresAt: number
 }
 
@@ -40,7 +38,6 @@ export class ChatOverlay {
   private inputActive = false
   private lastSendAt = 0
   private pruneTimerId: number | null = null
-  private nextMessageId = 1
   private roomId: string | null = null
   private readonly unsubscribeRoomInfo: () => void
   private readonly unsubscribeChat: () => void
@@ -90,7 +87,7 @@ export class ChatOverlay {
     container.appendChild(this.root)
 
     this.unsubscribeRoomInfo = store.onRoomInfo((info: RoomInfoSnapshot) => {
-      this.roomId = info.roomId
+      this.handleRoomInfo(info)
     })
 
     this.unsubscribeChat = socketClient.onChatMessage((message) => {
@@ -144,6 +141,19 @@ export class ChatOverlay {
     this.deactivateInput()
   }
 
+  private handleRoomInfo(info: RoomInfoSnapshot): void {
+    const nextRoomId = info.roomId
+    if (nextRoomId !== this.roomId) {
+      this.roomId = nextRoomId
+      this.entries.length = 0
+      this.clearPruneTimer()
+      this.renderMessages()
+      this.updateVisibility()
+      return
+    }
+    this.roomId = nextRoomId
+  }
+
   private handleChatMessage(message: ChatMessage): void {
     if (this.roomId && message.roomId && message.roomId !== this.roomId) {
       return
@@ -156,9 +166,7 @@ export class ChatOverlay {
 
     const now = Date.now()
     const entry: ChatEntry = {
-      id: this.nextMessageId++,
       payload: { ...message, message: normalized },
-      receivedAt: now,
       expiresAt: now + this.messageTtlMs,
     }
     this.entries.push(entry)
