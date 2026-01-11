@@ -43,10 +43,10 @@ const getRadioConfig = (): RadioConfig => ({
     getNumberEnv('VITE_ROOM_RADIO_OFFSET_Z', 0),
   ),
   hitRadius: getNumberEnv('VITE_ROOM_RADIO_HIT_RADIUS', 250),
-  volume: getNumberEnv('VITE_ROOM_RADIO_VOLUME', 2),
-  refDistance: getNumberEnv('VITE_ROOM_RADIO_REF_DISTANCE', 200),
+  volume: getNumberEnv('VITE_ROOM_RADIO_VOLUME', 0.8),
+  refDistance: getNumberEnv('VITE_ROOM_RADIO_REF_DISTANCE', 110),
   rolloff: getNumberEnv('VITE_ROOM_RADIO_ROLLOFF', 1.1),
-  maxDistance: getNumberEnv('VITE_ROOM_RADIO_MAX_DISTANCE', 120),
+  maxDistance: getNumberEnv('VITE_ROOM_RADIO_MAX_DISTANCE', 1000),
   nodeName: getStringEnv('VITE_ROOM_RADIO_NODE', 'Sketchfab_model.003'),
 })
 

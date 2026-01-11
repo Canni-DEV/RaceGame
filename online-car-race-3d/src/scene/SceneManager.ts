@@ -326,6 +326,9 @@ export class SceneManager {
         isNpc: false,
       })
     })
+    this.socketClient.onPlayerLeft((player) => {
+      this.gameStateStore.removePlayer(player.playerId)
+    })
     this.socketClient.onError((message) => {
       console.error(`[SceneManager] ${message}`)
     })

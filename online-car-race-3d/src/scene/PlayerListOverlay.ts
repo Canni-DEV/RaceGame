@@ -19,6 +19,7 @@ export class PlayerListOverlay {
   private readonly playerSpeeds: Map<string, number>
   private readonly turboCharges: Map<string, number>
   private readonly missileCharges: Map<string, number>
+  private readonly activePlayers: Map<string, PlayerSummary>
   private readonly rows: Map<string, PlayerListRow>
   private readonly playerLookup: Map<string, PlayerSummary>
   private readonly onSelectPlayer?: (playerId: string) => void
@@ -32,6 +33,7 @@ export class PlayerListOverlay {
     this.playerSpeeds = new Map()
     this.turboCharges = new Map()
     this.missileCharges = new Map()
+    this.activePlayers = new Map()
     this.rows = new Map()
     this.playerLookup = new Map()
     this.onSelectPlayer = options?.onSelectPlayer
@@ -54,7 +56,7 @@ export class PlayerListOverlay {
     store.onRoomInfo((info) => {
       this.players = info.players
       this.localPlayerId = info.playerId
-      this.isReady = this.players.length > 0
+      this.updateReadiness()
       this.render()
     })
 
@@ -75,14 +77,14 @@ export class PlayerListOverlay {
     this.playerSpeeds.clear()
     this.turboCharges.clear()
     this.missileCharges.clear()
+    this.activePlayers.clear()
     this.localHasCar = false
-    const playersInRace: PlayerSummary[] = []
 
     for (const car of state.cars) {
       this.playerSpeeds.set(car.playerId, Math.abs(car.speed))
       this.turboCharges.set(car.playerId, car.turboCharges ?? 0)
       this.missileCharges.set(car.playerId, car.missileCharges ?? 0)
-      playersInRace.push({
+      this.activePlayers.set(car.playerId, {
         playerId: car.playerId,
         username: car.username ?? car.playerId,
         isNpc: car.isNpc,
@@ -92,13 +94,13 @@ export class PlayerListOverlay {
       }
     }
 
-    this.players = playersInRace
-    this.isReady = this.players.length > 0
+    this.updateReadiness()
     this.render()
   }
 
   private render(): void {
-    if (this.players.length === 0) {
+    const displayPlayers = this.getDisplayPlayers()
+    if (displayPlayers.length === 0) {
       this.clearRows()
       const empty = document.createElement('div')
       empty.className = 'player-list-overlay__empty'
@@ -116,7 +118,7 @@ export class PlayerListOverlay {
     }
 
     const activeIds = new Set<string>()
-    for (const player of this.players) {
+    for (const player of displayPlayers) {
       this.playerLookup.set(player.playerId, player)
       const row = this.getOrCreateRow(player)
       this.updateRow(row, player)
@@ -175,16 +177,23 @@ export class PlayerListOverlay {
 
   private updateRow(row: PlayerListRow, player: PlayerSummary): void {
     row.root.dataset.playerId = player.playerId
-    row.badge.style.background = this.getColor(player)
+    const isActive = this.activePlayers.has(player.playerId)
+    row.badge.style.background = isActive ? this.getColor(player) : 'transparent'
 
     const displayName = this.getDisplayName(player)
     row.name.textContent = player.isNpc ? `${displayName} · NPC` : displayName
 
-    const speedValue = this.playerSpeeds.get(player.playerId)
-    const turbo = this.turboCharges.get(player.playerId) ?? 0
-    const missiles = this.missileCharges.get(player.playerId) ?? 0
-    const speedText = speedValue === undefined ? 'no data' : `${speedValue.toFixed(1)}u`
-    row.status.textContent = `${speedText} · ⚡${turbo} · 🎯${missiles}`
+    if (isActive) {
+      const speedValue = this.playerSpeeds.get(player.playerId)
+      const turbo = this.turboCharges.get(player.playerId) ?? 0
+      const missiles = this.missileCharges.get(player.playerId) ?? 0
+      const speedText = speedValue === undefined ? 'no data' : `${speedValue.toFixed(1)}u`
+      row.status.textContent = `${speedText} · ⚡${turbo} · 🎯${missiles}`
+      row.status.hidden = false
+    } else {
+      row.status.textContent = ''
+      row.status.hidden = true
+    }
 
     const selectable = this.canSelectTarget(player)
     row.root.classList.toggle('is-selectable', selectable)
@@ -224,6 +233,29 @@ export class PlayerListOverlay {
     this.root.hidden = !this.isReady || this.userHidden
   }
 
+  private updateReadiness(): void {
+    this.isReady = this.players.length > 0 || this.activePlayers.size > 0
+  }
+
+  private getDisplayPlayers(): PlayerSummary[] {
+    const merged = new Map<string, PlayerSummary>()
+
+    for (const player of this.players) {
+      merged.set(player.playerId, player)
+    }
+
+    for (const player of this.activePlayers.values()) {
+      const existing = merged.get(player.playerId)
+      if (existing) {
+        merged.set(player.playerId, { ...existing, ...player })
+      } else {
+        merged.set(player.playerId, player)
+      }
+    }
+
+    return Array.from(merged.values())
+  }
+
   private getColor(player: PlayerSummary): string {
     if (player.isNpc) {
       return '#ffa133'
@@ -238,7 +270,13 @@ export class PlayerListOverlay {
   }
 
   private canSelectTarget(player: PlayerSummary): boolean {
-    return Boolean(this.onSelectPlayer) && !!this.localPlayerId && !this.localHasCar && !player.isNpc
+    return (
+      Boolean(this.onSelectPlayer) &&
+      !!this.localPlayerId &&
+      !this.localHasCar &&
+      !player.isNpc &&
+      this.activePlayers.has(player.playerId)
+    )
   }
 
   private handleSelect(playerId: string): void {

@@ -1312,7 +1312,15 @@ export class Room {
   }
 
   getPlayers(): { playerId: string; username: string; isNpc: boolean }[] {
-    return Array.from(this.cars.keys()).map((playerId) => ({
+    const ids = new Set<string>();
+    for (const playerId of this.cars.keys()) {
+      ids.add(playerId);
+    }
+    for (const playerId of this.viewerPlayers.values()) {
+      ids.add(playerId);
+    }
+
+    return Array.from(ids).map((playerId) => ({
       playerId,
       username: this.getUsername(playerId),
       isNpc: this.npcIds.has(playerId)
