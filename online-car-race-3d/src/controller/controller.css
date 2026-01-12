@@ -14,6 +14,46 @@
   overflow: hidden;
 }
 
+.controller-root--compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  text-align: center;
+}
+
+.controller-root--compact .controller-layout,
+.controller-root--compact .controller-actions,
+.controller-root--compact .controller-status,
+.controller-root--compact .controller-race-status,
+.controller-root--compact .controller-username {
+  display: none;
+}
+
+.controller-root--compact .controller-overlay {
+  position: static;
+  background: none;
+  padding: 0;
+  gap: 6px;
+  width: 100%;
+  align-items: center;
+  text-align: center;
+}
+
+.controller-root--compact .controller-overlay__message {
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+}
+
+.controller-root--compact .controller-overlay__details {
+  font-size: 0.75rem;
+  max-width: 260px;
+}
+
+.controller-root--compact .controller-overlay__button {
+  display: none;
+}
+
 .controller-layout {
   display: flex;
   width: 100%;

@@ -3,11 +3,18 @@ import type { GameStateStore, RoomInfoSnapshot } from '../state/GameStateStore'
 
 const QR_CODE_SIZE = 160
 const QR_MARGIN_CELLS = 2
+const CONTROLLER_WINDOW_WIDTH = 300
+const CONTROLLER_WINDOW_HEIGHT = 100
+const CONTROLLER_WINDOW_BOTTOM_MARGIN = 16
+const CONTROLLER_WINDOW_NAME = 'controllerWindow'
+const CONTROLLER_VIEW_PARAM = 'controllerView'
+const CONTROLLER_VIEW_COMPACT = 'compact'
 
 export class ViewerControllerAccess {
   private readonly root: HTMLElement
   private readonly qrCanvas: HTMLCanvasElement
   private readonly statusText: HTMLElement
+  private readonly linkMessage: HTMLElement
   private readonly linkElement: HTMLAnchorElement
   private readonly serverParam: string | null
   private isReady = false
@@ -37,11 +44,22 @@ export class ViewerControllerAccess {
     this.statusText.className = 'viewer-controller-access__status'
     this.root.appendChild(this.statusText)
 
+    this.linkMessage = document.createElement('div')
+    this.linkMessage.className = 'viewer-controller-access__link'
+
+    const linkPrefix = document.createElement('span')
+    linkPrefix.textContent = 'If you have trouble connecting from your phone, click '
     this.linkElement = document.createElement('a')
-    this.linkElement.className = 'viewer-controller-access__link'
     this.linkElement.target = '_blank'
     this.linkElement.rel = 'noopener noreferrer'
-    this.root.appendChild(this.linkElement)
+    this.linkElement.textContent = 'here'
+    const linkSuffix = document.createElement('span')
+    linkSuffix.textContent = '.'
+    this.linkMessage.appendChild(linkPrefix)
+    this.linkMessage.appendChild(this.linkElement)
+    this.linkMessage.appendChild(linkSuffix)
+    this.linkElement.addEventListener('click', this.handleLinkClick)
+    this.root.appendChild(this.linkMessage)
 
     container.appendChild(this.root)
 
@@ -78,7 +96,6 @@ export class ViewerControllerAccess {
     )
     this.statusText.textContent = `Room ${info.roomId} · Player ${info.playerId}`
     this.linkElement.href = controllerUrl
-    this.linkElement.textContent = controllerUrl
     this.renderQrCode(controllerUrl)
     this.updateVisibility()
   }
@@ -140,6 +157,41 @@ export class ViewerControllerAccess {
 
   private updateVisibility(): void {
     this.root.hidden = !this.isReady || this.userHidden
+  }
+
+  private readonly handleLinkClick = (event: MouseEvent): void => {
+    if (!this.linkElement.href) {
+      return
+    }
+
+    const width = CONTROLLER_WINDOW_WIDTH
+    const height = CONTROLLER_WINDOW_HEIGHT
+    const windowLeft = window.screenX ?? 0
+    const windowTop = window.screenY ?? 0
+    const outerWidth = window.outerWidth || window.innerWidth || width
+    const outerHeight = window.outerHeight || window.innerHeight || height
+    const left = Math.max(0, Math.round(windowLeft + (outerWidth - width) / 2))
+    const top = Math.max(
+      0,
+      Math.round(windowTop + outerHeight - height - CONTROLLER_WINDOW_BOTTOM_MARGIN),
+    )
+    const popupUrl = new URL(this.linkElement.href)
+    popupUrl.searchParams.set(CONTROLLER_VIEW_PARAM, CONTROLLER_VIEW_COMPACT)
+    const features = [
+      'popup=yes',
+      `width=${width}`,
+      `height=${height}`,
+      `left=${left}`,
+      `top=${top}`,
+      'resizable=yes',
+      'scrollbars=yes',
+      'noopener=yes',
+    ].join(',')
+    const opened = window.open(popupUrl.toString(), CONTROLLER_WINDOW_NAME, features)
+    if (opened) {
+      event.preventDefault()
+      opened.focus()
+    }
   }
 
   dispose(): void {

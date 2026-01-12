@@ -62,6 +62,21 @@ function readNumberEnv(key: string, fallback: number, min: number, max: number):
   return Math.min(Math.max(parsed, min), max)
 }
 
+function readBooleanEnv(key: string, fallback: boolean): boolean {
+  const raw = import.meta.env?.[key]
+  if (typeof raw !== 'string' || raw.trim().length === 0) {
+    return fallback
+  }
+  const normalized = raw.trim().toLowerCase()
+  if (normalized === 'true' || normalized === '1') {
+    return true
+  }
+  if (normalized === 'false' || normalized === '0') {
+    return false
+  }
+  return fallback
+}
+
 export const SERVER_URL = trimTrailingSlash(
   ((): string => {
     const origin = getBrowserOrigin()
@@ -87,6 +102,11 @@ export const SERVER_URL = trimTrailingSlash(
 )
 
 export const PROTOCOL_VERSION = 2
+// Enables desktop keyboard controls on the controller page.
+export const CONTROLLER_KEYBOARD_ENABLED = readBooleanEnv(
+  'VITE_ENABLE_CONTROLLER_KEYBOARD',
+  true,
+)
 export const CHAT_MESSAGE_TTL_MS = readNumberEnv('VITE_CHAT_MESSAGE_TTL_MS', 30000, 1000, 300000)
 export const CHAT_MAX_MESSAGES = Math.round(readNumberEnv('VITE_CHAT_MAX_MESSAGES', 6, 1, 40))
 export const CHAT_MAX_MESSAGE_LENGTH = Math.round(
