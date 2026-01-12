@@ -2,6 +2,7 @@ import * as THREE from 'three'
 
 export class CameraRig {
   private readonly camera: THREE.PerspectiveCamera
+  private readonly staticRotationOrder = 'YXZ'
   private readonly manualTarget: THREE.Vector3
   private readonly smoothedTarget: THREE.Vector3
   private readonly desiredPosition: THREE.Vector3
@@ -37,6 +38,7 @@ export class CameraRig {
   private readonly tempForward = new THREE.Vector3(0, 0, 1)
   private readonly tempOffset = new THREE.Vector3()
   private readonly tempLagTarget = new THREE.Vector3()
+  private staticPose: { position: THREE.Vector3; rotation: THREE.Euler } | null = null
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera
@@ -54,7 +56,7 @@ export class CameraRig {
   }
 
   beginManualOrbit(): void {
-    if (this.followTarget) {
+    if (this.followTarget || this.staticPose) {
       return
     }
     this.manualOrbitActive = true
@@ -65,11 +67,14 @@ export class CameraRig {
   }
 
   toggleAutoOrbit(): void {
+    if (this.staticPose) {
+      return
+    }
     this.autoOrbitEnabled = !this.autoOrbitEnabled
   }
 
   adjustOrbit(deltaAzimuth: number, deltaAngle: number): void {
-    if (this.followTarget) {
+    if (this.followTarget || this.staticPose) {
       return
     }
     this.azimuth = this.wrapAngle(this.azimuth + deltaAzimuth)
@@ -84,7 +89,7 @@ export class CameraRig {
   }
 
   adjustZoom(delta: number): void {
-    if (this.followTarget) {
+    if (this.followTarget || this.staticPose) {
       return
     }
     this.zoomFactor = THREE.MathUtils.clamp(
@@ -158,9 +163,31 @@ export class CameraRig {
     return this.followTarget !== null
   }
 
+  isInputLocked(): boolean {
+    return this.followTarget !== null || this.staticPose !== null
+  }
+
+  setStaticPose(pose: { position: THREE.Vector3; rotation: THREE.Euler } | null): void {
+    this.staticPose = pose
+    if (!pose) {
+      return
+    }
+    this.currentPosition.copy(pose.position)
+    this.desiredPosition.copy(pose.position)
+    this.camera.position.copy(pose.position)
+    this.applyStaticRotation(pose.rotation)
+  }
+
   update(_dt: number): void {
     // Clamp delta to avoid frame-rate dependent damping; keep spikes bounded.
     const dt = THREE.MathUtils.clamp(_dt, 0, 0.05)
+    if (this.staticPose) {
+      this.currentPosition.copy(this.staticPose.position)
+      this.desiredPosition.copy(this.staticPose.position)
+      this.camera.position.copy(this.staticPose.position)
+      this.applyStaticRotation(this.staticPose.rotation)
+      return
+    }
     const isFirstPerson = this.followMode === 'firstPerson'
     const targetLerpSpeed = isFirstPerson ? 6 : 3.5
     const targetLerp = 1 - Math.exp(-dt * targetLerpSpeed)
@@ -262,6 +289,14 @@ export class CameraRig {
   private wrapAngle(value: number): number {
     const fullTurn = Math.PI * 2
     return ((value % fullTurn) + fullTurn) % fullTurn
+  }
+
+  private applyStaticRotation(rotation: THREE.Euler): void {
+    const cameraRotation = this.camera.rotation as THREE.Euler & { order?: string }
+    if (cameraRotation.order !== this.staticRotationOrder) {
+      cameraRotation.order = this.staticRotationOrder
+    }
+    cameraRotation.set(rotation.x, rotation.y, rotation.z)
   }
 
   private getTargetForward(target: THREE.Object3D): THREE.Vector3 {
