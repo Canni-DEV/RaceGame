@@ -12,7 +12,7 @@ export class HotkeyOverlay {
       ['Q', 'QR'],
       ['P', 'Players'],
       ['H', 'HUD'],
-      ['ENTER', 'Chat'],
+      ['INTRO', 'Chat'],
     ]
     entries.forEach(([key, description], index) => {
       this.root.appendChild(this.createEntry(key, description))

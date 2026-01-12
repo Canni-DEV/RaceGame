@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import type { CarState, ItemState, MissileState, TrackData } from '../core/trackTypes'
 import { createRandom } from '../core/random'
-import { TrackMeshBuilder, type TrackBuildResult } from '../render/TrackMeshBuilder'
+import { TrackMeshBuilder } from '../render/TrackMeshBuilder'
 import { applyDecorators } from '../render/DecorGenerator'
 import { CameraRig } from '../render/CameraRig'
 import type { GameStateStore } from '../state/GameStateStore'
@@ -13,6 +13,7 @@ import { MissileEntity } from '../render/MissileEntity'
 import { ItemEntity } from '../render/ItemEntity'
 import { ItemModelLoader } from '../render/ItemModelLoader'
 import { hashPlayerIdToHue } from '../core/playerColor'
+import { STATIC_CAMERA_PRESETS, type StaticCameraPreset } from './StaticCameraPresets'
 
 export class TrackScene {
   private readonly scene: THREE.Scene
@@ -33,6 +34,7 @@ export class TrackScene {
   private readonly playerColors: Map<string, THREE.Color>
   private readonly audioManager: AudioManager | null
   private readonly onPlayerAutoFollow?: () => void
+  private readonly onTrackCenterChange?: (center: THREE.Vector3) => void
   private readonly ownerNpcMap = new Map<string, boolean>()
   private readonly activeCarIds = new Set<string>()
   private readonly activeMissileIds = new Set<string>()
@@ -42,11 +44,17 @@ export class TrackScene {
   private trackRoot: THREE.Group | null = null
   private currentTrackId: string | null = null
   private playerId: string | null = null
-  private cameraMode: 'overview' | 'follow' | 'firstPerson' = 'overview'
+  private cameraMode: 'static' | 'overview' | 'follow' | 'firstPerson' = 'overview'
+  private readonly staticCameraPresets: StaticCameraPreset[]
+  private staticCameraIndex = 0
+  private lastStaticCameraIndex: number | null = null
+  private staticCameraDirty = false
   private requestedFollowId: string | null = null
   private firstPersonHiddenId: string | null = null
   private hasAutoFollowedPlayer = false
   private readonly itemModelLoader: ItemModelLoader
+  private readonly trackCenter = new THREE.Vector3()
+  private readonly staticCameraWorldPosition = new THREE.Vector3()
 
   constructor(
     scene: THREE.Scene,
@@ -58,6 +66,7 @@ export class TrackScene {
     rimLight: THREE.DirectionalLight | null,
     audioManager: AudioManager | null,
     onPlayerAutoFollow?: () => void,
+    onTrackCenterChange?: (center: THREE.Vector3) => void,
   ) {
     this.scene = scene
     this.camera = camera
@@ -78,12 +87,18 @@ export class TrackScene {
       : 0
     this.carModelLoader = new CarModelLoader()
     this.guardRailBuilder = new GuardRailBuilder()
+    this.staticCameraPresets = STATIC_CAMERA_PRESETS
+    if (this.staticCameraPresets.length > 0) {
+      this.cameraMode = 'static'
+      this.staticCameraIndex = 0
+    }
     this.cars = new Map()
     this.missiles = new Map()
     this.items = new Map()
     this.playerColors = new Map()
     this.audioManager = audioManager
     this.onPlayerAutoFollow = onPlayerAutoFollow
+    this.onTrackCenterChange = onTrackCenterChange
     this.itemModelLoader = new ItemModelLoader()
     void this.carModelLoader.preload()
     window.addEventListener('keydown', this.handleKeyDown)
@@ -107,7 +122,7 @@ export class TrackScene {
 
   setFollowTarget(playerId: string): void {
     this.requestedFollowId = playerId
-    if (this.cameraMode === 'overview') {
+    if (this.cameraMode === 'overview' || this.cameraMode === 'static') {
       this.cameraMode = 'follow'
     }
   }
@@ -145,6 +160,10 @@ export class TrackScene {
     const random = createRandom(track.seed)
     const builder = new TrackMeshBuilder()
     const result = builder.build(track)
+    const center = result.bounds.getCenter(new THREE.Vector3())
+    this.trackCenter.copy(center)
+    this.staticCameraDirty = true
+    this.onTrackCenterChange?.(center.clone())
 
     const group = new THREE.Group()
     group.name = 'track-root'
@@ -158,8 +177,8 @@ export class TrackScene {
 
     this.scene.add(group)
     this.trackRoot = group
-    this.focusCamera(result)
-    this.updateLighting(result)
+    this.focusCamera(center, result.bounds)
+    this.updateLighting(center, result.bounds)
   }
 
   private disposeTrackRoot(): void {
@@ -358,19 +377,17 @@ export class TrackScene {
     return color.clone()
   }
 
-  private focusCamera(track: TrackBuildResult): void {
-    const center = track.bounds.getCenter(new THREE.Vector3())
+  private focusCamera(center: THREE.Vector3, bounds: THREE.Box3): void {
     this.cameraRig.setTarget(center)
-    this.cameraRig.frameBounds(track.bounds)
+    this.cameraRig.frameBounds(bounds)
   }
 
-  private updateLighting(track: TrackBuildResult): void {
+  private updateLighting(center: THREE.Vector3, bounds: THREE.Box3): void {
     if (!this.mainLight && !this.fillLight && !this.rimLight) {
       return
     }
 
-    const center = track.bounds.getCenter(new THREE.Vector3())
-    const size = track.bounds.getSize(new THREE.Vector3())
+    const size = bounds.getSize(new THREE.Vector3())
     const margin = 25
     const halfSpan = Math.max(size.x, size.z) / 2 + margin
     const height = size.y + margin
@@ -434,6 +451,13 @@ export class TrackScene {
   }
 
   private updateCameraFollow(): void {
+    if (this.cameraMode === 'static') {
+      this.updateFirstPersonVisibility(null)
+      if (this.applyStaticCamera()) {
+        return
+      }
+    }
+    this.clearStaticCamera()
     if (this.cameraMode === 'overview') {
       this.updateFirstPersonVisibility(null)
       this.cameraRig.follow(null)
@@ -452,6 +476,34 @@ export class TrackScene {
       lockRotation: followEntity?.isImpactSpinning() ?? false,
       mode: this.cameraMode === 'firstPerson' ? 'firstPerson' : 'chase',
     })
+  }
+
+  private applyStaticCamera(): boolean {
+    const preset = this.staticCameraPresets[this.staticCameraIndex]
+    if (!preset) {
+      this.cameraMode = 'overview'
+      this.clearStaticCamera()
+      return false
+    }
+    if (this.lastStaticCameraIndex !== this.staticCameraIndex || this.staticCameraDirty) {
+      this.cameraRig.follow(null)
+      this.staticCameraWorldPosition.copy(this.trackCenter).add(preset.position)
+      this.cameraRig.setStaticPose({
+        position: this.staticCameraWorldPosition,
+        rotation: preset.rotation,
+      })
+      this.lastStaticCameraIndex = this.staticCameraIndex
+      this.staticCameraDirty = false
+    }
+    return true
+  }
+
+  private clearStaticCamera(): void {
+    if (this.lastStaticCameraIndex === null) {
+      return
+    }
+    this.cameraRig.setStaticPose(null)
+    this.lastStaticCameraIndex = null
   }
 
   private resolveFollowEntity(): CarEntity | null {
@@ -497,14 +549,32 @@ export class TrackScene {
     if (event.key.toLowerCase() !== 'v') {
       return
     }
-    this.cameraMode =
-      this.cameraMode === 'overview'
-        ? 'follow'
-        : this.cameraMode === 'follow'
-          ? 'firstPerson'
-          : 'overview'
+    const hasStatic = this.staticCameraPresets.length > 0
+    if (hasStatic) {
+      if (this.cameraMode === 'static') {
+        if (this.staticCameraIndex < this.staticCameraPresets.length - 1) {
+          this.staticCameraIndex += 1
+        } else {
+          this.cameraMode = 'overview'
+        }
+      } else if (this.cameraMode === 'overview') {
+        this.cameraMode = 'follow'
+      } else if (this.cameraMode === 'follow') {
+        this.cameraMode = 'firstPerson'
+      } else {
+        this.cameraMode = 'static'
+        this.staticCameraIndex = 0
+      }
+    } else {
+      this.cameraMode =
+        this.cameraMode === 'overview'
+          ? 'follow'
+          : this.cameraMode === 'follow'
+            ? 'firstPerson'
+            : 'overview'
+    }
 
-    if (this.cameraMode === 'overview') {
+    if (this.cameraMode === 'overview' || this.cameraMode === 'static') {
       this.cameraRig.follow(null)
       return
     }

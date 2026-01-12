@@ -124,6 +124,7 @@ export class SceneManager {
       this.rimLight,
       this.audioManager,
       this.handlePlayerAutoFollow,
+      this.handleTrackCenterChange,
     )
     this.controllerAccess = new ViewerControllerAccess(
       this.container,
@@ -492,6 +493,12 @@ export class SceneManager {
     this.controllerAccess.hide()
   }
 
+  private readonly handleTrackCenterChange = (center: THREE.Vector3): void => {
+    if (this.debugCamera) {
+      this.debugCamera.setReferencePoint(center)
+    }
+  }
+
   private readonly handleSelectPlayer = (playerId: string): void => {
     this.trackScene.setFollowTarget(playerId)
   }
@@ -509,7 +516,7 @@ export class SceneManager {
       return
     }
 
-    if (event.button !== 2 || this.cameraRig.isFollowing()) {
+    if (event.button !== 2 || this.cameraRig.isInputLocked()) {
       return
     }
     this.isOrbitDragging = true
@@ -569,7 +576,7 @@ export class SceneManager {
       event.preventDefault()
       return
     }
-    if (this.cameraRig.isFollowing()) {
+    if (this.cameraRig.isInputLocked()) {
       return
     }
     event.preventDefault()

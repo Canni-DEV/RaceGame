@@ -21,11 +21,14 @@ export class DebugCameraController {
   private readonly forward = new THREE.Vector3()
   private readonly right = new THREE.Vector3()
   private readonly up = new THREE.Vector3(0, 1, 0)
+  private readonly referencePoint = new THREE.Vector3()
+  private readonly tempPosition = new THREE.Vector3()
   private readonly lastPointer = new THREE.Vector2()
   private isLooking = false
   private lookPointerId: number | null = null
   private yaw = 0
   private pitch = 0
+  private hasReferencePoint = false
 
   constructor(camera: THREE.PerspectiveCamera) {
     this.camera = camera
@@ -78,6 +81,10 @@ export class DebugCameraController {
   }
 
   handleKeyDown(event: KeyboardEvent): boolean {
+    if (event.code === 'KeyL' && !event.repeat) {
+      this.logStaticCameraPreset()
+      return true
+    }
     if (!this.isMovementKey(event.code)) {
       return false
     }
@@ -127,6 +134,15 @@ export class DebugCameraController {
     return true
   }
 
+  setReferencePoint(point: THREE.Vector3 | null): void {
+    if (!point) {
+      this.hasReferencePoint = false
+      return
+    }
+    this.referencePoint.copy(point)
+    this.hasReferencePoint = true
+  }
+
   private syncRotationFromCamera(): void {
     this.pitch = this.camera.rotation.x
     this.yaw = this.camera.rotation.y
@@ -150,5 +166,26 @@ export class DebugCameraController {
       code === 'ShiftRight' ||
       code === 'ControlLeft'
     )
+  }
+
+  private logStaticCameraPreset(): void {
+    const round = (value: number): number => Math.round(value * 1000) / 1000
+    const position = this.hasReferencePoint
+      ? this.tempPosition.subVectors(this.camera.position, this.referencePoint)
+      : this.camera.position
+    const rotation = this.camera.rotation
+    const preset = {
+      position: {
+        x: round(position.x),
+        y: round(position.y),
+        z: round(position.z),
+      },
+      rotation: {
+        x: round(rotation.x),
+        y: round(rotation.y),
+        z: round(rotation.z),
+      },
+    }
+    console.info('[DebugCamera] Static camera preset:', JSON.stringify(preset))
   }
 }
