@@ -2,6 +2,7 @@ import './controller.css'
 import { ControllerInputStore } from './ControllerInputStore'
 import { ControllerSocketClient } from './ControllerSocketClient'
 import { OrientationManager } from './OrientationManager'
+import { CONTROLLER_KEYBOARD_ENABLED } from '../config'
 import type { RaceState, RoomState, RoomStateDelta } from '../core/trackTypes'
 import type { PlayerSummary } from '../net/messages'
 import { applyRoomStateDelta } from '../state/StateRebuilder'
@@ -10,6 +11,22 @@ const INPUT_SEND_INTERVAL_MS = 33
 const SENSOR_PULSE_TIMEOUT_MS = 2000
 const SHOOT_COOLDOWN_MS = 2000
 const TURBO_COOLDOWN_MS = 400
+const KEYBOARD_THROTTLE_CODE = 'ArrowUp'
+const KEYBOARD_BRAKE_CODE = 'ArrowDown'
+const KEYBOARD_STEER_LEFT_CODE = 'ArrowLeft'
+const KEYBOARD_STEER_RIGHT_CODE = 'ArrowRight'
+const KEYBOARD_TURBO_CODE = 'Space'
+const KEYBOARD_SHOOT_CODES = new Set(['ControlLeft', 'ControlRight'])
+const KEYBOARD_CONTROL_CODES = new Set([
+  KEYBOARD_THROTTLE_CODE,
+  KEYBOARD_BRAKE_CODE,
+  KEYBOARD_STEER_LEFT_CODE,
+  KEYBOARD_STEER_RIGHT_CODE,
+  KEYBOARD_TURBO_CODE,
+  ...KEYBOARD_SHOOT_CODES,
+])
+const CONTROLLER_VIEW_PARAM = 'controllerView'
+const CONTROLLER_VIEW_COMPACT = 'compact'
 
 function createElement<K extends keyof HTMLElementTagNameMap>(
   tag: K,
@@ -24,6 +41,17 @@ function createElement<K extends keyof HTMLElementTagNameMap>(
 
 function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value))
+}
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+  const tag = target.tagName.toLowerCase()
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    return true
+  }
+  return target.isContentEditable
 }
 
 export class ControllerApp {
@@ -83,6 +111,9 @@ export class ControllerApp {
   private readonly hasRoomParameters: boolean
   private lastShootAt = 0
   private lastTurboAt = 0
+  private readonly keyboardEnabled = CONTROLLER_KEYBOARD_ENABLED
+  private readonly keyboardPressedKeys = new Set<string>()
+  private readonly compactView: boolean
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -128,6 +159,10 @@ export class ControllerApp {
     this.root.appendChild(this.overlay)
 
     const params = new URLSearchParams(window.location.search)
+    this.compactView = params.get(CONTROLLER_VIEW_PARAM) === CONTROLLER_VIEW_COMPACT
+    if (this.compactView) {
+      this.root.classList.add('controller-root--compact')
+    }
     const roomId = params.get('roomId') ?? ''
     const playerId = params.get('playerId') ?? ''
     const sessionToken = params.get('sessionToken') ?? undefined
@@ -208,6 +243,12 @@ export class ControllerApp {
       )
     }
     window.addEventListener('beforeunload', this.handleBeforeUnload)
+    if (this.keyboardEnabled) {
+      window.addEventListener('keydown', this.handleKeyDown)
+      window.addEventListener('keyup', this.handleKeyUp)
+      window.addEventListener('blur', this.handleKeyboardBlur)
+      document.addEventListener('visibilitychange', this.handleVisibilityChange)
+    }
 
     this.sendIntervalId = window.setInterval(() => {
       this.pushInput()
@@ -465,7 +506,7 @@ export class ControllerApp {
   }
 
   private triggerTurbo(): void {
-    if (!this.sensorsActive) {
+    if (!this.isInputEnabled()) {
       return
     }
     const now = performance.now()
@@ -477,14 +518,14 @@ export class ControllerApp {
   }
 
   private triggerReset(): void {
-    if (!this.sensorsActive) {
+    if (!this.isInputEnabled()) {
       return
     }
     this.inputStore.triggerReset()
   }
 
   private triggerShoot(): void {
-    if (!this.sensorsActive) {
+    if (!this.isInputEnabled()) {
       return
     }
     const now = performance.now()
@@ -556,12 +597,14 @@ export class ControllerApp {
   private updateSensorsState(): void {
     this.sensorsActive = this.isLandscape && this.permissionGranted
     if (!this.sensorsActive) {
-      this.inputStore.setBrake(false)
-      this.brakeZone.classList.remove('is-active')
-      this.inputStore.setThrottleFromY(0)
-      this.updateThrottleVisual(0)
-      this.inputStore.resetSteering()
-      this.updateSteeringVisual()
+      if (!this.keyboardEnabled) {
+        this.inputStore.setBrake(false)
+        this.brakeZone.classList.remove('is-active')
+        this.inputStore.setThrottleFromY(0)
+        this.updateThrottleVisual(0)
+        this.inputStore.resetSteering()
+        this.updateSteeringVisual()
+      }
       this.resetSensorAvailability()
     }
     this.updateSensorStatus()
@@ -572,6 +615,16 @@ export class ControllerApp {
     let details = ''
     let showButton = false
     this.overlayAction = null
+
+    if (this.compactView) {
+      this.overlay.classList.remove('is-hidden')
+      this.overlayMessage.textContent = 'You are controlling the car with the keyboard'
+      this.overlayDetails.textContent =
+        'For the full experience, press Q and scan the QR with your phone.'
+      this.permissionButton.classList.add('is-hidden')
+      this.updateUsernameFormVisibility()
+      return
+    }
 
     const raceBlocked = this.errorMessage ? this.isRaceBlockedError(this.errorMessage) : false
 
@@ -624,6 +677,9 @@ export class ControllerApp {
   }
 
   private shouldShowUsernameForm(): boolean {
+    if (this.compactView) {
+      return false
+    }
     return this.hasRoomParameters && !this.isLandscape
   }
 
@@ -912,7 +968,111 @@ export class ControllerApp {
     if (this.sensorPulseTimeoutId !== null) {
       window.clearTimeout(this.sensorPulseTimeoutId)
     }
+    if (this.keyboardEnabled) {
+      window.removeEventListener('keydown', this.handleKeyDown)
+      window.removeEventListener('keyup', this.handleKeyUp)
+      window.removeEventListener('blur', this.handleKeyboardBlur)
+      document.removeEventListener('visibilitychange', this.handleVisibilityChange)
+    }
     window.removeEventListener('beforeunload', this.handleBeforeUnload)
     this.socketClient?.disconnect()
+  }
+
+  private isInputEnabled(): boolean {
+    return this.sensorsActive || this.keyboardEnabled
+  }
+
+  private applyKeyboardInput(): void {
+    if (!this.keyboardEnabled) {
+      return
+    }
+    const throttlePressed = this.keyboardPressedKeys.has(KEYBOARD_THROTTLE_CODE)
+    const brakePressed = this.keyboardPressedKeys.has(KEYBOARD_BRAKE_CODE)
+    const leftPressed = this.keyboardPressedKeys.has(KEYBOARD_STEER_LEFT_CODE)
+    const rightPressed = this.keyboardPressedKeys.has(KEYBOARD_STEER_RIGHT_CODE)
+
+    const throttleValue = throttlePressed ? 1 : 0
+    this.inputStore.setThrottleFromY(throttleValue)
+    this.updateThrottleVisual(throttleValue)
+    this.throttleZone.classList.toggle('is-active', throttlePressed)
+
+    this.inputStore.setBrake(brakePressed)
+    this.brakeZone.classList.toggle('is-active', brakePressed)
+
+    if (leftPressed || rightPressed) {
+      const steer = leftPressed === rightPressed ? 0 : leftPressed ? -1 : 1
+      this.inputStore.setManualSteer(steer)
+    } else {
+      this.inputStore.resetSteering()
+    }
+    this.updateSteeringVisual()
+  }
+
+  private resetKeyboardInput(): void {
+    if (!this.keyboardEnabled) {
+      return
+    }
+    this.keyboardPressedKeys.clear()
+    this.inputStore.setBrake(false)
+    this.inputStore.setThrottleFromY(0)
+    this.inputStore.resetSteering()
+    this.brakeZone.classList.remove('is-active')
+    this.throttleZone.classList.remove('is-active')
+    this.updateThrottleVisual(0)
+    this.updateSteeringVisual()
+  }
+
+  private shouldHandleKeyboardEvent(event: KeyboardEvent): boolean {
+    if (!this.keyboardEnabled) {
+      return false
+    }
+    if (isEditableTarget(event.target)) {
+      return false
+    }
+    return true
+  }
+
+  private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (!this.shouldHandleKeyboardEvent(event)) {
+      return
+    }
+    const code = event.code
+    if (!KEYBOARD_CONTROL_CODES.has(code)) {
+      return
+    }
+    event.preventDefault()
+    if (this.keyboardPressedKeys.has(code)) {
+      return
+    }
+    this.keyboardPressedKeys.add(code)
+    if (code === KEYBOARD_TURBO_CODE) {
+      this.triggerTurbo()
+    } else if (KEYBOARD_SHOOT_CODES.has(code)) {
+      this.triggerShoot()
+    }
+    this.applyKeyboardInput()
+  }
+
+  private readonly handleKeyUp = (event: KeyboardEvent): void => {
+    if (!this.shouldHandleKeyboardEvent(event)) {
+      return
+    }
+    const code = event.code
+    if (!KEYBOARD_CONTROL_CODES.has(code)) {
+      return
+    }
+    event.preventDefault()
+    this.keyboardPressedKeys.delete(code)
+    this.applyKeyboardInput()
+  }
+
+  private readonly handleKeyboardBlur = (): void => {
+    this.resetKeyboardInput()
+  }
+
+  private readonly handleVisibilityChange = (): void => {
+    if (document.visibilityState === 'hidden') {
+      this.resetKeyboardInput()
+    }
   }
 }
