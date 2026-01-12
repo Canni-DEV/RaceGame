@@ -14,6 +14,7 @@ export class ViewerControllerAccess {
   private readonly root: HTMLElement
   private readonly qrCanvas: HTMLCanvasElement
   private readonly statusText: HTMLElement
+  private readonly linkMessage: HTMLElement
   private readonly linkElement: HTMLAnchorElement
   private readonly serverParam: string | null
   private isReady = false
@@ -43,12 +44,22 @@ export class ViewerControllerAccess {
     this.statusText.className = 'viewer-controller-access__status'
     this.root.appendChild(this.statusText)
 
+    this.linkMessage = document.createElement('div')
+    this.linkMessage.className = 'viewer-controller-access__link'
+
+    const linkPrefix = document.createElement('span')
+    linkPrefix.textContent = 'If you have trouble connecting from your phone, click '
     this.linkElement = document.createElement('a')
-    this.linkElement.className = 'viewer-controller-access__link'
     this.linkElement.target = '_blank'
     this.linkElement.rel = 'noopener noreferrer'
+    this.linkElement.textContent = 'here'
+    const linkSuffix = document.createElement('span')
+    linkSuffix.textContent = '.'
+    this.linkMessage.appendChild(linkPrefix)
+    this.linkMessage.appendChild(this.linkElement)
+    this.linkMessage.appendChild(linkSuffix)
     this.linkElement.addEventListener('click', this.handleLinkClick)
-    this.root.appendChild(this.linkElement)
+    this.root.appendChild(this.linkMessage)
 
     container.appendChild(this.root)
 
@@ -85,7 +96,6 @@ export class ViewerControllerAccess {
     )
     this.statusText.textContent = `Room ${info.roomId} · Player ${info.playerId}`
     this.linkElement.href = controllerUrl
-    this.linkElement.textContent = controllerUrl
     this.renderQrCode(controllerUrl)
     this.updateVisibility()
   }

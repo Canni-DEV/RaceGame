@@ -65,14 +65,17 @@ body {
 }
 
 .viewer-controller-access__link {
-  color: #7fd0ff;
   font-size: 0.85rem;
-  word-break: break-all;
   text-align: center;
+  color: #dfe7f1;
+}
+
+.viewer-controller-access__link a {
+  color: #7fd0ff;
   text-decoration: none;
 }
 
-.viewer-controller-access__link:hover {
+.viewer-controller-access__link a:hover {
   text-decoration: underline;
 }
 
