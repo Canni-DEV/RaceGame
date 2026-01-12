@@ -558,7 +558,11 @@ export class TrackScene {
           this.cameraMode = 'overview'
         }
       } else if (this.cameraMode === 'overview') {
-        this.cameraMode = 'follow'
+        if(this.activeCarIds.size > 0)
+          this.cameraMode = 'follow'
+        else{
+          this.cameraMode = 'static'
+        }
       } else if (this.cameraMode === 'follow') {
         this.cameraMode = 'firstPerson'
       } else {
