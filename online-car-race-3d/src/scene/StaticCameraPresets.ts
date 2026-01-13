@@ -13,8 +13,8 @@ type StaticCameraPresetConfig = {
 
 const DEFAULT_STATIC_CAMERA_PRESETS: StaticCameraPresetConfig[] = [
   {
-    position: { x: -1058.915, y: 632.64, z: -586.024 },
-    rotation: { x: -0.387, y: 3.9, z: 0 },
+    position: { x: 0, y: 400, z: -800 },
+    rotation: { x: -0.45, y: 3.135, z: 0 },
   }
 ]
 
