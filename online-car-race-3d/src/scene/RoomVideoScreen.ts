@@ -18,7 +18,7 @@ const SCREEN_ANCHOR_NAME = 'room-video-anchor'
 const SCREEN_MESH_NAME = 'room-video-screen'
 
 const getRoomVideoConfig = (): RoomVideoConfig => {
-  const rawUrl = getStringEnv('VITE_ROOM_VIDEO_URL', 'tv.webm')
+  const rawUrl = getStringEnv('VITE_ROOM_VIDEO_URL', 'Football.webm')
   const url = rawUrl ? resolvePublicAssetUrl(rawUrl) : null
   const width = Math.max(0.01, getNumberEnv('VITE_ROOM_VIDEO_WIDTH', 0.84))
   const height = Math.max(0.01, getNumberEnv('VITE_ROOM_VIDEO_HEIGHT', 0.65))
