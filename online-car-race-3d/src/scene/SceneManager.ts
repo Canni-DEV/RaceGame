@@ -164,7 +164,7 @@ export class SceneManager {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 0.7
+    renderer.toneMappingExposure = 0.6
     renderer.physicallyCorrectLights = false
     renderer.domElement.classList.add('canvas-container')
     container.appendChild(renderer.domElement)
@@ -189,25 +189,25 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0xf3e5cf, 0.32)
+    const ambient = new THREE.AmbientLight(0xe7d3b4, 0.18)
     this.scene.add(ambient)
 
-    const hemisphere = new THREE.HemisphereLight(0xcad8ff, 0x6b4b38, 0.2)
+    const hemisphere = new THREE.HemisphereLight(0xb1c9e6, 0x5a3b2a, 0.12)
     this.scene.add(hemisphere)
 
-    const keyLight = this.addDirectionalLight(0xfff1d6, 0.8, { x: 70, y: 220, z: 60 })
+    const keyLight = this.addDirectionalLight(0xffddb7, 0.6, { x: 60, y: 200, z: 90 })
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
-    keyLight.shadow.bias = -0.0001
-    keyLight.shadow.normalBias = 0.02
+    keyLight.shadow.bias = -0.00015
+    keyLight.shadow.normalBias = 0.012
     keyLight.shadow.camera.near = 1
     keyLight.shadow.camera.far = 450
     keyLight.shadow.camera.left = -140
     keyLight.shadow.camera.right = 140
     keyLight.shadow.camera.top = 140
     keyLight.shadow.camera.bottom = -140
-    const fillLight = this.addDirectionalLight(0xffe3bf, 0.3, { x: -140, y: 180, z: 120 })
-    const rimLight = this.addDirectionalLight(0xa8c2ff, 0.2, { x: 150, y: 160, z: -140 })
+    const fillLight = this.addDirectionalLight(0xa6c7ff, 0.45, { x: -100, y: 150, z: 60 })
+    const rimLight = this.addDirectionalLight(0xf2b88a, 0.18, { x: 160, y: 140, z: -120 })
 
     this.keyLight = keyLight
     this.fillLight = fillLight
