@@ -5,6 +5,7 @@ import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/tr
 import type { TrackBuildResult } from './TrackMeshBuilder'
 import { resolvePublicAssetUrl, resolveServerAssetUrl } from '../config'
 import { getNumberEnv } from '../core/env'
+import { getFeltTexture } from './SurfaceTextures'
 
 // Backend rotations use the game angle convention (0 = +X). Three.js yaw expects 0 = +Z,
 // so we convert to the same mapping cars/missiles use.
@@ -107,10 +108,13 @@ export function createGroundPlane(size: number): THREE.Mesh {
   const geometry = new THREE.PlaneGeometry(size, size)
   geometry.rotateX(-Math.PI / 2)
 
+  const felt = getFeltTexture()
+  felt.repeat.set(8, 8)
   const material = new THREE.MeshStandardMaterial({
-    color: 0x1a2b1f,
-    roughness: 1,
-    metalness: 0,
+    color: 0x2b5a3b,
+    roughness: 0.92,
+    metalness: 0.01,
+    map: felt,
   })
 
   const mesh = new THREE.Mesh(geometry, material)
@@ -138,7 +142,31 @@ async function addRoomModel(
     trackCenter.z + offset.z,
   )
   instance.scale.setScalar(scale)
+  applyRoomMaterialTuning(instance)
   root.add(instance)
+}
+
+function applyRoomMaterialTuning(root: THREE.Object3D): void {
+  root.traverse((child) => {
+    if (!(child as THREE.Mesh).isMesh) {
+      return
+    }
+    const mesh = child as THREE.Mesh
+    const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material]
+    for (const material of materials) {
+      if (!(material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+        continue
+      }
+      const standard = material as THREE.MeshStandardMaterial
+      const label = `${mesh.name} ${standard.name}`.toLowerCase()
+      if (label.includes('wood') || label.includes('table') || label.includes('desk')) {
+        standard.roughness = Math.min(standard.roughness ?? 1, 0.55)
+        standard.metalness = Math.max(standard.metalness ?? 0, 0.08)
+        standard.envMapIntensity = Math.max(standard.envMapIntensity ?? 1, 1.1)
+        standard.needsUpdate = true
+      }
+    }
+  })
 }
 
 class InstancedDecorationDecorator implements Decorator<InstancedDecoration> {

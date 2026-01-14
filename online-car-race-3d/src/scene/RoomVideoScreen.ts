@@ -11,6 +11,11 @@ type RoomVideoConfig = {
   height: number
   scale: number
   doubleSided: boolean
+  lightColor: number
+  lightIntensity: number
+  lightDistance: number
+  lightDecay: number
+  lightOffset: THREE.Vector3
 }
 
 const ROOM_MODEL_NAME = 'room-model'
@@ -39,7 +44,16 @@ const getRoomVideoConfig = (): RoomVideoConfig => {
     width,
     height,
     scale,
-    doubleSided: getNumberEnv('VITE_ROOM_VIDEO_DOUBLE_SIDED', 0) === 1
+    doubleSided: getNumberEnv('VITE_ROOM_VIDEO_DOUBLE_SIDED', 0) === 1,
+    lightColor: getNumberEnv('VITE_ROOM_VIDEO_LIGHT_COLOR', 0x9cc8ff),
+    lightIntensity: Math.max(0, getNumberEnv('VITE_ROOM_VIDEO_LIGHT_INTENSITY', 1.4)),
+    lightDistance: Math.max(0, getNumberEnv('VITE_ROOM_VIDEO_LIGHT_DISTANCE', 600)),
+    lightDecay: Math.max(0, getNumberEnv('VITE_ROOM_VIDEO_LIGHT_DECAY', 2)),
+    lightOffset: new THREE.Vector3(
+      getNumberEnv('VITE_ROOM_VIDEO_LIGHT_OFFSET_X', 0),
+      getNumberEnv('VITE_ROOM_VIDEO_LIGHT_OFFSET_Y', 0),
+      getNumberEnv('VITE_ROOM_VIDEO_LIGHT_OFFSET_Z', 0.08),
+    ),
   }
 }
 
@@ -48,6 +62,7 @@ export class RoomVideoScreen {
   private readonly config: RoomVideoConfig
   private anchor: THREE.Object3D | null = null
   private texture: THREE.VideoTexture | null = null
+  private screenLight: THREE.PointLight | null = null
   private warnedMissingNode = false
 
   constructor(scene: THREE.Scene) {
@@ -220,5 +235,30 @@ export class RoomVideoScreen {
     const mesh = new THREE.Mesh(geometry, material)
     mesh.name = SCREEN_MESH_NAME
     anchor.add(mesh)
+    this.ensureScreenLight(anchor)
+  }
+
+  private ensureScreenLight(anchor: THREE.Object3D): void {
+    if (this.config.lightIntensity <= 0) {
+      return
+    }
+    if (!this.screenLight) {
+      this.screenLight = new THREE.PointLight(
+        this.config.lightColor,
+        this.config.lightIntensity,
+        this.config.lightDistance,
+        this.config.lightDecay,
+      )
+    }
+
+    this.screenLight.color.setHex(this.config.lightColor)
+    this.screenLight.intensity = this.config.lightIntensity
+    this.screenLight.distance = this.config.lightDistance
+    this.screenLight.decay = this.config.lightDecay
+    this.screenLight.position.copy(this.config.lightOffset)
+
+    if (this.screenLight.parent !== anchor) {
+      anchor.add(this.screenLight)
+    }
   }
 }

@@ -1,5 +1,14 @@
 import * as THREE from 'three'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js'
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
+import { VignetteShader } from 'three/examples/jsm/shaders/VignetteShader.js'
+import { HueSaturationShader } from 'three/examples/jsm/shaders/HueSaturationShader.js'
+import { BrightnessContrastShader } from 'three/examples/jsm/shaders/BrightnessContrastShader.js'
 import { isProceduralSkyEnabled, resolvePublicAssetUrl } from '../config'
 import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
@@ -24,6 +33,10 @@ const SKYBOX_BACKGROUND_CONFIG = {
   offsetY: -20,
 }
 
+type ResizablePass = {
+  setSize: (width: number, height: number) => void
+}
+
 const getEnvFlag = (key: string, defaultValue: boolean): boolean => {
   const raw = import.meta.env?.[key]
   if (typeof raw !== 'string') {
@@ -42,6 +55,52 @@ const getSkyboxUrl = (): string => {
 
 const HDR_BACKGROUND_ENABLED = getEnvFlag('VITE_ENABLE_HDR_BACKGROUND', false)
 const DEBUG_CAMERA_ENABLED = getEnvFlag('VITE_DEBUG_CAMERA', false)
+const POST_PROCESSING_ENABLED = getEnvFlag('VITE_ENABLE_POST_PROCESSING', true)
+
+const POST_PROCESSING_CONFIG = {
+  ssao: {
+    kernelRadius: 10,
+    minDistance: 0.004,
+    maxDistance: 0.14,
+  },
+  dof: {
+    aperture: 0.00005,
+    maxBlur: 0.008,
+  },
+  bloom: {
+    strength: 0.45,
+    radius: 0.45,
+    threshold: 0.78,
+  },
+  vignette: {
+    offset: 0.95,
+    darkness: 1.12,
+  },
+  grade: {
+    saturation: 0.12,
+    brightness: 0.02,
+    contrast: 0.1,
+  },
+}
+
+const OVERHEAD_SPOT_CONFIG = {
+  color: 0xffddba,
+  intensity: 0.55,
+  distance: 0,
+  angle: THREE.MathUtils.degToRad(42),
+  penumbra: 0.5,
+  decay: 1.1,
+  height: 250,
+}
+
+const LAMP_LIGHT_CONFIG = {
+  color: 0xf7b98a,
+  intensity: 0.35,
+  distance: 900,
+  decay: 1.2,
+}
+
+const LAMP_LIGHT_OFFSET = new THREE.Vector3(-180, 170, -260)
 
 export class SceneManager {
   private readonly container: HTMLElement
@@ -65,6 +124,13 @@ export class SceneManager {
   private keyLight: THREE.DirectionalLight | null = null
   private fillLight: THREE.DirectionalLight | null = null
   private rimLight: THREE.DirectionalLight | null = null
+  private overheadSpot: THREE.SpotLight | null = null
+  private accentLight: THREE.PointLight | null = null
+  private composer: EffectComposer | null = null
+  private ssaoPass: SSAOPass | null = null
+  private bokehPass: BokehPass | null = null
+  private bloomPass: UnrealBloomPass | null = null
+  private readonly focusPoint = new THREE.Vector3()
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private readonly lastPointerPosition = new THREE.Vector2()
@@ -109,6 +175,7 @@ export class SceneManager {
     this.debugCamera = DEBUG_CAMERA_ENABLED ? new DebugCameraController(this.camera) : null
 
     this.setupLights()
+    this.setupPostProcessing()
 
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
@@ -164,7 +231,7 @@ export class SceneManager {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 0.6
+    renderer.toneMappingExposure = 0.72
     renderer.physicallyCorrectLights = false
     renderer.domElement.classList.add('canvas-container')
     container.appendChild(renderer.domElement)
@@ -189,29 +256,109 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0xe7d3b4, 0.18)
+    const ambient = new THREE.AmbientLight(0xe7d3b4, 0.12)
     this.scene.add(ambient)
 
-    const hemisphere = new THREE.HemisphereLight(0xb1c9e6, 0x5a3b2a, 0.12)
+    const hemisphere = new THREE.HemisphereLight(0xb1c9e6, 0x5a3b2a, 0.08)
     this.scene.add(hemisphere)
 
-    const keyLight = this.addDirectionalLight(0xffddb7, 0.6, { x: 60, y: 200, z: 90 })
+    const keyLight = this.addDirectionalLight(0xffd7b0, 0.75, { x: 50, y: 240, z: 80 })
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
     keyLight.shadow.bias = -0.00015
     keyLight.shadow.normalBias = 0.012
+    keyLight.shadow.radius = 2
     keyLight.shadow.camera.near = 1
     keyLight.shadow.camera.far = 450
     keyLight.shadow.camera.left = -140
     keyLight.shadow.camera.right = 140
     keyLight.shadow.camera.top = 140
     keyLight.shadow.camera.bottom = -140
-    const fillLight = this.addDirectionalLight(0xa6c7ff, 0.45, { x: -100, y: 150, z: 60 })
-    const rimLight = this.addDirectionalLight(0xf2b88a, 0.18, { x: 160, y: 140, z: -120 })
+    const fillLight = this.addDirectionalLight(0xa6c7ff, 0.3, { x: -120, y: 150, z: 60 })
+    const rimLight = this.addDirectionalLight(0xf2b88a, 0.22, { x: 170, y: 160, z: -120 })
+
+    const overheadSpot = new THREE.SpotLight(
+      OVERHEAD_SPOT_CONFIG.color,
+      OVERHEAD_SPOT_CONFIG.intensity,
+      OVERHEAD_SPOT_CONFIG.distance,
+      OVERHEAD_SPOT_CONFIG.angle,
+      OVERHEAD_SPOT_CONFIG.penumbra,
+      OVERHEAD_SPOT_CONFIG.decay,
+    )
+    overheadSpot.position.set(0, OVERHEAD_SPOT_CONFIG.height, 0)
+    overheadSpot.target.position.set(0, 0, 0)
+    this.scene.add(overheadSpot)
+    this.scene.add(overheadSpot.target)
+
+    const accentLight = new THREE.PointLight(
+      LAMP_LIGHT_CONFIG.color,
+      LAMP_LIGHT_CONFIG.intensity,
+      LAMP_LIGHT_CONFIG.distance,
+      LAMP_LIGHT_CONFIG.decay,
+    )
+    accentLight.position.copy(LAMP_LIGHT_OFFSET)
+    this.scene.add(accentLight)
 
     this.keyLight = keyLight
     this.fillLight = fillLight
     this.rimLight = rimLight
+    this.overheadSpot = overheadSpot
+    this.accentLight = accentLight
+  }
+
+  private setupPostProcessing(): void {
+    if (!POST_PROCESSING_ENABLED) {
+      return
+    }
+    const width = this.container.clientWidth
+    const height = this.container.clientHeight
+
+    const composer = new EffectComposer(this.renderer)
+    composer.setSize(width, height)
+    composer.addPass(new RenderPass(this.scene, this.camera))
+
+    const ssaoPass = new SSAOPass(this.scene, this.camera, width, height)
+    ssaoPass.kernelRadius = POST_PROCESSING_CONFIG.ssao.kernelRadius
+    ssaoPass.minDistance = POST_PROCESSING_CONFIG.ssao.minDistance
+    ssaoPass.maxDistance = POST_PROCESSING_CONFIG.ssao.maxDistance
+    composer.addPass(ssaoPass)
+
+    const bokehPass = new BokehPass(this.scene, this.camera, {
+      focus: 200,
+      aperture: POST_PROCESSING_CONFIG.dof.aperture,
+      maxblur: POST_PROCESSING_CONFIG.dof.maxBlur,
+      width,
+      height,
+    })
+    composer.addPass(bokehPass)
+
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(width, height),
+      POST_PROCESSING_CONFIG.bloom.strength,
+      POST_PROCESSING_CONFIG.bloom.radius,
+      POST_PROCESSING_CONFIG.bloom.threshold,
+    )
+    composer.addPass(bloomPass)
+
+    const saturationPass = new ShaderPass(HueSaturationShader)
+    saturationPass.uniforms.hue.value = 0
+    saturationPass.uniforms.saturation.value = POST_PROCESSING_CONFIG.grade.saturation
+    composer.addPass(saturationPass)
+
+    const gradePass = new ShaderPass(BrightnessContrastShader)
+    gradePass.uniforms.brightness.value = POST_PROCESSING_CONFIG.grade.brightness
+    gradePass.uniforms.contrast.value = POST_PROCESSING_CONFIG.grade.contrast
+    composer.addPass(gradePass)
+
+    const vignettePass = new ShaderPass(VignetteShader)
+    vignettePass.uniforms.offset.value = POST_PROCESSING_CONFIG.vignette.offset
+    vignettePass.uniforms.darkness.value = POST_PROCESSING_CONFIG.vignette.darkness
+    composer.addPass(vignettePass)
+
+    this.composer = composer
+    this.ssaoPass = ssaoPass
+    this.bokehPass = bokehPass
+    this.bloomPass = bloomPass
   }
 
   private setupEnvironment(): void {
@@ -369,10 +516,35 @@ export class SceneManager {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
+    this.updatePostProcessingSize(width, height)
 
     if (this.keyLight) {
       this.updateShadowMapSize(this.keyLight)
     }
+  }
+
+  private updatePostProcessingSize(width: number, height: number): void {
+    if (!this.composer) {
+      return
+    }
+    this.composer.setSize(width, height)
+    const resizePass = (pass: ResizablePass | null): void => {
+      if (pass) {
+        pass.setSize(width, height)
+      }
+    }
+    resizePass(this.ssaoPass as ResizablePass | null)
+    resizePass(this.bokehPass as ResizablePass | null)
+    resizePass(this.bloomPass as ResizablePass | null)
+  }
+
+  private updatePostProcessingFocus(): void {
+    if (!this.bokehPass) {
+      return
+    }
+    this.cameraRig.getLookTarget(this.focusPoint)
+    const focusDistance = this.camera.position.distanceTo(this.focusPoint)
+    this.bokehPass.materialBokeh.uniforms.focus.value = focusDistance
   }
 
   private updateShadowMapSize(light: THREE.DirectionalLight): void {
@@ -412,7 +584,12 @@ export class SceneManager {
         this.camera.position.z,
       )
     }
-    this.renderer.render(this.scene, this.camera)
+    this.updatePostProcessingFocus()
+    if (this.composer) {
+      this.composer.render()
+    } else {
+      this.renderer.render(this.scene, this.camera)
+    }
   }
 
   private updateProceduralSky(roomId: string | null): void {
@@ -496,6 +673,22 @@ export class SceneManager {
   private readonly handleTrackCenterChange = (center: THREE.Vector3): void => {
     if (this.debugCamera) {
       this.debugCamera.setReferencePoint(center)
+    }
+    this.updateAccentLights(center)
+  }
+
+  private updateAccentLights(center: THREE.Vector3): void {
+    if (this.overheadSpot) {
+      this.overheadSpot.position.set(
+        center.x,
+        center.y + OVERHEAD_SPOT_CONFIG.height,
+        center.z,
+      )
+      this.overheadSpot.target.position.copy(center)
+      this.overheadSpot.target.updateMatrixWorld()
+    }
+    if (this.accentLight) {
+      this.accentLight.position.copy(center).add(LAMP_LIGHT_OFFSET)
     }
   }
 
@@ -602,6 +795,7 @@ export class SceneManager {
     this.playerListOverlay.dispose()
     this.controllerAccess.dispose()
     this.audioManager.dispose()
+    this.composer?.dispose()
     this.socketClient.disconnect()
   }
 }

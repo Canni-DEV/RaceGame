@@ -55,6 +55,10 @@ export class CameraRig {
     this.manualTarget.copy(target)
   }
 
+  getLookTarget(target: THREE.Vector3): THREE.Vector3 {
+    return target.copy(this.lookTarget)
+  }
+
   beginManualOrbit(): void {
     if (this.followTarget || this.staticPose) {
       return

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import type { TrackData, Vec2 } from '../core/trackTypes'
 import { add, normalize, rightNormal, scale, signedAngle, sub } from '../core/math2d'
+import { getAsphaltTexture } from './SurfaceTextures'
 
 export const TRACK_SURFACE_HEIGHT = 0.15
 const TRACK_THICKNESS = 0.1
@@ -28,10 +29,13 @@ export class TrackMeshBuilder {
     const smoothCenterline = this.generateSmoothCenterline(track.centerline)
     const metadata = this.computeEdges(smoothCenterline, track.width / 2)
     const geometry = this.buildGeometry(metadata.leftEdge, metadata.rightEdge)
+    const asphalt = getAsphaltTexture()
+    asphalt.repeat.set(1, 10)
     const material = new THREE.MeshStandardMaterial({
       color: 0x2a2a30,
-      metalness: 0.04,
-      roughness: 0.9,
+      metalness: 0.08,
+      roughness: 0.75,
+      map: asphalt,
     })
 
     const mesh = new THREE.Mesh(geometry, material)

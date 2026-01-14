@@ -83,6 +83,8 @@ declare module 'three' {
     needsUpdate: boolean
     wrapS: number
     wrapT: number
+    repeat: Vector2
+    anisotropy: number
     dispose(): void
   }
 
@@ -93,7 +95,12 @@ declare module 'three' {
 
   export class Color {
     constructor(r?: number | ColorRepresentation, g?: number, b?: number)
+    r: number
+    g: number
+    b: number
     setHSL(h: number, s: number, l: number): this
+    setHex(hex: number): this
+    copy(color: Color): this
     getHex(): number
     getHexString(): string
     getStyle(): string
@@ -174,6 +181,7 @@ declare module 'three' {
   export const DoubleSide: number
   export const BasicShadowMap: number
   export const ClampToEdgeWrapping: number
+  export const RepeatWrapping: number
   export const NoToneMapping: number
 
   export class Clock {
@@ -203,11 +211,38 @@ declare module 'three' {
       camera: OrthographicCamera
       bias?: number
       normalBias?: number
+      radius?: number
     }
   }
 
   export class HemisphereLight extends Object3D {
     constructor(skyColor?: number | string, groundColor?: number | string, intensity?: number)
+  }
+
+  export class PointLight extends Object3D {
+    constructor(color?: number | string, intensity?: number, distance?: number, decay?: number)
+    color: Color
+    intensity: number
+    distance: number
+    decay: number
+  }
+
+  export class SpotLight extends Object3D {
+    constructor(
+      color?: number | string,
+      intensity?: number,
+      distance?: number,
+      angle?: number,
+      penumbra?: number,
+      decay?: number,
+    )
+    color: Color
+    intensity: number
+    distance: number
+    angle: number
+    penumbra: number
+    decay: number
+    target: Object3D
   }
 
   export class Group extends Object3D {
@@ -309,6 +344,7 @@ declare module 'three' {
   export class Material {
     constructor(parameters?: Record<string, unknown>)
     type: string
+    name: string
     clone(): this
     needsUpdate: boolean
     dispose(): void
@@ -319,6 +355,8 @@ declare module 'three' {
     color: Color
     metalness: number
     roughness: number
+    envMapIntensity: number
+    isMeshStandardMaterial: boolean
     clone(): MeshStandardMaterial
   }
 
@@ -461,4 +499,87 @@ declare module 'three/examples/jsm/utils/BufferGeometryUtils.js' {
   import type { BufferGeometry } from 'three'
 
   export function mergeGeometries(geometries: BufferGeometry[], useGroups?: boolean): BufferGeometry
+}
+
+declare module 'three/examples/jsm/postprocessing/EffectComposer.js' {
+  import type { WebGLRenderer } from 'three'
+
+  export class EffectComposer {
+    constructor(renderer: WebGLRenderer)
+    setSize(width: number, height: number): void
+    addPass(pass: { setSize?: (width: number, height: number) => void }): void
+    render(): void
+    dispose(): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/RenderPass.js' {
+  import type { Camera, Scene } from 'three'
+
+  export class RenderPass {
+    constructor(scene: Scene, camera: Camera)
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/SSAOPass.js' {
+  import type { Camera, Scene } from 'three'
+
+  export class SSAOPass {
+    constructor(scene: Scene, camera: Camera, width: number, height: number)
+    kernelRadius: number
+    minDistance: number
+    maxDistance: number
+    setSize(width: number, height: number): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/UnrealBloomPass.js' {
+  import type { Vector2 } from 'three'
+
+  export class UnrealBloomPass {
+    constructor(resolution: Vector2, strength?: number, radius?: number, threshold?: number)
+    setSize(width: number, height: number): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/BokehPass.js' {
+  import type { Camera, Scene, ShaderMaterial } from 'three'
+
+  export class BokehPass {
+    constructor(
+      scene: Scene,
+      camera: Camera,
+      params: { focus: number; aperture: number; maxblur: number; width?: number; height?: number },
+    )
+    materialBokeh: ShaderMaterial
+    setSize(width: number, height: number): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/ShaderPass.js' {
+  import type { IUniform } from 'three'
+
+  export class ShaderPass {
+    constructor(shader: { uniforms: Record<string, IUniform> })
+    uniforms: Record<string, IUniform>
+    setSize(width: number, height: number): void
+  }
+}
+
+declare module 'three/examples/jsm/shaders/VignetteShader.js' {
+  import type { IUniform } from 'three'
+
+  export const VignetteShader: { uniforms: Record<string, IUniform> }
+}
+
+declare module 'three/examples/jsm/shaders/HueSaturationShader.js' {
+  import type { IUniform } from 'three'
+
+  export const HueSaturationShader: { uniforms: Record<string, IUniform> }
+}
+
+declare module 'three/examples/jsm/shaders/BrightnessContrastShader.js' {
+  import type { IUniform } from 'three'
+
+  export const BrightnessContrastShader: { uniforms: Record<string, IUniform> }
 }
