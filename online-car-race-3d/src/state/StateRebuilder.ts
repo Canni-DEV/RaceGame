@@ -45,7 +45,17 @@ function applyCarDelta(base: CarState[], delta: RoomStateDelta['cars']): CarStat
   if (!delta) {
     return base
   }
-  return applyEntityDelta(base, delta, (car) => car.playerId)
+  if (!delta.updated || delta.updated.length === 0) {
+    return applyEntityDelta(base, delta, (car) => car.playerId)
+  }
+  const updated = delta.updated.map((car) => {
+    if (Object.prototype.hasOwnProperty.call(car, 'impactSpinTimeLeft')) {
+      return car
+    }
+    // Server removes this field when the spin ends; clear any cached value on merge.
+    return { ...car, impactSpinTimeLeft: undefined }
+  })
+  return applyEntityDelta(base, { ...delta, updated }, (car) => car.playerId)
 }
 
 function applyMissileDelta(base: MissileState[], delta: RoomStateDelta['missiles']): MissileState[] {
