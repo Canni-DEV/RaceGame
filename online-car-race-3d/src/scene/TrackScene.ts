@@ -458,15 +458,15 @@ export class TrackScene {
     if (!this.spotLight) {
       return
     }
-    const distance = Math.max(halfSpan * 3.2, height + halfSpan * 2)
+    const distance = Math.max(halfSpan * 2.4, height + halfSpan * 1.8)
     this.spotLight.distance = distance
-    this.spotLight.position.set(center.x + 24, center.y + distance, center.z + 6)
+    this.spotLight.position.set(center.x, center.y + distance, center.z)
     this.spotLight.target.position.copy(center)
     this.spotLight.target.updateMatrixWorld()
-    this.spotLight.angle = THREE.MathUtils.degToRad(58)
-    this.spotLight.penumbra = 0.52
-    this.spotLight.decay = 1.35
-    this.spotLight.shadow.camera.near = 12
+    this.spotLight.angle = THREE.MathUtils.degToRad(55)
+    this.spotLight.penumbra = 0.32
+    this.spotLight.decay = 0.8
+    this.spotLight.shadow.camera.near = 8
     this.spotLight.shadow.camera.far = distance + height * 1.2
   }
 

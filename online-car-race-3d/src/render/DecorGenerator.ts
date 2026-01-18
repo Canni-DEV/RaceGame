@@ -146,10 +146,14 @@ export function createGroundPlane(size: number): THREE.Mesh {
   geometry.rotateX(-Math.PI / 2)
 
   const material = new THREE.MeshStandardMaterial({
-    color: 0x1d3526,
-    roughness: 0.95,
-    metalness: 0.05,
+    color: 0x3d7a4e,
+    roughness: 0.78,
+    metalness: 0.04,
     map: FELT_TEXTURE,
+    bumpMap: FELT_TEXTURE,
+    bumpScale: 0.02,
+    emissive: new THREE.Color(0x1c2f24),
+    emissiveIntensity: 2,
   })
 
   const mesh = new THREE.Mesh(geometry, material)
