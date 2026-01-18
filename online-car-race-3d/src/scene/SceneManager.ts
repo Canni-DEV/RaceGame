@@ -4,7 +4,6 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js'
-import { BokehPass } from 'three/examples/jsm/postprocessing/BokehPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { isProceduralSkyEnabled, resolvePublicAssetUrl } from '../config'
 import { CameraRig } from '../render/CameraRig'
@@ -75,7 +74,6 @@ export class SceneManager {
   private composer: EffectComposer | null = null
   private bloomPass: UnrealBloomPass | null = null
   private ssaoPass: SSAOPass | null = null
-  private bokehPass: BokehPass | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private readonly lastPointerPosition = new THREE.Vector2()
@@ -178,7 +176,7 @@ export class SceneManager {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 0.82
+    renderer.toneMappingExposure = 0.7
     renderer.physicallyCorrectLights = false
     renderer.domElement.classList.add('canvas-container')
     container.appendChild(renderer.domElement)
@@ -209,7 +207,7 @@ export class SceneManager {
     const hemisphere = new THREE.HemisphereLight(0xcad8ff, 0x6b4b38, 0.22)
     this.scene.add(hemisphere)
 
-    const keyLight = this.addDirectionalLight(0xfff1d6, 0.92, { x: 70, y: 240, z: 60 })
+    const keyLight = this.addDirectionalLight(0xfff1d6, 0.92, { x: 70, y: 500, z: 60 })
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
     keyLight.shadow.bias = -0.0001
@@ -432,7 +430,6 @@ export class SceneManager {
     } else {
       this.cameraRig.update(delta)
     }
-    this.updateBokehFocus()
     this.radioSystem.update()
     this.roomVideoScreen.update()
     if (this.sky && this.sky.mesh.visible) {
@@ -657,24 +654,15 @@ export class SceneManager {
       composer.addPass(ssaoPass)
     }
 
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.95, 0.28, 0.92)
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.5, 0.2, 0.85)
     composer.addPass(bloomPass)
 
     const vignettePass = this.createVignettePass()
     composer.addPass(vignettePass)
 
-    const bokehPass = new BokehPass(this.scene, this.camera, {
-      focus: 120,
-      aperture: 0.0022,
-      maxblur: 0.009,
-    })
-    bokehPass.renderToScreen = true
-    composer.addPass(bokehPass)
-
     this.composer = composer
     this.bloomPass = bloomPass
     this.ssaoPass = ssaoPass
-    this.bokehPass = bokehPass
   }
 
   private createSsaoPass(width: number, height: number): SSAOPass | null {
@@ -744,24 +732,6 @@ export class SceneManager {
   private updatePostProcessingSize(width: number, height: number): void {
     this.bloomPass?.setSize(width, height)
     this.ssaoPass?.setSize(width, height)
-    if (this.bokehPass) {
-      this.bokehPass.setSize(width, height)
-      this.bokehPass.uniforms.aspect.value = this.camera.aspect
-    }
-  }
-
-  private updateBokehFocus(): void {
-    if (!this.bokehPass) {
-      return
-    }
-    const focusTarget = this.focusPoint
-    if (!Number.isFinite(focusTarget.x)) {
-      return
-    }
-    const distance = focusTarget.distanceTo(this.camera.position)
-    if (distance > 0) {
-      this.bokehPass.uniforms.focus.value = distance
-    }
   }
 
   private renderScene(): void {

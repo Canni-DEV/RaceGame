@@ -573,18 +573,3 @@ declare module 'three/examples/jsm/postprocessing/SSAOPass.js' {
     }
   }
 }
-
-declare module 'three/examples/jsm/postprocessing/BokehPass.js' {
-  import type { Camera, Scene } from 'three'
-  import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js'
-
-  export class BokehPass extends Pass {
-    constructor(
-      scene: Scene,
-      camera: Camera,
-      params?: { focus?: number; aperture?: number; maxblur?: number },
-    )
-    uniforms: Record<string, { value: number }>
-    setSize(width: number, height: number): void
-  }
-}
