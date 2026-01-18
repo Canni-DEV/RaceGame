@@ -19,6 +19,61 @@ export interface TrackBuildResult {
 const MIN_SUBDIVISIONS = 4
 const MAX_SUBDIVISIONS = 18
 
+function createNoiseTexture(
+  size: number,
+  base: string,
+  accent: string,
+  colorSpace: THREE.Texture['colorSpace'],
+): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const context = canvas.getContext('2d')
+  if (!context) {
+    return new THREE.CanvasTexture(canvas)
+  }
+
+  context.fillStyle = base
+  context.fillRect(0, 0, size, size)
+
+  const fibers = size * 10
+  for (let i = 0; i < fibers; i++) {
+    const x = Math.random() * size
+    const y = Math.random() * size
+    const length = Math.random() * 12 + 6
+    const angle = Math.random() * Math.PI * 2
+    context.strokeStyle = accent
+    context.lineWidth = Math.random() * 1.2 + 0.4
+    context.beginPath()
+    context.moveTo(x, y)
+    context.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length)
+    context.stroke()
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.colorSpace = colorSpace
+  texture.anisotropy = 4
+  return texture
+}
+
+const TRACK_COLOR_TEXTURE = createNoiseTexture(
+  256,
+  '#2b2f35',
+  'rgba(255,255,255,0.05)',
+  THREE.SRGBColorSpace,
+)
+TRACK_COLOR_TEXTURE.repeat.set(10, 30)
+
+const TRACK_ROUGHNESS_TEXTURE = createNoiseTexture(
+  256,
+  'rgb(130,130,130)',
+  'rgba(200,200,200,0.35)',
+  THREE.NoColorSpace,
+)
+TRACK_ROUGHNESS_TEXTURE.repeat.set(8, 16)
+
 export class TrackMeshBuilder {
   build(track: TrackData): TrackBuildResult {
     if (track.centerline.length < 2) {
@@ -29,9 +84,13 @@ export class TrackMeshBuilder {
     const metadata = this.computeEdges(smoothCenterline, track.width / 2)
     const geometry = this.buildGeometry(metadata.leftEdge, metadata.rightEdge)
     const material = new THREE.MeshStandardMaterial({
-      color: 0x2a2a30,
-      metalness: 0.04,
-      roughness: 0.9,
+      color: 0x2e3237,
+      metalness: 0.18,
+      roughness: 0.7,
+      map: TRACK_COLOR_TEXTURE,
+      roughnessMap: TRACK_ROUGHNESS_TEXTURE,
+      bumpMap: TRACK_ROUGHNESS_TEXTURE,
+      bumpScale: 0.012,
     })
 
     const mesh = new THREE.Mesh(geometry, material)
