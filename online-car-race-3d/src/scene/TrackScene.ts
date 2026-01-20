@@ -28,6 +28,7 @@ export class TrackScene {
   private readonly fillLightDistance: number
   private readonly rimLight: THREE.DirectionalLight | null
   private readonly rimLightDistance: number
+  private readonly spotLight: THREE.SpotLight | null
   private readonly cars: Map<string, CarEntity>
   private readonly missiles: Map<string, MissileEntity>
   private readonly items: Map<string, ItemEntity>
@@ -64,6 +65,7 @@ export class TrackScene {
     mainLight: THREE.DirectionalLight | null,
     fillLight: THREE.DirectionalLight | null,
     rimLight: THREE.DirectionalLight | null,
+    spotLight: THREE.SpotLight | null,
     audioManager: AudioManager | null,
     onPlayerAutoFollow?: () => void,
     onTrackCenterChange?: (center: THREE.Vector3) => void,
@@ -85,6 +87,7 @@ export class TrackScene {
     this.rimLightDistance = rimLight
       ? rimLight.position.distanceTo(rimLight.target.position)
       : 0
+    this.spotLight = spotLight
     this.carModelLoader = new CarModelLoader()
     this.guardRailBuilder = new GuardRailBuilder()
     this.staticCameraPresets = STATIC_CAMERA_PRESETS
@@ -431,6 +434,7 @@ export class TrackScene {
 
     this.updateSecondaryLight(this.fillLight, this.fillLightDistance, center, halfSpan, height)
     this.updateSecondaryLight(this.rimLight, this.rimLightDistance, center, halfSpan, height)
+    this.updateSpotLight(center, halfSpan, height)
   }
 
   private updateSecondaryLight(
@@ -448,6 +452,22 @@ export class TrackScene {
     light.position.copy(center).addScaledVector(direction, distance)
     light.target.position.copy(center)
     light.target.updateMatrixWorld()
+  }
+
+  private updateSpotLight(center: THREE.Vector3, halfSpan: number, height: number): void {
+    if (!this.spotLight) {
+      return
+    }
+    const distance = Math.max(halfSpan * 2.4, height + halfSpan * 1.8)
+    this.spotLight.distance = distance
+    this.spotLight.position.set(center.x, center.y + distance, center.z)
+    this.spotLight.target.position.copy(center)
+    this.spotLight.target.updateMatrixWorld()
+    this.spotLight.angle = THREE.MathUtils.degToRad(55)
+    this.spotLight.penumbra = 0.32
+    this.spotLight.decay = 0.8
+    this.spotLight.shadow.camera.near = 8
+    this.spotLight.shadow.camera.far = distance + height * 1.2
   }
 
   private updateCameraFollow(): void {

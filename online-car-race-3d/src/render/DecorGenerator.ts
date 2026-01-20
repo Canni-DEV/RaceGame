@@ -103,14 +103,57 @@ class TrackAssetLoader {
 const trackAssetLoader = new TrackAssetLoader()
 const ROOM_MODEL_NAME = 'room-model'
 
+function createFeltTexture(): THREE.CanvasTexture {
+  const size = 256
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const context = canvas.getContext('2d')
+  if (!context) {
+    return new THREE.CanvasTexture(canvas)
+  }
+
+  context.fillStyle = '#1f3c2b'
+  context.fillRect(0, 0, size, size)
+
+  const fibers = size * 9
+  for (let i = 0; i < fibers; i++) {
+    const x = Math.random() * size
+    const y = Math.random() * size
+    const length = Math.random() * 18 + 8
+    const angle = Math.random() * Math.PI * 2
+    context.strokeStyle = Math.random() > 0.5 ? 'rgba(70,122,82,0.4)' : 'rgba(18,48,34,0.4)'
+    context.lineWidth = Math.random() * 1.1 + 0.4
+    context.beginPath()
+    context.moveTo(x, y)
+    context.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length)
+    context.stroke()
+  }
+
+  const texture = new THREE.CanvasTexture(canvas)
+  texture.wrapS = THREE.RepeatWrapping
+  texture.wrapT = THREE.RepeatWrapping
+  texture.repeat.set(4, 4)
+  texture.colorSpace = THREE.SRGBColorSpace
+  texture.anisotropy = 4
+  return texture
+}
+
+const FELT_TEXTURE = createFeltTexture()
+
 export function createGroundPlane(size: number): THREE.Mesh {
   const geometry = new THREE.PlaneGeometry(size, size)
   geometry.rotateX(-Math.PI / 2)
 
   const material = new THREE.MeshStandardMaterial({
-    color: 0x1a2b1f,
-    roughness: 1,
-    metalness: 0,
+    color: 0x3d7a4e,
+    roughness: 0.78,
+    metalness: 0.04,
+    map: FELT_TEXTURE,
+    bumpMap: FELT_TEXTURE,
+    bumpScale: 0.02,
+    emissive: new THREE.Color(0x1c2f24),
+    emissiveIntensity: 2,
   })
 
   const mesh = new THREE.Mesh(geometry, material)

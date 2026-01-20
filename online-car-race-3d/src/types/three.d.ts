@@ -83,6 +83,8 @@ declare module 'three' {
     needsUpdate: boolean
     wrapS: number
     wrapT: number
+    repeat: Vector2
+    anisotropy: number
     dispose(): void
   }
 
@@ -166,6 +168,7 @@ declare module 'three' {
     setPixelRatio(ratio: number): void
     setSize(width: number, height: number): void
     render(scene: Scene, camera: PerspectiveCamera): void
+    capabilities?: { isWebGL2?: boolean }
   }
 
   export const PCFSoftShadowMap: number
@@ -199,11 +202,34 @@ declare module 'three' {
     castShadow: boolean
     target: Object3D
     shadow: {
-      mapSize: { width: number; height: number; set?: (width: number, height: number) => void }
+      mapSize: { width: number; height: number; set: (width: number, height: number) => void }
       camera: OrthographicCamera
       bias?: number
       normalBias?: number
     }
+  }
+
+  export class SpotLight extends Object3D {
+    constructor(
+      color?: number | string,
+      intensity?: number,
+      distance?: number,
+      angle?: number,
+      penumbra?: number,
+      decay?: number,
+    )
+    castShadow: boolean
+    distance: number
+    angle: number
+    penumbra: number
+    decay: number
+    shadow: {
+      mapSize: { width: number; height: number; set: (width: number, height: number) => void }
+      camera: PerspectiveCamera
+      bias?: number
+      normalBias?: number
+    }
+    target: Object3D
   }
 
   export class HemisphereLight extends Object3D {
@@ -418,7 +444,9 @@ declare module 'three' {
 
   export const EquirectangularReflectionMapping: number
   export const SRGBColorSpace: number
+  export const NoColorSpace: number
   export const ACESFilmicToneMapping: number
+  export const RepeatWrapping: number
 }
 
 declare module 'three/examples/jsm/loaders/GLTFLoader.js' {
@@ -461,4 +489,87 @@ declare module 'three/examples/jsm/utils/BufferGeometryUtils.js' {
   import type { BufferGeometry } from 'three'
 
   export function mergeGeometries(geometries: BufferGeometry[], useGroups?: boolean): BufferGeometry
+}
+
+declare module 'three/examples/jsm/postprocessing/Pass.js' {
+  export class Pass {
+    enabled: boolean
+    needsSwap: boolean
+    clear: boolean
+    renderToScreen: boolean
+    setSize?(width: number, height: number): void
+    render(
+      renderer: any,
+      writeBuffer: any,
+      readBuffer: any,
+      deltaTime?: number,
+      maskActive?: boolean,
+    ): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/EffectComposer.js' {
+  import type { WebGLRenderer } from 'three'
+  import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js'
+
+  export class EffectComposer {
+    constructor(renderer: WebGLRenderer)
+    passes: Pass[]
+    addPass(pass: Pass): void
+    setSize(width: number, height: number): void
+    render(): void
+    dispose(): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/RenderPass.js' {
+  import type { Camera, Scene } from 'three'
+  import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js'
+
+  export class RenderPass extends Pass {
+    constructor(scene: Scene, camera: Camera)
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/UnrealBloomPass.js' {
+  import type { Vector2 } from 'three'
+  import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js'
+
+  export class UnrealBloomPass extends Pass {
+    constructor(resolution: Vector2, strength?: number, radius?: number, threshold?: number)
+    strength: number
+    radius: number
+    threshold: number
+    setSize(width: number, height: number): void
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/ShaderPass.js' {
+  import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js'
+
+  export class ShaderPass extends Pass {
+    constructor(shader: any, textureID?: string)
+    uniforms: Record<string, { value: unknown }>
+  }
+}
+
+declare module 'three/examples/jsm/postprocessing/SSAOPass.js' {
+  import type { Camera, Scene } from 'three'
+  import type { Pass } from 'three/examples/jsm/postprocessing/Pass.js'
+
+  export class SSAOPass extends Pass {
+    constructor(scene: Scene, camera: Camera, width?: number, height?: number)
+    kernelRadius: number
+    minDistance: number
+    maxDistance: number
+    output: number
+    setSize(width: number, height: number): void
+    static OUTPUT: {
+      Default: number
+      SSAO: number
+      Blur: number
+      Depth: number
+      Normal: number
+    }
+  }
 }

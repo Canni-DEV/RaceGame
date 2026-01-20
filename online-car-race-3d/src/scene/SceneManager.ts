@@ -1,5 +1,10 @@
 import * as THREE from 'three'
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js'
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js'
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
+import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js'
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
 import { isProceduralSkyEnabled, resolvePublicAssetUrl } from '../config'
 import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
@@ -65,6 +70,10 @@ export class SceneManager {
   private keyLight: THREE.DirectionalLight | null = null
   private fillLight: THREE.DirectionalLight | null = null
   private rimLight: THREE.DirectionalLight | null = null
+  private spotLight: THREE.SpotLight | null = null
+  private composer: EffectComposer | null = null
+  private bloomPass: UnrealBloomPass | null = null
+  private ssaoPass: SSAOPass | null = null
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private readonly lastPointerPosition = new THREE.Vector2()
@@ -88,6 +97,7 @@ export class SceneManager {
   private hdrBackground: THREE.Mesh | null = null
   private readonly hdrLoader = new HDRLoader()
   private readonly skyboxPath = getSkyboxUrl()
+  private readonly focusPoint = new THREE.Vector3()
 
   constructor(container: HTMLElement) {
     this.container = container
@@ -122,6 +132,7 @@ export class SceneManager {
       this.keyLight,
       this.fillLight,
       this.rimLight,
+      this.spotLight,
       this.audioManager,
       this.handlePlayerAutoFollow,
       this.handleTrackCenterChange,
@@ -148,6 +159,7 @@ export class SceneManager {
       this.socketClient,
     )
     this.roomVideoScreen = new RoomVideoScreen(this.scene)
+    this.setupPostProcessing()
     this.bindSocketHandlers()
     this.socketClient.connect()
 
@@ -164,7 +176,7 @@ export class SceneManager {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 0.7
+    renderer.toneMappingExposure = 0.78
     renderer.physicallyCorrectLights = false
     renderer.domElement.classList.add('canvas-container')
     container.appendChild(renderer.domElement)
@@ -189,13 +201,13 @@ export class SceneManager {
   }
 
   private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0xf3e5cf, 0.32)
+    const ambient = new THREE.AmbientLight(0xf3e5cf, 0.42)
     this.scene.add(ambient)
 
-    const hemisphere = new THREE.HemisphereLight(0xcad8ff, 0x6b4b38, 0.2)
+    const hemisphere = new THREE.HemisphereLight(0xcad8ff, 0x6b4b38, 0.38)
     this.scene.add(hemisphere)
 
-    const keyLight = this.addDirectionalLight(0xfff1d6, 0.8, { x: 70, y: 220, z: 60 })
+    const keyLight = this.addDirectionalLight(0xfff1d6, 0.92, { x: 70, y: 320, z: 60 })
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
     keyLight.shadow.bias = -0.0001
@@ -206,12 +218,28 @@ export class SceneManager {
     keyLight.shadow.camera.right = 140
     keyLight.shadow.camera.top = 140
     keyLight.shadow.camera.bottom = -140
-    const fillLight = this.addDirectionalLight(0xffe3bf, 0.3, { x: -140, y: 180, z: 120 })
-    const rimLight = this.addDirectionalLight(0xa8c2ff, 0.2, { x: 150, y: 160, z: -140 })
+    const fillLight = this.addDirectionalLight(0xffe3bf, 0.28, { x: -140, y: 180, z: 120 })
+    const rimLight = this.addDirectionalLight(0xa8c2ff, 0.22, { x: 150, y: 160, z: -140 })
+    const spotLight = new THREE.SpotLight(
+      0xffb671,
+      0.65,
+      520,
+      THREE.MathUtils.degToRad(55),
+      0.3,
+      0.8,
+    )
+    spotLight.position.set(0, 320, 0)
+    spotLight.castShadow = true
+    spotLight.shadow.bias = -0.00012
+    spotLight.shadow.normalBias = 0.05
+    spotLight.shadow.mapSize.set(this.maxShadowMapSize, this.maxShadowMapSize)
+    this.scene.add(spotLight)
+    this.scene.add(spotLight.target)
 
     this.keyLight = keyLight
     this.fillLight = fillLight
     this.rimLight = rimLight
+    this.spotLight = spotLight
   }
 
   private setupEnvironment(): void {
@@ -369,6 +397,8 @@ export class SceneManager {
     this.camera.aspect = width / height
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(width, height)
+    this.composer?.setSize(width, height)
+    this.updatePostProcessingSize(width, height)
 
     if (this.keyLight) {
       this.updateShadowMapSize(this.keyLight)
@@ -412,7 +442,7 @@ export class SceneManager {
         this.camera.position.z,
       )
     }
-    this.renderer.render(this.scene, this.camera)
+    this.renderScene()
   }
 
   private updateProceduralSky(roomId: string | null): void {
@@ -497,6 +527,7 @@ export class SceneManager {
     if (this.debugCamera) {
       this.debugCamera.setReferencePoint(center)
     }
+    this.focusPoint.copy(center)
   }
 
   private readonly handleSelectPlayer = (playerId: string): void => {
@@ -603,5 +634,111 @@ export class SceneManager {
     this.controllerAccess.dispose()
     this.audioManager.dispose()
     this.socketClient.disconnect()
+    if (this.composer) {
+      this.composer.dispose()
+      this.composer = null
+    }
+  }
+
+  private setupPostProcessing(): void {
+    const width = this.container.clientWidth
+    const height = this.container.clientHeight
+    const composer = new EffectComposer(this.renderer)
+    composer.setSize(width, height)
+
+    const renderPass = new RenderPass(this.scene, this.camera)
+    composer.addPass(renderPass)
+
+    const ssaoPass = this.createSsaoPass(width, height)
+    if (ssaoPass) {
+      composer.addPass(ssaoPass)
+    }
+
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.5, 0.2, 0.85)
+    composer.addPass(bloomPass)
+
+    const vignettePass = this.createVignettePass()
+    composer.addPass(vignettePass)
+
+    this.composer = composer
+    this.bloomPass = bloomPass
+    this.ssaoPass = ssaoPass
+  }
+
+  private createSsaoPass(width: number, height: number): SSAOPass | null {
+    // SSAO is skipped on contexts that do not support depth textures.
+    if (!this.renderer.capabilities || !this.renderer.capabilities.isWebGL2) {
+      return null
+    }
+    const ssaoPass = new SSAOPass(this.scene, this.camera, width, height)
+    ssaoPass.kernelRadius = 10
+    ssaoPass.minDistance = 0.0008
+    ssaoPass.maxDistance = 0.18
+    ssaoPass.output = SSAOPass.OUTPUT.Default
+    return ssaoPass
+  }
+
+  private createVignettePass(): ShaderPass {
+    const shader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        saturation: { value: 1.08 },
+        contrast: { value: 1.05 },
+        vignetteOffset: { value: 0.55 },
+        vignetteDarkness: { value: 0.4 },
+        vignetteStrength: { value: 0.32 },
+      },
+      vertexShader: `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform sampler2D tDiffuse;
+        uniform float saturation;
+        uniform float contrast;
+        uniform float vignetteOffset;
+        uniform float vignetteDarkness;
+        uniform float vignetteStrength;
+        varying vec2 vUv;
+
+        vec3 applySaturation(vec3 color) {
+          float luma = dot(color, vec3(0.299, 0.587, 0.114));
+          return mix(vec3(luma), color, saturation);
+        }
+
+        vec3 applyContrast(vec3 color) {
+          return (color - 0.5) * contrast + 0.5;
+        }
+
+        void main() {
+          vec3 color = texture2D(tDiffuse, vUv).rgb;
+          color = applySaturation(color);
+          color = applyContrast(color);
+
+          float dist = length(vUv - 0.5);
+          float vignette = smoothstep(vignetteOffset, vignetteOffset + vignetteDarkness, dist);
+          color *= mix(1.0, 1.0 - vignetteStrength, vignette);
+
+          gl_FragColor = vec4(color, 1.0);
+        }
+      `,
+    }
+    return new ShaderPass(shader)
+  }
+
+  private updatePostProcessingSize(width: number, height: number): void {
+    this.bloomPass?.setSize(width, height)
+    this.ssaoPass?.setSize(width, height)
+  }
+
+  private renderScene(): void {
+    if (this.composer) {
+      this.composer.render()
+      return
+    }
+    this.renderer.render(this.scene, this.camera)
   }
 }
