@@ -63,12 +63,11 @@ export class SceneManager {
   private readonly roomVideoScreen: RoomVideoScreen
   private readonly debugCamera: DebugCameraController | null
   private keyLight: THREE.DirectionalLight | null = null
-  private fillLight: THREE.DirectionalLight | null = null
-  private rimLight: THREE.DirectionalLight | null = null
   private spotLight: THREE.SpotLight | null = null
   private composer: EffectComposer | null = null
   private bloomPass: UnrealBloomPass | null = null
   private ssaoPass: SSAOPass | null = null
+  private readonly lightDebugEnabled = DEBUG_CAMERA_ENABLED
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private readonly lastPointerPosition = new THREE.Vector2()
@@ -123,8 +122,8 @@ export class SceneManager {
       this.cameraRig,
       this.gameStateStore,
       this.keyLight,
-      this.fillLight,
-      this.rimLight,
+      null,
+      null,
       this.spotLight,
       this.audioManager,
       this.handlePlayerAutoFollow,
@@ -190,6 +189,9 @@ export class SceneManager {
     light.position.set(position.x, position.y, position.z)
     this.scene.add(light)
     this.scene.add(light.target)
+    if (this.lightDebugEnabled) {
+      light.add(this.createLightMarker(color))
+    }
     return light
   }
 
@@ -214,23 +216,15 @@ export class SceneManager {
     )
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
-    keyLight.shadow.bias = -0.0001
-    keyLight.shadow.normalBias = 0.02
-    keyLight.shadow.camera.near = 1
-    keyLight.shadow.camera.far = 450
-    keyLight.shadow.camera.left = -140
-    keyLight.shadow.camera.right = 140
-    keyLight.shadow.camera.top = 140
-    keyLight.shadow.camera.bottom = -140
-    const fillConfig = RENDER_CONFIG.lights.fill
-    const fillLight = this.addDirectionalLight(
-      fillConfig.color,
-      fillConfig.intensity,
-      fillConfig.position,
-    )
-    const rimConfig = RENDER_CONFIG.lights.rim
-    const rimLight = this.addDirectionalLight(rimConfig.color, rimConfig.intensity, rimConfig.position)
-    const spotConfig = RENDER_CONFIG.lights.spot
+    keyLight.shadow.bias = keyConfig.shadow.bias
+    keyLight.shadow.normalBias = keyConfig.shadow.normalBias
+    keyLight.shadow.camera.near = 12
+    keyLight.shadow.camera.far = 520
+    keyLight.shadow.camera.left = -180
+    keyLight.shadow.camera.right = 180
+    keyLight.shadow.camera.top = 180
+    keyLight.shadow.camera.bottom = -180
+    const spotConfig = RENDER_CONFIG.lights.practical
     const spotLight = new THREE.SpotLight(
       spotConfig.color,
       spotConfig.intensity,
@@ -239,18 +233,40 @@ export class SceneManager {
       spotConfig.penumbra,
       spotConfig.decay,
     )
-    spotLight.position.set(spotConfig.position.x, spotConfig.position.y, spotConfig.position.z)
-    spotLight.castShadow = true
-    spotLight.shadow.bias = -0.00012
-    spotLight.shadow.normalBias = 0.05
-    spotLight.shadow.mapSize.set(this.maxShadowMapSize, this.maxShadowMapSize)
+    spotLight.position.set(
+      spotConfig.positionOffset.x,
+      spotConfig.positionOffset.y,
+      spotConfig.positionOffset.z,
+    )
+    spotLight.castShadow = Boolean(spotConfig.castShadow)
+    if (spotLight.castShadow) {
+      spotLight.shadow.bias = -0.00015
+      spotLight.shadow.normalBias = 0.06
+      spotLight.shadow.mapSize.set(spotConfig.shadowMapSize, spotConfig.shadowMapSize)
+    }
+    if (this.lightDebugEnabled) {
+      spotLight.add(this.createLightMarker(spotConfig.color, 4))
+    }
     this.scene.add(spotLight)
     this.scene.add(spotLight.target)
 
     this.keyLight = keyLight
-    this.fillLight = fillLight
-    this.rimLight = rimLight
     this.spotLight = spotLight
+  }
+
+  private createLightMarker(color: THREE.ColorRepresentation, size = 3): THREE.Mesh {
+    const geometry = new THREE.SphereGeometry(size, 12, 12)
+    const material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      toneMapped: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.9,
+    })
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.frustumCulled = false
+    mesh.renderOrder = 10
+    return mesh
   }
 
   private setupEnvironment(): void {

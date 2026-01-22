@@ -14,6 +14,7 @@ import { ItemEntity } from '../render/ItemEntity'
 import { ItemModelLoader } from '../render/ItemModelLoader'
 import { hashPlayerIdToHue } from '../core/playerColor'
 import { STATIC_CAMERA_PRESETS, type StaticCameraPreset } from './StaticCameraPresets'
+import { RENDER_CONFIG } from '../render/RenderConfig'
 
 export class TrackScene {
   private readonly scene: THREE.Scene
@@ -458,16 +459,23 @@ export class TrackScene {
     if (!this.spotLight) {
       return
     }
-    const distance = Math.max(halfSpan * 2.4, height + halfSpan * 1.8)
+    const config = RENDER_CONFIG.lights.practical
+    const distance = Math.max(config.distance, height + halfSpan * 1.1)
     this.spotLight.distance = distance
-    this.spotLight.position.set(center.x, center.y + distance, center.z)
+    this.spotLight.position.set(
+      center.x + config.positionOffset.x,
+      center.y + config.positionOffset.y,
+      center.z + config.positionOffset.z,
+    )
     this.spotLight.target.position.copy(center)
     this.spotLight.target.updateMatrixWorld()
-    this.spotLight.angle = THREE.MathUtils.degToRad(55)
-    this.spotLight.penumbra = 0.32
-    this.spotLight.decay = 0.8
-    this.spotLight.shadow.camera.near = 8
-    this.spotLight.shadow.camera.far = distance + height * 1.2
+    this.spotLight.angle = THREE.MathUtils.degToRad(config.angleDeg)
+    this.spotLight.penumbra = config.penumbra
+    this.spotLight.decay = config.decay
+    if (config.castShadow) {
+      this.spotLight.shadow.camera.near = 6
+      this.spotLight.shadow.camera.far = distance + height * 1.1
+    }
   }
 
   private updateCameraFollow(): void {

@@ -1,35 +1,44 @@
+// Lighting tuned for “living cálido con scalextric”: key overhead + practical lamp + subtle bounce.
 export const RENDER_CONFIG = {
   renderer: {
-    toneMappingExposure: 0.9,
+    toneMappingExposure: 0.92,
     maxPixelRatio: 1,
     shadowMapSize: {
-      min: 512,
-      max: 1024,
+      min: 1024,
+      max: 2048,
     },
   },
   lights: {
-    ambient: { color: 0xf3e5cf, intensity: 0.26 },
-    hemisphere: { skyColor: 0xcad8ff, groundColor: 0x6b4b38, intensity: 0.23 },
-    key: { color: 0xfff1d6, intensity: 1.05, position: { x: 70, y: 320, z: 60 } },
-    fill: { color: 0xffe3bf, intensity: 0.17, position: { x: -140, y: 180, z: 120 } },
-    rim: { color: 0xa8c2ff, intensity: 0.16, position: { x: 150, y: 160, z: -140 } },
-    spot: {
-      color: 0xffb671,
-      intensity: 0.72,
-      distance: 520,
-      angleDeg: 55,
-      penumbra: 0.32,
-      decay: 0.8,
-      position: { x: 0, y: 320, z: 0 },
+    ambient: { color: 0xf1e0c8, intensity: 0.16 },
+    hemisphere: { skyColor: 0xf4e8d4, groundColor: 0x3b2c22, intensity: 0.18 },
+    key: {
+      color: 0xffe6c4,
+      intensity: 3.5,
+      position: { x: 70, y: 280, z: 50 },
+      shadow: {
+        bias: -0.00008,
+        normalBias: 0.035,
+      },
+    },
+    practical: {
+      color: 0xffc48a,
+      intensity: 0.55,
+      positionOffset: { x: 150, y: 120, z: -140 },
+      distance: 420,
+      angleDeg: 52,
+      penumbra: 0.45,
+      decay: 1.35,
+      castShadow: false,
+      shadowMapSize: 1024,
     },
   },
   postprocessing: {
-    bloom: { strength: 0.32, radius: 0.18, threshold: 0.88 },
-    ssao: { kernelRadius: 7, minDistance: 0.0011, maxDistance: 0.12 },
+    bloom: { strength: 0.28, radius: 0.16, threshold: 0.9 },
+    ssao: { kernelRadius: 6, minDistance: 0.0012, maxDistance: 0.1 },
   },
   materials: {
     ground: {
-      emissiveIntensity: 0.08,
+      emissiveIntensity: 0.8,
     },
   },
 }
