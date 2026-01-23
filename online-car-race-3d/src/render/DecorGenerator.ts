@@ -5,6 +5,7 @@ import type { InstancedDecoration, TrackData, TrackDecoration } from '../core/tr
 import type { TrackBuildResult } from './TrackMeshBuilder'
 import { resolvePublicAssetUrl, resolveServerAssetUrl } from '../config'
 import { getNumberEnv } from '../core/env'
+import { RENDER_CONFIG } from './RenderConfig'
 
 // Backend rotations use the game angle convention (0 = +X). Three.js yaw expects 0 = +Z,
 // so we convert to the same mapping cars/missiles use.
@@ -153,7 +154,7 @@ export function createGroundPlane(size: number): THREE.Mesh {
     bumpMap: FELT_TEXTURE,
     bumpScale: 0.02,
     emissive: new THREE.Color(0x1c2f24),
-    emissiveIntensity: 2,
+    emissiveIntensity: RENDER_CONFIG.materials.ground.emissiveIntensity,
   })
 
   const mesh = new THREE.Mesh(geometry, material)

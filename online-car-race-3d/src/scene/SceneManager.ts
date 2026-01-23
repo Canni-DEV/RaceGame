@@ -5,7 +5,7 @@ import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js'
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js'
 import { SSAOPass } from 'three/examples/jsm/postprocessing/SSAOPass.js'
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js'
-import { isProceduralSkyEnabled, resolvePublicAssetUrl } from '../config'
+import { resolvePublicAssetUrl } from '../config'
 import { CameraRig } from '../render/CameraRig'
 import { SocketClient } from '../net/SocketClient'
 import { GameStateStore } from '../state/GameStateStore'
@@ -16,18 +16,14 @@ import { HotkeyOverlay } from './HotkeyOverlay'
 import { AudioManager } from '../audio/AudioManager'
 import { GameAudioSystem } from '../audio/GameAudioSystem'
 import { RaceHud } from './RaceHud'
-import { ProceduralSky } from '../render/ProceduralSky'
 import { LoadingScreen } from './LoadingScreen'
 import { RadioSystem } from './RadioSystem'
 import { RoomVideoScreen } from './RoomVideoScreen'
 import { DebugCameraController } from './DebugCameraController'
 import { ChatOverlay } from './ChatOverlay'
+import { RENDER_CONFIG } from '../render/RenderConfig'
 
 const DEFAULT_HDR_SKYBOX = 'textures/empty_play_room_4k.hdr'
-const SKYBOX_BACKGROUND_CONFIG = {
-  radius: 900,
-  offsetY: -20,
-}
 
 const getEnvFlag = (key: string, defaultValue: boolean): boolean => {
   const raw = import.meta.env?.[key]
@@ -45,7 +41,7 @@ const getSkyboxUrl = (): string => {
   return resolvePublicAssetUrl(DEFAULT_HDR_SKYBOX)
 }
 
-const HDR_BACKGROUND_ENABLED = getEnvFlag('VITE_ENABLE_HDR_BACKGROUND', false)
+const HDR_ENVIRONMENT_ENABLED = getEnvFlag('VITE_ENABLE_HDR_BACKGROUND', false)
 const DEBUG_CAMERA_ENABLED = getEnvFlag('VITE_DEBUG_CAMERA', false)
 
 export class SceneManager {
@@ -56,7 +52,6 @@ export class SceneManager {
   private readonly cameraRig: CameraRig
   private readonly clock: THREE.Clock
   private readonly trackScene: TrackScene
-  private sky: ProceduralSky | null = null
   private readonly socketClient: SocketClient
   private readonly gameStateStore: GameStateStore
   private readonly controllerAccess: ViewerControllerAccess
@@ -68,12 +63,11 @@ export class SceneManager {
   private readonly roomVideoScreen: RoomVideoScreen
   private readonly debugCamera: DebugCameraController | null
   private keyLight: THREE.DirectionalLight | null = null
-  private fillLight: THREE.DirectionalLight | null = null
-  private rimLight: THREE.DirectionalLight | null = null
   private spotLight: THREE.SpotLight | null = null
   private composer: EffectComposer | null = null
   private bloomPass: UnrealBloomPass | null = null
   private ssaoPass: SSAOPass | null = null
+  private readonly lightDebugEnabled = DEBUG_CAMERA_ENABLED
   private isOrbitDragging = false
   private orbitPointerId: number | null = null
   private readonly lastPointerPosition = new THREE.Vector2()
@@ -89,12 +83,11 @@ export class SceneManager {
     'pointerleave',
     'pointercancel',
   ]
-  private readonly minShadowMapSize = 512
-  private readonly maxShadowMapSize = 1024
-  private readonly maxPixelRatio = 1
+  private readonly minShadowMapSize = RENDER_CONFIG.renderer.shadowMapSize.min
+  private readonly maxShadowMapSize = RENDER_CONFIG.renderer.shadowMapSize.max
+  private readonly maxPixelRatio = RENDER_CONFIG.renderer.maxPixelRatio
   private lastShadowMapSize: number | null = null
   private environmentMap: THREE.Texture | null = null
-  private hdrBackground: THREE.Mesh | null = null
   private readonly hdrLoader = new HDRLoader()
   private readonly skyboxPath = getSkyboxUrl()
   private readonly focusPoint = new THREE.Vector3()
@@ -122,7 +115,6 @@ export class SceneManager {
 
     this.clock = new THREE.Clock()
     this.gameStateStore = new GameStateStore()
-    this.updateProceduralSky(this.gameStateStore.getRoomId())
     new GameAudioSystem(this.audioManager, this.gameStateStore)
     this.trackScene = new TrackScene(
       this.scene,
@@ -130,8 +122,8 @@ export class SceneManager {
       this.cameraRig,
       this.gameStateStore,
       this.keyLight,
-      this.fillLight,
-      this.rimLight,
+      null,
+      null,
       this.spotLight,
       this.audioManager,
       this.handlePlayerAutoFollow,
@@ -176,7 +168,7 @@ export class SceneManager {
     renderer.shadowMap.type = THREE.PCFSoftShadowMap
     renderer.outputColorSpace = THREE.SRGBColorSpace
     renderer.toneMapping = THREE.ACESFilmicToneMapping
-    renderer.toneMappingExposure = 0.78
+    renderer.toneMappingExposure = RENDER_CONFIG.renderer.toneMappingExposure
     renderer.physicallyCorrectLights = false
     renderer.domElement.classList.add('canvas-container')
     container.appendChild(renderer.domElement)
@@ -197,57 +189,93 @@ export class SceneManager {
     light.position.set(position.x, position.y, position.z)
     this.scene.add(light)
     this.scene.add(light.target)
+    if (this.lightDebugEnabled) {
+      light.add(this.createLightMarker(color))
+    }
     return light
   }
 
   private setupLights(): void {
-    const ambient = new THREE.AmbientLight(0xf3e5cf, 0.42)
+    const ambientConfig = RENDER_CONFIG.lights.ambient
+    const ambient = new THREE.AmbientLight(ambientConfig.color, ambientConfig.intensity)
     this.scene.add(ambient)
 
-    const hemisphere = new THREE.HemisphereLight(0xcad8ff, 0x6b4b38, 0.38)
+    const hemisphereConfig = RENDER_CONFIG.lights.hemisphere
+    const hemisphere = new THREE.HemisphereLight(
+      hemisphereConfig.skyColor,
+      hemisphereConfig.groundColor,
+      hemisphereConfig.intensity,
+    )
     this.scene.add(hemisphere)
 
-    const keyLight = this.addDirectionalLight(0xfff1d6, 0.92, { x: 70, y: 320, z: 60 })
+    const keyConfig = RENDER_CONFIG.lights.key
+    const keyLight = this.addDirectionalLight(
+      keyConfig.color,
+      keyConfig.intensity,
+      keyConfig.position,
+    )
     keyLight.castShadow = true
     this.updateShadowMapSize(keyLight)
-    keyLight.shadow.bias = -0.0001
-    keyLight.shadow.normalBias = 0.02
-    keyLight.shadow.camera.near = 1
-    keyLight.shadow.camera.far = 450
-    keyLight.shadow.camera.left = -140
-    keyLight.shadow.camera.right = 140
-    keyLight.shadow.camera.top = 140
-    keyLight.shadow.camera.bottom = -140
-    const fillLight = this.addDirectionalLight(0xffe3bf, 0.28, { x: -140, y: 180, z: 120 })
-    const rimLight = this.addDirectionalLight(0xa8c2ff, 0.22, { x: 150, y: 160, z: -140 })
+    keyLight.shadow.bias = keyConfig.shadow.bias
+    keyLight.shadow.normalBias = keyConfig.shadow.normalBias
+    keyLight.shadow.camera.near = 12
+    keyLight.shadow.camera.far = 520
+    keyLight.shadow.camera.left = -180
+    keyLight.shadow.camera.right = 180
+    keyLight.shadow.camera.top = 180
+    keyLight.shadow.camera.bottom = -180
+    const spotConfig = RENDER_CONFIG.lights.practical
     const spotLight = new THREE.SpotLight(
-      0xffb671,
-      0.65,
-      520,
-      THREE.MathUtils.degToRad(55),
-      0.3,
-      0.8,
+      spotConfig.color,
+      spotConfig.intensity,
+      spotConfig.distance,
+      THREE.MathUtils.degToRad(spotConfig.angleDeg),
+      spotConfig.penumbra,
+      spotConfig.decay,
     )
-    spotLight.position.set(0, 320, 0)
-    spotLight.castShadow = true
-    spotLight.shadow.bias = -0.00012
-    spotLight.shadow.normalBias = 0.05
-    spotLight.shadow.mapSize.set(this.maxShadowMapSize, this.maxShadowMapSize)
+    spotLight.position.set(
+      spotConfig.positionOffset.x,
+      spotConfig.positionOffset.y,
+      spotConfig.positionOffset.z,
+    )
+    spotLight.castShadow = Boolean(spotConfig.castShadow)
+    if (spotLight.castShadow) {
+      spotLight.shadow.bias = -0.00015
+      spotLight.shadow.normalBias = 0.06
+      spotLight.shadow.mapSize.set(spotConfig.shadowMapSize, spotConfig.shadowMapSize)
+    }
+    if (this.lightDebugEnabled) {
+      spotLight.add(this.createLightMarker(spotConfig.color, 4))
+    }
     this.scene.add(spotLight)
     this.scene.add(spotLight.target)
 
     this.keyLight = keyLight
-    this.fillLight = fillLight
-    this.rimLight = rimLight
     this.spotLight = spotLight
   }
 
+  private createLightMarker(color: THREE.ColorRepresentation, size = 3): THREE.Mesh {
+    const geometry = new THREE.SphereGeometry(size, 12, 12)
+    const material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(color),
+      toneMapped: false,
+      depthWrite: false,
+      transparent: true,
+      opacity: 0.9,
+    })
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.frustumCulled = false
+    mesh.renderOrder = 10
+    return mesh
+  }
+
   private setupEnvironment(): void {
+    this.scene.background = null
     const fallback = this.createGradientEnvironmentMap()
     if (fallback) {
       this.setEnvironmentMap(fallback)
     }
-    if (HDR_BACKGROUND_ENABLED) {
+    if (HDR_ENVIRONMENT_ENABLED) {
       void this.loadHdrEnvironment()
     }
   }
@@ -282,42 +310,12 @@ export class SceneManager {
   }
 
   private setEnvironmentMap(envMap: THREE.Texture): void {
-    if (this.environmentMap && this.environmentMap !== envMap) {
-      this.environmentMap.dispose()
-    }
+    const previous = this.environmentMap
     this.environmentMap = envMap
     this.scene.environment = envMap
-  }
-
-  private setHdrBackground(hdrTexture: THREE.Texture): void {
-    if (this.hdrBackground) {
-      this.scene.remove(this.hdrBackground)
-      this.hdrBackground.geometry.dispose()
-      const material = this.hdrBackground.material as THREE.MeshBasicMaterial
-      if (material.map) {
-        material.map.dispose()
-      }
-      material.dispose()
-      this.hdrBackground = null
+    if (previous && previous !== envMap) {
+      previous.dispose()
     }
-
-    const geometry = new THREE.SphereGeometry(
-      SKYBOX_BACKGROUND_CONFIG.radius,
-      48,
-      32,
-    )
-    const material = new THREE.MeshBasicMaterial({
-      map: hdrTexture,
-      side: THREE.BackSide,
-      depthWrite: false,
-      toneMapped: false,
-    })
-    const mesh = new THREE.Mesh(geometry, material)
-    mesh.frustumCulled = false
-    mesh.name = 'hdr-background'
-    this.scene.add(mesh)
-    this.scene.background = null
-    this.hdrBackground = mesh
   }
 
   private async loadHdrEnvironment(): Promise<void> {
@@ -328,10 +326,8 @@ export class SceneManager {
       const envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture
 
       this.setEnvironmentMap(envMap)
-      if (this.sky) {
-        this.sky.mesh.visible = false
-      }
-      this.setHdrBackground(hdrTexture)
+      this.scene.background = null
+      hdrTexture.dispose()
     } catch (error) {
       console.error(`[SceneManager] Failed to load HDR skybox from "${this.skyboxPath}".`, error)
     } finally {
@@ -341,7 +337,6 @@ export class SceneManager {
 
   private bindSocketHandlers(): void {
     this.socketClient.onRoomInfo((info) => {
-      this.updateProceduralSky(info.roomId)
       this.gameStateStore.setRoomInfo(info.roomId, info.playerId, info.track, info.players, {
         sessionToken: info.sessionToken,
         protocolVersion: info.protocolVersion,
@@ -432,41 +427,7 @@ export class SceneManager {
     }
     this.radioSystem.update()
     this.roomVideoScreen.update()
-    if (this.sky && this.sky.mesh.visible) {
-      this.sky.update(delta, this.camera.position)
-    }
-    if (this.hdrBackground) {
-      this.hdrBackground.position.set(
-        this.camera.position.x,
-        this.camera.position.y + SKYBOX_BACKGROUND_CONFIG.offsetY,
-        this.camera.position.z,
-      )
-    }
     this.renderScene()
-  }
-
-  private updateProceduralSky(roomId: string | null): void {
-    const shouldEnable = isProceduralSkyEnabled(roomId)
-    if (!shouldEnable) {
-      if (this.sky?.mesh.parent) {
-        this.scene.remove(this.sky.mesh)
-      }
-      return
-    }
-
-    if (!this.sky) {
-      this.sky = new ProceduralSky({
-        topColor: '#6d9eff',
-        middleColor: '#9ccfff',
-        bottomColor: '#f6e5d6',
-        timeOfDay: 0.25,
-      })
-    }
-
-    if (!this.sky.mesh.parent) {
-      this.scene.add(this.sky.mesh)
-    }
-    this.sky.mesh.visible = !this.hdrBackground
   }
 
   private readonly preventContextMenu = (event: Event): void => {
@@ -634,6 +595,12 @@ export class SceneManager {
     this.controllerAccess.dispose()
     this.audioManager.dispose()
     this.socketClient.disconnect()
+    if (this.environmentMap) {
+      this.environmentMap.dispose()
+      this.environmentMap = null
+    }
+    this.scene.environment = null
+    this.scene.background = null
     if (this.composer) {
       this.composer.dispose()
       this.composer = null
@@ -654,7 +621,13 @@ export class SceneManager {
       composer.addPass(ssaoPass)
     }
 
-    const bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.5, 0.2, 0.85)
+    const bloomConfig = RENDER_CONFIG.postprocessing.bloom
+    const bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(width, height),
+      bloomConfig.strength,
+      bloomConfig.radius,
+      bloomConfig.threshold,
+    )
     composer.addPass(bloomPass)
 
     const vignettePass = this.createVignettePass()
@@ -670,10 +643,11 @@ export class SceneManager {
     if (!this.renderer.capabilities || !this.renderer.capabilities.isWebGL2) {
       return null
     }
+    const ssaoConfig = RENDER_CONFIG.postprocessing.ssao
     const ssaoPass = new SSAOPass(this.scene, this.camera, width, height)
-    ssaoPass.kernelRadius = 10
-    ssaoPass.minDistance = 0.0008
-    ssaoPass.maxDistance = 0.18
+    ssaoPass.kernelRadius = ssaoConfig.kernelRadius
+    ssaoPass.minDistance = ssaoConfig.minDistance
+    ssaoPass.maxDistance = ssaoConfig.maxDistance
     ssaoPass.output = SSAOPass.OUTPUT.Default
     return ssaoPass
   }

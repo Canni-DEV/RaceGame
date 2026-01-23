@@ -349,8 +349,20 @@ declare module 'three' {
   }
 
   export class MeshBasicMaterial extends Material {
-    constructor(parameters?: { map?: Texture | null; side?: number; depthWrite?: boolean; toneMapped?: boolean })
+    constructor(parameters?: {
+      map?: Texture | null
+      side?: number
+      depthWrite?: boolean
+      toneMapped?: boolean
+      color?: Color
+      transparent?: boolean
+      opacity?: number
+    })
     map: Texture | null
+    color: Color
+    transparent: boolean
+    opacity: number
+    side: number
   }
 
   export class ShaderMaterial extends Material {
