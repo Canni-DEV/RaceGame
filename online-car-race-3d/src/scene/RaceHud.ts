@@ -42,28 +42,45 @@ export class RaceHud {
 
   constructor(container: HTMLElement, store: GameStateStore) {
     this.root = document.createElement('div')
-    this.root.className = 'race-hud'
+    this.root.className = 'race-hud ui-panel'
 
     const header = document.createElement('div')
     header.className = 'race-hud__header'
 
+    const headerLeft = document.createElement('div')
+    headerLeft.className = 'race-hud__header-left'
+
+    const headerIcon = document.createElement('span')
+    headerIcon.className = 'ui-icon ui-icon--flag'
+    headerLeft.appendChild(headerIcon)
+
     this.status = document.createElement('div')
     this.status.className = 'race-hud__status'
-    header.appendChild(this.status)
+    headerLeft.appendChild(this.status)
+    header.appendChild(headerLeft)
+
+    const headerRight = document.createElement('div')
+    headerRight.className = 'race-hud__header-right'
 
     this.laps = document.createElement('div')
     this.laps.className = 'race-hud__laps'
-    header.appendChild(this.laps)
+    headerRight.appendChild(this.laps)
+    header.appendChild(headerRight)
+
+    this.root.appendChild(header)
+
+    const subheader = document.createElement('div')
+    subheader.className = 'race-hud__subheader'
 
     this.countdown = document.createElement('div')
     this.countdown.className = 'race-hud__countdown'
-    header.appendChild(this.countdown)
+    subheader.appendChild(this.countdown)
 
     this.timers = document.createElement('div')
     this.timers.className = 'race-hud__timers'
-    header.appendChild(this.timers)
+    subheader.appendChild(this.timers)
 
-    this.root.appendChild(header)
+    this.root.appendChild(subheader)
 
     this.leaderboard = document.createElement('div')
     this.leaderboard.className = 'race-hud__leaderboard'
@@ -111,7 +128,7 @@ export class RaceHud {
 
   private render(race: RaceState): void {
     this.status.textContent = phaseLabel(race.phase)
-    this.laps.textContent = `Laps: ${race.lapsRequired}`
+    this.laps.textContent = `Lap: ${race.lapsRequired}`
 
     if (race.phase === 'countdown') {
       this.countdown.textContent = `Start in ${formatCountdown(race.countdownRemaining)}s`
@@ -130,6 +147,8 @@ export class RaceHud {
           ? `Ready: ${readyStats.ready}/${readyStats.total}`
           : ''
     }
+    this.countdown.hidden = this.countdown.textContent.length === 0
+    this.timers.hidden = this.timers.textContent.length === 0
 
     this.renderLeaderboard(race.leaderboard, race.phase)
     this.renderResults(race)
@@ -165,45 +184,88 @@ export class RaceHud {
       const row = document.createElement('div')
       row.className = 'race-hud__row'
 
+      const isLeader = entry.position === 1
+      row.classList.toggle('is-leader', isLeader)
+      row.classList.toggle('is-npc', Boolean(entry.isNpc))
+
+      const displayName = entry.username ?? entry.playerId
       const pos = document.createElement('div')
-      pos.className = 'race-hud__col race-hud__col--pos'
+      pos.className = 'race-hud__pos-badge'
       pos.textContent = entry.position.toString()
       row.appendChild(pos)
 
+      const main = document.createElement('div')
+      main.className = 'race-hud__main'
+
       const name = document.createElement('div')
-      name.className = 'race-hud__col race-hud__col--name'
-      const displayName = entry.username ?? entry.playerId
-      name.textContent = entry.isNpc ? `${displayName} · NPC` : displayName
-      row.appendChild(name)
+      name.className = 'race-hud__name'
+      name.textContent = displayName
+      main.appendChild(name)
 
-      const lap = document.createElement('div')
-      lap.className = 'race-hud__col race-hud__col--lap'
+      const meta = document.createElement('div')
+      meta.className = 'race-hud__meta'
+      const lap = document.createElement('span')
+      lap.className = 'race-hud__meta-item race-hud__meta-lap'
       lap.textContent = `L${entry.lap}`
-      row.appendChild(lap)
+      meta.appendChild(lap)
+      main.appendChild(meta)
 
-      const gap = document.createElement('div')
-      gap.className = 'race-hud__col race-hud__col--gap'
-      if (entry.position === 1) {
-        gap.textContent = entry.isFinished ? 'Winner' : 'Leader'
-      } else if (entry.gapToFirst !== null) {
-        gap.textContent = `+${entry.gapToFirst.toFixed(1)}`
+      row.appendChild(main)
+
+      const right = document.createElement('div')
+      right.className = 'race-hud__right'
+
+      const badges = document.createElement('div')
+      badges.className = 'race-hud__badges'
+
+      if (isLeader) {
+        const leaderLabel = entry.isFinished ? 'Winner' : 'Leader'
+        badges.appendChild(
+          this.createBadge(leaderLabel, entry.isFinished ? 'winner' : 'leader'),
+        )
       }
-      row.appendChild(gap)
 
-      if (phase === 'lobby') {
-        const ready = document.createElement('div')
-        ready.className = 'race-hud__col race-hud__col--ready'
-        ready.textContent = entry.ready ? 'Ready' : 'Pending'
-        row.appendChild(ready)
+      if (entry.isNpc) {
+        badges.appendChild(this.createBadge('NPC', 'npc'))
+      }
+
+      if (phase === 'lobby' && !entry.isNpc) {
+        badges.appendChild(
+          this.createBadge(entry.ready ? 'Ready' : 'Pending', entry.ready ? 'ready' : 'pending'),
+        )
       } else if (phase === 'postrace') {
-        const finish = document.createElement('div')
-        finish.className = 'race-hud__col race-hud__col--finish'
-        finish.textContent = formatFinishTime(entry)
-        row.appendChild(finish)
+        badges.appendChild(this.createBadge(formatFinishTime(entry), entry.isFinished ? 'time' : 'pending'))
+      } else if (!isLeader && entry.gapToFirst !== null) {
+        badges.appendChild(this.createBadge(`+${entry.gapToFirst.toFixed(1)}`, 'gap'))
       }
+
+      right.appendChild(badges)
+
+      if (isLeader) {
+        const actions = document.createElement('div')
+        actions.className = 'race-hud__actions'
+        actions.appendChild(this.createActionIcon('gear'))
+        actions.appendChild(this.createActionIcon('signal'))
+        right.appendChild(actions)
+      }
+
+      row.appendChild(right)
 
       this.leaderboard.appendChild(row)
     }
+  }
+
+  private createBadge(label: string, variant?: string): HTMLElement {
+    const badge = document.createElement('span')
+    badge.className = `race-hud__badge${variant ? ` race-hud__badge--${variant}` : ''}`
+    badge.textContent = label
+    return badge
+  }
+
+  private createActionIcon(name: string): HTMLElement {
+    const icon = document.createElement('span')
+    icon.className = `ui-icon ui-icon--${name} race-hud__action-icon`
+    return icon
   }
 
   private renderResults(race: RaceState): void {

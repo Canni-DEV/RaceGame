@@ -259,8 +259,8 @@ export class CarEntity {
     }
 
     context.clearRect(0, 0, canvas.width, canvas.height)
-    context.fillStyle = 'rgba(15, 23, 42, 0.7)'
-    const borderColor = this.color.clone().lerp(new THREE.Color('#ffffff'), 0.18)
+    context.fillStyle = 'rgba(27, 20, 16, 0.82)'
+    const borderColor = new THREE.Color('#f2b24a').lerp(this.color, 0.22)
     context.strokeStyle = borderColor.getStyle()
     context.lineWidth = 8
     context.lineJoin = 'round'
@@ -280,12 +280,26 @@ export class CarEntity {
     context.fill()
     context.stroke()
 
-    context.font = '700 64px "Inter", system-ui, sans-serif'
+    context.save()
+    context.clip()
+    const overlay = context.createLinearGradient(0, 0, 0, canvas.height)
+    overlay.addColorStop(0, 'rgba(255, 255, 255, 0.12)')
+    overlay.addColorStop(1, 'rgba(0, 0, 0, 0.2)')
+    context.fillStyle = overlay
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.restore()
+
+    context.strokeStyle = 'rgba(0, 0, 0, 0.55)'
+    context.lineWidth = 2
+    context.stroke()
+
+    context.font = '700 58px "Rajdhani", "Trebuchet MS", sans-serif'
     context.textAlign = 'center'
     context.textBaseline = 'middle'
-    context.fillStyle = '#f8fafc'
-    context.shadowColor = 'rgba(0,0,0,0.35)'
-    context.shadowBlur = 12
+    context.fillStyle = '#f5efe6'
+    context.shadowColor = 'rgba(0, 0, 0, 0.55)'
+    context.shadowBlur = 14
+    context.shadowOffsetY = 2
     context.fillText(text, canvas.width / 2, canvas.height / 2)
 
     const texture = new THREE.CanvasTexture(canvas)

@@ -3,47 +3,49 @@ export class HotkeyOverlay {
 
   constructor(container: HTMLElement) {
     this.root = document.createElement('div')
-    this.root.className = 'hotkey-overlay'
+    this.root.className = 'hud-topbar'
 
-    const entries: Array<[string, string]> = [
-      ['S', 'Sound'],
-      ['V', 'View'],
-      ['R', 'Rotate'],
-      ['Q', 'QR'],
-      ['P', 'Players'],
-      ['H', 'HUD'],
-      ['ENTER', 'Chat'],
+    const banner = document.createElement('div')
+    banner.className = 'hud-topbar__banner'
+    const title = document.createElement('div')
+    title.className = 'hud-topbar__title'
+    title.textContent = 'MICRO RACE'
+    banner.appendChild(title)
+    this.root.appendChild(banner)
+
+    const toolbar = document.createElement('div')
+    toolbar.className = 'hud-topbar__toolbar'
+
+    const actions = [
+      { label: 'Sound', icon: 'sound' },
+      { label: 'View', icon: 'view' },
+      { label: 'Rotate', icon: 'rotate' },
+      { label: 'Players', icon: 'players' },
+      { label: 'HUD', icon: 'hud' },
+      { label: 'Chat', icon: 'chat' },
     ]
-    entries.forEach(([key, description], index) => {
-      this.root.appendChild(this.createEntry(key, description))
-      if (index < entries.length - 1) {
-        this.root.appendChild(this.createDot())
-      }
+
+    actions.forEach((action) => {
+      toolbar.appendChild(this.createButton(action.label, action.icon))
     })
+
+    this.root.appendChild(toolbar)
     container.appendChild(this.root)
   }
 
-  private createEntry(key: string, description: string): HTMLElement {
-    const item = document.createElement('span')
-    item.className = 'hotkey-overlay__item'
+  private createButton(label: string, icon: string): HTMLElement {
+    const button = document.createElement('div')
+    button.className = 'hud-topbar__button'
 
-    const keyBadge = document.createElement('span')
-    keyBadge.className = 'hotkey-overlay__key'
-    keyBadge.textContent = key
+    const iconEl = document.createElement('span')
+    iconEl.className = `ui-icon ui-icon--${icon}`
 
     const text = document.createElement('span')
-    text.className = 'hotkey-overlay__description'
-    text.textContent = description
+    text.className = 'hud-topbar__label'
+    text.textContent = label
 
-    item.appendChild(keyBadge)
-    item.appendChild(text)
-    return item
-  }
-
-  private createDot(): HTMLElement {
-    const dot = document.createElement('span')
-    dot.className = 'hotkey-overlay__separator'
-    dot.textContent = '·'
-    return dot
+    button.appendChild(iconEl)
+    button.appendChild(text)
+    return button
   }
 }

@@ -9,9 +9,10 @@ interface PlayerListOverlayOptions {
 
 interface PlayerListRow {
   root: HTMLElement
-  badge: HTMLElement
+  avatar: HTMLElement
   name: HTMLElement
-  status: HTMLElement
+  badges: HTMLElement
+  stats: HTMLElement
 }
 
 export class PlayerListOverlay {
@@ -21,12 +22,15 @@ export class PlayerListOverlay {
   private readonly turboCharges: Map<string, number>
   private readonly missileCharges: Map<string, number>
   private readonly activePlayers: Map<string, PlayerSummary>
+  private readonly readyPlayers: Set<string>
   private readonly rows: Map<string, PlayerListRow>
   private readonly playerLookup: Map<string, PlayerSummary>
   private readonly onSelectPlayer?: (playerId: string) => void
   private readonly unsubscribeRoomInfo: () => void
   private readonly unsubscribeState: () => void
   private players: PlayerSummary[] = []
+  private leaderId: string | null = null
+  private racePhase: RoomState['race']['phase'] | null = null
   private userHidden = false
   private isReady = false
   private localPlayerId: string | null = null
@@ -37,18 +41,27 @@ export class PlayerListOverlay {
     this.turboCharges = new Map()
     this.missileCharges = new Map()
     this.activePlayers = new Map()
+    this.readyPlayers = new Set()
     this.rows = new Map()
     this.playerLookup = new Map()
     this.onSelectPlayer = options?.onSelectPlayer
 
     this.root = document.createElement('div')
-    this.root.className = 'player-list-overlay'
+    this.root.className = 'player-list-overlay ui-panel'
     this.root.hidden = true
+
+    const header = document.createElement('div')
+    header.className = 'player-list-overlay__header'
+
+    const headerIcon = document.createElement('span')
+    headerIcon.className = 'ui-icon ui-icon--shield'
+    header.appendChild(headerIcon)
 
     const title = document.createElement('div')
     title.className = 'player-list-overlay__title'
     title.textContent = 'Connected players'
-    this.root.appendChild(title)
+    header.appendChild(title)
+    this.root.appendChild(header)
 
     this.list = document.createElement('div')
     this.list.className = 'player-list-overlay__list'
@@ -81,7 +94,9 @@ export class PlayerListOverlay {
     this.turboCharges.clear()
     this.missileCharges.clear()
     this.activePlayers.clear()
+    this.readyPlayers.clear()
     this.localHasCar = false
+    this.racePhase = state.race.phase
 
     for (const car of state.cars) {
       this.playerSpeeds.set(car.playerId, Math.abs(car.speed))
@@ -96,6 +111,14 @@ export class PlayerListOverlay {
         this.localHasCar = true
       }
     }
+
+    for (const entry of state.race.players) {
+      if (!entry.isNpc && entry.ready) {
+        this.readyPlayers.add(entry.playerId)
+      }
+    }
+    const leaderEntry = state.race.leaderboard.find((entry) => entry.position === 1)
+    this.leaderId = leaderEntry?.playerId ?? null
 
     this.updateReadiness()
     this.render()
@@ -156,24 +179,37 @@ export class PlayerListOverlay {
     root.addEventListener('click', this.handleRowClick)
     root.addEventListener('keydown', this.handleRowKeyPress)
 
-    const badge = document.createElement('span')
-    badge.className = 'player-list-overlay__color'
-    root.appendChild(badge)
+    const avatar = document.createElement('span')
+    avatar.className = 'player-list-overlay__avatar'
+
+    const avatarIcon = document.createElement('span')
+    avatarIcon.className = 'player-list-overlay__avatar-icon ui-icon ui-icon--helmet'
+    avatar.appendChild(avatarIcon)
+    root.appendChild(avatar)
 
     const content = document.createElement('div')
-    content.className = 'player-list-overlay__content'
+    content.className = 'player-list-overlay__body'
+
+    const nameRow = document.createElement('div')
+    nameRow.className = 'player-list-overlay__name-row'
 
     const name = document.createElement('div')
     name.className = 'player-list-overlay__name'
-    content.appendChild(name)
+    nameRow.appendChild(name)
 
-    const status = document.createElement('div')
-    status.className = 'player-list-overlay__speed'
-    content.appendChild(status)
+    const badges = document.createElement('div')
+    badges.className = 'player-list-overlay__badges'
+    nameRow.appendChild(badges)
+
+    content.appendChild(nameRow)
+
+    const stats = document.createElement('div')
+    stats.className = 'player-list-overlay__stats'
+    content.appendChild(stats)
 
     root.appendChild(content)
 
-    const row: PlayerListRow = { root, badge, name, status }
+    const row: PlayerListRow = { root, avatar, name, badges, stats }
     this.rows.set(player.playerId, row)
     return row
   }
@@ -181,22 +217,51 @@ export class PlayerListOverlay {
   private updateRow(row: PlayerListRow, player: PlayerSummary): void {
     row.root.dataset.playerId = player.playerId
     const isActive = this.activePlayers.has(player.playerId)
-    row.badge.style.background = isActive ? this.getColor(player) : 'transparent'
+    row.avatar.style.background = isActive ? this.getColor(player) : 'rgba(255, 255, 255, 0.08)'
+    const isLeader = player.playerId === this.leaderId
+    row.root.classList.toggle('is-leader', isLeader)
+    row.root.classList.toggle('is-npc', Boolean(player.isNpc))
 
     const displayName = this.getDisplayName(player)
-    row.name.textContent = player.isNpc ? `${displayName} · NPC` : displayName
+    row.name.textContent = displayName
 
+    row.badges.textContent = ''
+    const addBadge = (label: string, variant?: string, icon?: string): void => {
+      const badge = document.createElement('span')
+      badge.className = `player-list-overlay__badge${variant ? ` player-list-overlay__badge--${variant}` : ''}`
+      if (icon) {
+        const iconEl = document.createElement('span')
+        iconEl.className = `ui-icon ui-icon--${icon} player-list-overlay__badge-icon`
+        badge.appendChild(iconEl)
+      }
+      badge.appendChild(document.createTextNode(label))
+      row.badges.appendChild(badge)
+    }
+
+    if (isLeader) {
+      addBadge('Leader', 'leader', 'trophy')
+    }
+    if (player.isNpc) {
+      addBadge('NPC', 'npc')
+    }
+    addBadge(isActive ? 'On track' : 'Lobby', isActive ? 'active' : 'idle')
+    if (this.racePhase === 'lobby' && !player.isNpc) {
+      const ready = this.readyPlayers.has(player.playerId)
+      addBadge(ready ? 'Ready' : 'Pending', ready ? 'ready' : 'pending')
+    }
+
+    row.stats.textContent = ''
     if (isActive) {
       const speedValue = this.playerSpeeds.get(player.playerId)
       const turbo = this.turboCharges.get(player.playerId) ?? 0
       const missiles = this.missileCharges.get(player.playerId) ?? 0
-      const speedText = speedValue === undefined ? 'no data' : `${speedValue.toFixed(1)}u`
-      row.status.textContent = `${speedText} · ⚡${turbo} · 🎯${missiles}`
-      row.status.hidden = false
-    } else {
-      row.status.textContent = ''
-      row.status.hidden = true
+      if (speedValue !== undefined) {
+        row.stats.appendChild(this.createStat('SPD', `${speedValue.toFixed(1)}u`))
+      }
+      row.stats.appendChild(this.createStat('Turbo', turbo.toString()))
+      row.stats.appendChild(this.createStat('Miss', missiles.toString()))
     }
+    row.stats.hidden = row.stats.childElementCount === 0
 
     const selectable = this.canSelectTarget(player)
     row.root.classList.toggle('is-selectable', selectable)
@@ -290,6 +355,13 @@ export class PlayerListOverlay {
 
   private getDisplayName(player: PlayerSummary): string {
     return player.username || player.playerId
+  }
+
+  private createStat(label: string, value: string): HTMLElement {
+    const stat = document.createElement('span')
+    stat.className = 'player-list-overlay__stat'
+    stat.textContent = `${label} ${value}`
+    return stat
   }
 
   dispose(): void {

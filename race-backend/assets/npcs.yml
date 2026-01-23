@@ -23,7 +23,7 @@
 
 npcs:
   - name: Garburator
-    active: true
+    active: false
     baseThrottle: 0.92
     minThrottle: 0.6
     throttleCornerPenalty: 0.3
