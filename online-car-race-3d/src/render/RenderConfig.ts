@@ -33,12 +33,12 @@ export const RENDER_CONFIG = {
     },
   },
   postprocessing: {
-    bloom: { strength: 0.28, radius: 0.16, threshold: 0.9 },
-    ssao: { kernelRadius: 6, minDistance: 0.0012, maxDistance: 0.1 },
+    bloom: { strength: 0.2, radius: 0.16, threshold: 0.9 },
+    ssao: { kernelRadius: 3, minDistance: 0.0012, maxDistance: 0.1 },
   },
   materials: {
     ground: {
-      emissiveIntensity: 0.8,
+      emissiveIntensity: 0.9,
     },
   },
 }

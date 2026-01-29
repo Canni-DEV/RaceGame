@@ -229,7 +229,7 @@ assets:
     clusterSize: 1
     clusterRadius: 6
 
-  - file: billboardLow.glb
+  - file: bilboard_microrace.glb
     id: billboards
     placement: optional
     placementTier: 3
