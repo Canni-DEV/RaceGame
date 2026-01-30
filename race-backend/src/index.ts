@@ -3,7 +3,20 @@ import http from "http";
 import https from "https";
 import fs from "fs";
 import path from "path";
-import { PORT, TRACK_ASSET_LIBRARY } from "./config";
+import {
+  NPC_CHAT_ENABLED,
+  OLLAMA_BASE_URL,
+  OLLAMA_MAX_TOKENS,
+  OLLAMA_MODEL,
+  OLLAMA_TEMPERATURE,
+  OLLAMA_TIMEOUT_MS,
+  OLLAMA_TOP_P,
+  PORT,
+  TRACK_ASSET_LIBRARY
+} from "./config";
+import { NpcChatScheduler } from "./chat/NpcChatScheduler";
+import { NpcPersonaManager } from "./chat/NpcPersonaManager";
+import { OllamaClient } from "./chat/OllamaClient";
 import { GameLoop } from "./game/GameLoop";
 import { RoomManager } from "./game/RoomManager";
 import { SocketServer } from "./net/SocketServer";
@@ -64,6 +77,30 @@ const httpsOptions = resolveHttpsOptions();
 const server = httpsOptions ? https.createServer(httpsOptions, app) : http.createServer(app);
 const roomManager = new RoomManager();
 const socketServer = new SocketServer(server, roomManager);
+let npcChatScheduler: NpcChatScheduler | null = null;
+
+if (NPC_CHAT_ENABLED) {
+  const personaManager = new NpcPersonaManager();
+  const ollamaClient = new OllamaClient(
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
+    OLLAMA_TIMEOUT_MS,
+    {
+      temperature: OLLAMA_TEMPERATURE,
+      top_p: OLLAMA_TOP_P,
+      num_predict: OLLAMA_MAX_TOKENS
+    }
+  );
+  npcChatScheduler = new NpcChatScheduler(
+    roomManager,
+    ollamaClient,
+    personaManager,
+    (message) => socketServer.emitChatMessage(message)
+  );
+  socketServer.setNpcChatHooks(npcChatScheduler);
+  npcChatScheduler.start();
+  console.log(`[NpcChat] Enabled with model \"${OLLAMA_MODEL}\" at ${OLLAMA_BASE_URL}`);
+}
 const gameLoop = new GameLoop(roomManager, (roomId, state) => {
   socketServer.broadcastState(roomId, state);
 });
@@ -96,5 +133,6 @@ server.listen(PORT, () => {
 process.on("SIGINT", () => {
   console.log("Shutting down...");
   gameLoop.stop();
+  npcChatScheduler?.stop();
   server.close(() => process.exit(0));
 });

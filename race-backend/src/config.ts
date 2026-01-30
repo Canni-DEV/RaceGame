@@ -18,6 +18,46 @@ export const CHAT_MESSAGE_BURST_WINDOW_MS = clamp(
   60000,
 );
 export const CHAT_MESSAGE_BURST_LIMIT = clamp(Number(process.env.CHAT_MESSAGE_BURST_LIMIT ?? 4), 1, 100);
+export const NPC_CHAT_ENABLED = readBooleanEnv(process.env.NPC_CHAT_ENABLED, true);
+export const NPC_CHAT_RESPOND_ON_MENTION = readBooleanEnv(process.env.NPC_CHAT_RESPOND_ON_MENTION, true);
+export const NPC_CHAT_ALLOW_IN_LOBBY = readBooleanEnv(process.env.NPC_CHAT_ALLOW_IN_LOBBY, true);
+export const NPC_CHAT_ALLOW_IN_RACE = readBooleanEnv(process.env.NPC_CHAT_ALLOW_IN_RACE, true);
+export const NPC_CHAT_TICK_MS = clamp(Number(process.env.NPC_CHAT_TICK_MS ?? 1000), 200, 10000);
+export const NPC_CHAT_MIN_INTERVAL_MS = clamp(
+  Number(process.env.NPC_CHAT_MIN_INTERVAL_MS ?? 12000),
+  1000,
+  120000,
+);
+export const NPC_CHAT_ROOM_INTERVAL_MS = clamp(
+  Number(process.env.NPC_CHAT_ROOM_INTERVAL_MS ?? 4000),
+  500,
+  60000,
+);
+export const NPC_CHAT_SPONTANEOUS_CHANCE = clamp(
+  Number(process.env.NPC_CHAT_SPONTANEOUS_CHANCE ?? 0.15),
+  0,
+  1,
+);
+export const NPC_CHAT_MAX_CONTEXT_MESSAGES = clamp(
+  Number(process.env.NPC_CHAT_MAX_CONTEXT_MESSAGES ?? 8),
+  1,
+  40,
+);
+export const NPC_CHAT_MAX_EVENTS = clamp(Number(process.env.NPC_CHAT_MAX_EVENTS ?? 6), 0, 50);
+export const NPC_CHAT_CONCURRENCY = clamp(Number(process.env.NPC_CHAT_CONCURRENCY ?? 2), 1, 8);
+export const NPC_CHAT_ERROR_COOLDOWN_MS = clamp(
+  Number(process.env.NPC_CHAT_ERROR_COOLDOWN_MS ?? 30000),
+  1000,
+  300000,
+);
+
+export const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
+export const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "leeplenty/lumimaid-v0.2";
+export const OLLAMA_TIMEOUT_MS = clamp(Number(process.env.OLLAMA_TIMEOUT_MS ?? 20000), 1000, 60000);
+export const OLLAMA_TEMPERATURE = clamp(Number(process.env.OLLAMA_TEMPERATURE ?? 0.7), 0, 2);
+export const OLLAMA_TOP_P = clamp(Number(process.env.OLLAMA_TOP_P ?? 0.9), 0, 1);
+export const OLLAMA_MAX_TOKENS = clamp(Number(process.env.OLLAMA_MAX_TOKENS ?? 120), 1, 800);
+export const NPC_PERSONA_PATH = process.env.NPC_PERSONA_PATH;
 export const MAX_PLAYERS_PER_ROOM = 8;
 export const RACE_COUNTDOWN_SECONDS = clamp(Number(process.env.RACE_COUNTDOWN_SECONDS ?? 5), 1, 120);
 export const RACE_LAPS = clamp(Number(process.env.RACE_LAPS ?? 3), 1, 99);
@@ -207,4 +247,20 @@ function clamp(value: number, min: number, max: number): number {
     return min;
   }
   return Math.min(Math.max(value, min), max);
+}
+
+function readBooleanEnv(value: unknown, fallback: boolean): boolean {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") {
+      return true;
+    }
+    if (normalized === "false" || normalized === "0") {
+      return false;
+    }
+  }
+  return fallback;
 }
