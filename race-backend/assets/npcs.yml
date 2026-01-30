@@ -45,7 +45,7 @@ npcs:
     approachDistanceRatio: 0.65
 
   - name: Petrucci
-    active: false
+    active: true
     baseThrottle: 0.78
     minThrottle: 0.38
     throttleCornerPenalty: 0.45

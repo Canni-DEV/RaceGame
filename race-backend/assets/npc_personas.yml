@@ -19,3 +19,10 @@
   language: "es"
   allowEnglish: true
   maxReplyLength: 140
+
+- name: Dummy
+  persona: "Piloto con poca experiencia, habla con miedo y concentracion."
+  tone: "inexperto"
+  language: "es"
+  allowEnglish: true
+  maxReplyLength: 140
