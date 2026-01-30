@@ -43,6 +43,7 @@ export const NPC_CHAT_MAX_CONTEXT_MESSAGES = clamp(
   1,
   40,
 );
+export const NPC_CHAT_MAX_RACE_EVENTS = clamp(Number(process.env.NPC_CHAT_MAX_RACE_EVENTS ?? 3), 1, 10);
 export const NPC_CHAT_MAX_EVENTS = clamp(Number(process.env.NPC_CHAT_MAX_EVENTS ?? 6), 0, 50);
 export const NPC_CHAT_CONCURRENCY = clamp(Number(process.env.NPC_CHAT_CONCURRENCY ?? 2), 1, 8);
 export const NPC_CHAT_ERROR_COOLDOWN_MS = clamp(
@@ -52,9 +53,9 @@ export const NPC_CHAT_ERROR_COOLDOWN_MS = clamp(
 );
 
 export const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ?? "http://localhost:11434";
-export const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "leeplenty/lumimaid-v0.2";
+export const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "mistral-small3.2";
 export const OLLAMA_TIMEOUT_MS = clamp(Number(process.env.OLLAMA_TIMEOUT_MS ?? 20000), 1000, 60000);
-export const OLLAMA_TEMPERATURE = clamp(Number(process.env.OLLAMA_TEMPERATURE ?? 0.7), 0, 2);
+export const OLLAMA_TEMPERATURE = clamp(Number(process.env.OLLAMA_TEMPERATURE ?? 0.9), 0, 2);
 export const OLLAMA_TOP_P = clamp(Number(process.env.OLLAMA_TOP_P ?? 0.9), 0, 1);
 export const OLLAMA_MAX_TOKENS = clamp(Number(process.env.OLLAMA_MAX_TOKENS ?? 120), 1, 800);
 export const NPC_PERSONA_PATH = process.env.NPC_PERSONA_PATH;
