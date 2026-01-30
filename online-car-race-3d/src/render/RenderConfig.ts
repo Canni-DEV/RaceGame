@@ -38,7 +38,7 @@ export const RENDER_CONFIG = {
   },
   materials: {
     ground: {
-      emissiveIntensity: 0.9,
+      emissiveIntensity: 0.5,
     },
   },
 }
