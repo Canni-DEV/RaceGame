@@ -8,6 +8,7 @@ import {
   OLLAMA_BASE_URL,
   OLLAMA_MAX_TOKENS,
   OLLAMA_MODEL,
+  OLLAMA_REPEAT_PENALTY,
   OLLAMA_TEMPERATURE,
   OLLAMA_TIMEOUT_MS,
   OLLAMA_TOP_P,
@@ -88,6 +89,7 @@ if (NPC_CHAT_ENABLED) {
     {
       temperature: OLLAMA_TEMPERATURE,
       top_p: OLLAMA_TOP_P,
+      repeat_penalty: OLLAMA_REPEAT_PENALTY,
       num_predict: OLLAMA_MAX_TOKENS
     }
   );

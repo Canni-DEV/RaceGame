@@ -9,6 +9,7 @@ export type OllamaChatMessage = {
 export type OllamaChatOptions = {
   temperature?: number;
   top_p?: number;
+  repeat_penalty?: number;
   num_predict?: number;
 };
 
