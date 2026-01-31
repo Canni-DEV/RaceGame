@@ -730,6 +730,8 @@ export class NpcChatScheduler implements NpcChatHooks {
       isNpc: entry.isNpc ?? false
     }));
 
+    const recentEvents = this.formatEvents(task.roomId);
+    const recentRaceEvents = this.formatRaceEvents(task.roomId, task.npcId);
     const context = {
       roomId: state.roomId,
       phase: state.race.phase,
@@ -752,8 +754,8 @@ export class NpcChatScheduler implements NpcChatHooks {
       totalPlayers: state.race.leaderboard.length,
       humansInRoom: room.getHumanPlayerCount(),
       spectators,
-      recentEvents: this.formatEvents(task.roomId),
-      recentRaceEvents: this.formatRaceEvents(task.roomId, task.npcId),
+      recentEvents,
+      recentRaceEvents,
       triggerRaceEvent: task.event ? this.formatRaceEvent(task.event) : null
     };
 
@@ -764,7 +766,7 @@ export class NpcChatScheduler implements NpcChatHooks {
       ? "Responde directamente al jugador que te menciono con una frase corta."
       : task.reason === "event"
         ? "Comenta el primer evento de recentRaceEvents. Si esta marcado como INVOLVED, habla en primera persona y no uses tu nombre. Si es OBSERVED, reacciona breve."
-        : "Haz un comentario breve sobre la carrera o el lobby."
+        : "Si recentRaceEvents tiene al menos 1 item: comenta solo el primero. Si esta vacio y recentEvents tiene al menos 1 item: comenta solo el ultimo. Si ambos estan vacios: comenta el lobby usando spectators o totalPlayers/humansInRoom."
 
     return [
       {
@@ -827,8 +829,9 @@ export class NpcChatScheduler implements NpcChatHooks {
         "- Formato de recentRaceEvents: [hace Xs][TOP|MED|LOW][INVOLVED|OBSERVED] texto.",
         "- TOP = finish/overtake, MED = lapComplete, LOW = raceStart.",
         "- INVOLVED significa que tu participaste; responde en primera persona. OBSERVED significa que solo viste el evento; reacciona breve.",
+        "- recentEvents: eventos de lobby como joins/leaves. Si no hay recentRaceEvents, comenta el ultimo recentEvent.",
         "- spectators: jugadores conectados como espectadores que aun no entraron a la partida.",
-        "- Si recentRaceEvents tiene al menos 1 item: comenta solo el primero. Si esta vacio: comenta el lobby usando spectators o totalPlayers/humansInRoom.",
+        "- Si recentRaceEvents tiene al menos 1 item: comenta solo el primero. Si esta vacio y recentEvents tiene items: comenta el ultimo. Si ambos estan vacios: comenta el lobby usando spectators o totalPlayers/humansInRoom.",
         "- No repitas el texto exacto del evento; reexpresalo con tus palabras."
       ],
       [
