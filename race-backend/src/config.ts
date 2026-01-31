@@ -7,6 +7,18 @@ export const TICK_RATE = 60; // ticks per second
 export const STATE_BROADCAST_RATE = 20; // snapshots per second
 export const STATE_NUMBER_PRECISION = clamp(Number(process.env.STATE_NUMBER_PRECISION ?? 3), 0, 10);
 export const RADIO_STATION_COUNT = clamp(Number(process.env.RADIO_STATION_COUNT ?? 5), 0, 20);
+const DEFAULT_RADIO_STATION_NAMES = [
+  "Hard Rock Heaven",
+  "Dance Wave!",
+  "MANGORADIO",
+  "GREATEST HEAVY METAL",
+  "Radio Paradise Main Mix"
+];
+export const RADIO_STATION_NAMES = readStationNames(
+  process.env.RADIO_STATION_NAMES,
+  RADIO_STATION_COUNT,
+  DEFAULT_RADIO_STATION_NAMES
+);
 export const STATE_DELTA_MAX_RATIO = clamp(Number(process.env.STATE_DELTA_MAX_RATIO ?? 0.6), 0, 1);
 export const STATE_DELTA_MIN_CHANGES = clamp(Number(process.env.STATE_DELTA_MIN_CHANGES ?? 24), 1, 100000);
 export const INPUT_BURST_WINDOW_MS = clamp(Number(process.env.INPUT_BURST_WINDOW_MS ?? 50), 10, 1000);
@@ -264,4 +276,23 @@ function readBooleanEnv(value: unknown, fallback: boolean): boolean {
     }
   }
   return fallback;
+}
+
+function readStationNames(value: unknown, count: number, defaults: string[]): string[] {
+  if (count <= 0) {
+    return [];
+  }
+  const parsed = typeof value === "string"
+    ? value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0)
+    : [];
+  const names: string[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const fromEnv = parsed[index];
+    const fallback = defaults[index] ?? `Station ${index + 1}`;
+    names.push(fromEnv ?? fallback);
+  }
+  return names;
 }

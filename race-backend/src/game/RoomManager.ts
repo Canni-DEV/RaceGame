@@ -16,7 +16,7 @@ import {
   JoinRoomRequest,
   UsernameUpdateMessage
 } from "../types/messages";
-import { PlayerRole } from "../types/trackTypes";
+import { PlayerRole, RoomRadioState } from "../types/trackTypes";
 import { trackRepository } from "./TrackRepository";
 import { Room, PlayerInput } from "./Room";
 
@@ -211,7 +211,14 @@ export class RoomManager {
     buffered.lastReceivedAt = Date.now();
   }
 
-  handleRadioCycle(socketId: string): { room: Room } {
+  handleRadioCycle(socketId: string): {
+    room: Room;
+    actorId: string | null;
+    actorName: string;
+    actorIsNpc: boolean;
+    previousRadio: RoomRadioState;
+    nextRadio: RoomRadioState;
+  } {
     const role = this.socketRoles.get(socketId);
     if (!role) {
       throw new Error("Socket no autorizado para radio");
@@ -226,8 +233,15 @@ export class RoomManager {
       throw new Error("Room not found");
     }
 
+    const actorId = role === "viewer"
+      ? this.viewerSocketToPlayer.get(socketId) ?? null
+      : this.controllerSocketToPlayer.get(socketId) ?? null;
+    const actorName = actorId ? room.getUsername(actorId) : "Alguien";
+    const actorIsNpc = actorId ? room.isNpc(actorId) : false;
+    const previousRadio = room.getRadioState();
     room.cycleRadio();
-    return { room };
+    const nextRadio = room.getRadioState();
+    return { room, actorId, actorName, actorIsNpc, previousRadio, nextRadio };
   }
 
   handleUsernameUpdate(

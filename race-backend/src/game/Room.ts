@@ -1457,6 +1457,10 @@ export class Room {
     return this.racePhase;
   }
 
+  getRadioState(): RoomRadioState {
+    return { ...this.radioState };
+  }
+
   isJoinOpen(): boolean {
     return this.racePhase === "lobby";
   }

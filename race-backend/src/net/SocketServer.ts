@@ -211,7 +211,16 @@ export class SocketServer {
 
   private handleRadioCycle(socket: Socket): void {
     try {
-      this.roomManager.handleRadioCycle(socket.id);
+      const result = this.roomManager.handleRadioCycle(socket.id);
+      this.npcChatHooks?.onRadioCycle({
+        roomId: result.room.roomId,
+        actorId: result.actorId,
+        actorName: result.actorName,
+        actorIsNpc: result.actorIsNpc,
+        previousRadio: result.previousRadio,
+        nextRadio: result.nextRadio,
+        timestamp: Date.now()
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       this.emitError(socket, message);
