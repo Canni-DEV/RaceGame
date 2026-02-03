@@ -33,12 +33,17 @@ type NpcChatTask = {
   queuedAt: number;
 };
 
+type NpcChatEventType = "spectator_join" | "spectator_leave" | "player_enter_lobby";
+
 type NpcChatEvent = {
-  type: "join" | "leave";
+  roomId: string;
+  type: NpcChatEventType;
   playerId: string;
   username: string;
   timestamp: number;
 };
+
+type NpcChatEventSummary = Omit<NpcChatEvent, "roomId">;
 
 type NpcRaceEventType = "raceStart" | "lapComplete" | "overtake" | "finish" | "radio";
 
@@ -78,8 +83,7 @@ type NpcRadioEvent = {
 
 export interface NpcChatHooks {
   onChatMessage(message: ChatMessage): void;
-  onPlayerJoined(roomId: string, playerId: string, username: string): void;
-  onPlayerLeft(roomId: string, playerId: string, username: string): void;
+  onPlayerEvent(event: NpcChatEvent): void;
   onRadioCycle(event: NpcRadioEvent): void;
 }
 
@@ -93,6 +97,7 @@ export class NpcChatScheduler implements NpcChatHooks {
   private readonly lastNpcMessageAt: Map<string, number> = new Map();
   private readonly lastRoomMessageAt: Map<string, number> = new Map();
   private readonly lastRoomEventAt: Map<string, number> = new Map();
+  private readonly seenSpectatorJoins: Map<string, Set<string>> = new Map();
   private readonly inFlightNpc: Set<string> = new Set();
   private readonly pendingMentions: Map<string, NpcChatTask> = new Map();
   private readonly queue: NpcChatTask[] = [];
@@ -168,22 +173,20 @@ export class NpcChatScheduler implements NpcChatHooks {
     }
   }
 
-  onPlayerJoined(roomId: string, playerId: string, username: string): void {
-    this.recordEvent(roomId, {
-      type: "join",
-      playerId,
-      username,
-      timestamp: Date.now()
-    });
-  }
+  onPlayerEvent(event: NpcChatEvent): void {
+    if (event.type === "spectator_join") {
+      let seen = this.seenSpectatorJoins.get(event.roomId);
+      if (!seen) {
+        seen = new Set();
+        this.seenSpectatorJoins.set(event.roomId, seen);
+      }
+      if (seen.has(event.playerId)) {
+        return;
+      }
+      seen.add(event.playerId);
+    }
 
-  onPlayerLeft(roomId: string, playerId: string, username: string): void {
-    this.recordEvent(roomId, {
-      type: "leave",
-      playerId,
-      username,
-      timestamp: Date.now()
-    });
+    this.recordEvent(event);
   }
 
   onRadioCycle(event: NpcRadioEvent): void {
@@ -766,7 +769,7 @@ export class NpcChatScheduler implements NpcChatHooks {
       ? "Responde directamente al jugador que te menciono con una frase corta."
       : task.reason === "event"
         ? "Comenta el primer evento de recentRaceEvents. Si esta marcado como INVOLVED, habla en primera persona y no uses tu nombre. Si es OBSERVED, reacciona breve."
-        : "Si recentRaceEvents tiene al menos 1 item: comenta solo el primero. Si esta vacio y recentEvents tiene al menos 1 item: comenta solo el ultimo. Si ambos estan vacios: comenta el lobby usando spectators o totalPlayers/humansInRoom."
+        : "Si recentRaceEvents tiene al menos 1 item: comenta solo el primero. Si esta vacio y recentEvents tiene al menos 1 item: comenta solo el ultimo usando su type. Si ambos estan vacios: comenta el lobby usando spectators o totalPlayers/humansInRoom."
 
     return [
       {
@@ -829,8 +832,12 @@ export class NpcChatScheduler implements NpcChatHooks {
         "- Formato de recentRaceEvents: [hace Xs][TOP|MED|LOW][INVOLVED|OBSERVED] texto.",
         "- TOP = finish/overtake, MED = lapComplete, LOW = raceStart.",
         "- INVOLVED significa que tu participaste; responde en primera persona. OBSERVED significa que solo viste el evento; reacciona breve.",
-        "- recentEvents: eventos de lobby como joins/leaves. Si no hay recentRaceEvents, comenta el ultimo recentEvent.",
+        "- recentEvents: lista ordenada de mas antigua a mas reciente. Usa solo el ultimo.",
+        "- Formato de recentEvents: { type, playerId, username, timestamp }.",
+        "- type puede ser: spectator_join (entra a la web como espectador), spectator_leave (sale de la web), player_enter_lobby (espectador entra al lobby/pista al leer el QR).",
         "- spectators: jugadores conectados como espectadores que aun no entraron a la partida.",
+        "- Usa humansInRoom y spectators como fuente autoritativa; no infieras conteos desde recentEvents.",
+        "- Si ves eventos repetidos del mismo playerId en recentEvents, tratarlos como reconnects e ignorarlos.",
         "- Si recentRaceEvents tiene al menos 1 item: comenta solo el primero. Si esta vacio y recentEvents tiene items: comenta el ultimo. Si ambos estan vacios: comenta el lobby usando spectators o totalPlayers/humansInRoom.",
         "- No repitas el texto exacto del evento; reexpresalo con tus palabras."
       ],
@@ -873,15 +880,15 @@ export class NpcChatScheduler implements NpcChatHooks {
     return `Chat reciente:\n${lines.join("\n")}`;
   }
 
-  private formatEvents(roomId: string): string[] {
+  private formatEvents(roomId: string): NpcChatEventSummary[] {
     const events = this.roomEvents.get(roomId) ?? [];
     const recent = events.slice(-NPC_CHAT_MAX_EVENTS);
-    return recent.map((event) => {
-      if (event.type === "join") {
-        return `${event.username} se conecto.`;
-      }
-      return `${event.username} se fue.`;
-    });
+    return recent.map((event) => ({
+      type: event.type,
+      playerId: event.playerId,
+      username: event.username,
+      timestamp: event.timestamp
+    }));
   }
 
   private recordChatMessage(message: ChatMessage): void {
@@ -897,11 +904,11 @@ export class NpcChatScheduler implements NpcChatHooks {
     }
   }
 
-  private recordEvent(roomId: string, event: NpcChatEvent): void {
-    let events = this.roomEvents.get(roomId);
+  private recordEvent(event: NpcChatEvent): void {
+    let events = this.roomEvents.get(event.roomId);
     if (!events) {
       events = [];
-      this.roomEvents.set(roomId, events);
+      this.roomEvents.set(event.roomId, events);
     }
 
     events.push(event);

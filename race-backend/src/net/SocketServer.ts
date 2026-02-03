@@ -125,11 +125,13 @@ export class SocketServer {
           username: result.room.getUsername(result.playerId)
         };
         this.io.to(result.room.roomId).emit("player_joined", joinMessage);
-        this.npcChatHooks?.onPlayerJoined(
-          result.room.roomId,
-          result.playerId,
-          result.room.getUsername(result.playerId)
-        );
+        this.npcChatHooks?.onPlayerEvent({
+          roomId: result.room.roomId,
+          type: "spectator_join",
+          playerId: result.playerId,
+          username: result.room.getUsername(result.playerId),
+          timestamp: Date.now()
+        });
         const state = serializeRoomState(result.room.toRoomState());
         this.sendFullToSocket(socket, result.room.roomId, state);
 
@@ -157,11 +159,13 @@ export class SocketServer {
             username: result.username
           };
           this.io.to(result.room.roomId).emit("player_joined", joinMessage);
-          this.npcChatHooks?.onPlayerJoined(
-            result.room.roomId,
-            result.playerId,
-            result.username
-          );
+          this.npcChatHooks?.onPlayerEvent({
+            roomId: result.room.roomId,
+            type: "player_enter_lobby",
+            playerId: result.playerId,
+            username: result.username,
+            timestamp: Date.now()
+          });
         }
 
         const state = serializeRoomState(result.room.toRoomState());
@@ -247,7 +251,13 @@ export class SocketServer {
         username: player.username
       };
       this.io.to(player.roomId).emit("player_left", message);
-      this.npcChatHooks?.onPlayerLeft(player.roomId, player.playerId, player.username);
+      this.npcChatHooks?.onPlayerEvent({
+        roomId: player.roomId,
+        type: "spectator_leave",
+        playerId: player.playerId,
+        username: player.username,
+        timestamp: Date.now()
+      });
     }
     for (const roomId of result.deletedRooms) {
       this.lastFullStates.delete(roomId);
