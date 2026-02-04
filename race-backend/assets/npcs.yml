@@ -45,7 +45,7 @@ npcs:
     approachDistanceRatio: 0.65
 
   - name: Petrucci
-    active: false
+    active: true
     baseThrottle: 0.78
     minThrottle: 0.38
     throttleCornerPenalty: 0.45
@@ -56,7 +56,7 @@ npcs:
     mistakeCooldownRange: [2.5, 6.5]
 
   - name: Arthur Morgan
-    active: true
+    active: false
     baseThrottle: 0.9
     throttleCornerPenalty: 0.65
     steerResponse: 1.121997
@@ -69,22 +69,42 @@ npcs:
 
   - name: Dummy
     active: true
-    baseThrottle: 0.76
+    baseThrottle: 0.85
     minThrottle: 0.05
-    throttleCornerPenalty: 0.9
+    throttleCornerPenalty: 0.8
     minTargetThreshold: 1.8
-    targetThresholdFactor: 1.4
+    targetThresholdFactor: 1.1
     minLookahead: 4
     maxLookahead: 18
     lookaheadSpeedFactor: 1.2
     recoveryBrakeAngle: 1.4
     offTrackThrottleScale: 0.25
     offTrackBrake: 0.8
-    steerResponse: 0.55
+    steerResponse: 0.6
     mistakeSteerBias: 0.45
     mistakeTriggerChance: 0.72
     mistakeDurationRange: [0.35, 1.4]
     mistakeCooldownRange: [0.6, 1.8]
-    approachThrottleScale: 0.2
-    approachBrake: 0.65
+    approachThrottleScale: 0.9
+    approachBrake: 0.5
     approachDistanceRatio: 0.85
+    
+  - name: Scarlet
+    active: true
+    baseThrottle: 0.85
+    throttleCornerPenalty: 0.7
+    targetThresholdFactor: 1.45
+    minLookahead: 4
+    maxLookahead: 16
+    lookaheadSpeedFactor: 1.1
+    recoveryBrakeAngle: 1.35
+    offTrackThrottleScale: 0.22
+    offTrackBrake: 0.85
+    steerResponse: 0.5
+    mistakeSteerBias: 0.55
+    mistakeTriggerChance: 0.7
+    mistakeDurationRange: [0.5, 1.2]
+    mistakeCooldownRange: [0.35, 1.2]
+    approachThrottleScale: 0.9
+    approachBrake: 0.3
+    approachDistanceRatio: 0.9

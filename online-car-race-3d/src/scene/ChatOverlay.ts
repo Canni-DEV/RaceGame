@@ -244,16 +244,24 @@ export class ChatOverlay {
     for (const entry of this.entries) {
       const row = document.createElement('div')
       row.className = 'chat-overlay__message'
-      row.textContent = this.formatMessage(entry.payload)
+      const sender = document.createElement('span')
+      sender.className = 'chat-overlay__sender'
+      sender.textContent = `${this.formatSender(entry.payload)}: `
+
+      const text = document.createElement('span')
+      text.className = 'chat-overlay__text'
+      text.textContent = entry.payload.message
+
+      row.append(sender, text)
       this.messageList.appendChild(row)
     }
   }
 
-  private formatMessage(message: ChatMessage): string {
+  private formatSender(message: ChatMessage): string {
     const sender = message.isSystem
       ? SYSTEM_LABEL
       : message.username || message.playerId || 'Unknown'
-    return `${sender}: ${message.message}`
+    return sender
   }
 
   private ensurePruneTimer(): void {

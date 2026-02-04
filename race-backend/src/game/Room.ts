@@ -233,6 +233,14 @@ export class Room {
     return this.playerProfiles.get(playerId)?.username ?? playerId;
   }
 
+  isNpc(playerId: string): boolean {
+    return this.npcIds.has(playerId);
+  }
+
+  getNpcIds(): string[] {
+    return Array.from(this.npcIds);
+  }
+
   updateUsername(playerId: string, username: string): string {
     const normalized = this.setUsername(playerId, username);
     const car = this.cars.get(playerId);
@@ -1447,6 +1455,10 @@ export class Room {
 
   getRacePhase(): RacePhase {
     return this.racePhase;
+  }
+
+  getRadioState(): RoomRadioState {
+    return { ...this.radioState };
   }
 
   isJoinOpen(): boolean {

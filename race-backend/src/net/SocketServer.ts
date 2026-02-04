@@ -1,6 +1,7 @@
 import http from "http";
 import { Server, Socket } from "socket.io";
 import {
+  ChatMessage,
   ChatSendMessage,
   ErrorMessage,
   InputMessage,
@@ -12,12 +13,14 @@ import {
 import { PROTOCOL_VERSION, SERVER_VERSION } from "../config";
 import { RoomState } from "../types/trackTypes";
 import { RoomManager } from "../game/RoomManager";
+import { NpcChatHooks } from "../chat/NpcChatScheduler";
 import { serializeRoomState } from "./stateSerializer";
 import { computeStateDelta, hasBroadcastableChanges, shouldSendFullSnapshot } from "./stateDiff";
 
 export class SocketServer {
   private io: Server;
   private readonly lastFullStates: Map<string, RoomState> = new Map();
+  private npcChatHooks: NpcChatHooks | null = null;
 
   constructor(httpServer: http.Server, private readonly roomManager: RoomManager) {
     this.io = new Server(httpServer, {
@@ -52,6 +55,14 @@ export class SocketServer {
     delta.serverTime = serialized.serverTime;
     this.lastFullStates.set(roomId, serialized);
     this.io.to(roomId).emit("state_delta", delta);
+  }
+
+  setNpcChatHooks(hooks: NpcChatHooks | null): void {
+    this.npcChatHooks = hooks;
+  }
+
+  emitChatMessage(message: ChatMessage): void {
+    this.io.to(message.roomId).emit("chat_message", message);
   }
 
   private onConnection(socket: Socket): void {
@@ -114,6 +125,13 @@ export class SocketServer {
           username: result.room.getUsername(result.playerId)
         };
         this.io.to(result.room.roomId).emit("player_joined", joinMessage);
+        this.npcChatHooks?.onPlayerEvent({
+          roomId: result.room.roomId,
+          type: "spectator_join",
+          playerId: result.playerId,
+          username: result.room.getUsername(result.playerId),
+          timestamp: Date.now()
+        });
         const state = serializeRoomState(result.room.toRoomState());
         this.sendFullToSocket(socket, result.room.roomId, state);
 
@@ -141,6 +159,13 @@ export class SocketServer {
             username: result.username
           };
           this.io.to(result.room.roomId).emit("player_joined", joinMessage);
+          this.npcChatHooks?.onPlayerEvent({
+            roomId: result.room.roomId,
+            type: "player_enter_lobby",
+            playerId: result.playerId,
+            username: result.username,
+            timestamp: Date.now()
+          });
         }
 
         const state = serializeRoomState(result.room.toRoomState());
@@ -190,7 +215,16 @@ export class SocketServer {
 
   private handleRadioCycle(socket: Socket): void {
     try {
-      this.roomManager.handleRadioCycle(socket.id);
+      const result = this.roomManager.handleRadioCycle(socket.id);
+      this.npcChatHooks?.onRadioCycle({
+        roomId: result.room.roomId,
+        actorId: result.actorId,
+        actorName: result.actorName,
+        actorIsNpc: result.actorIsNpc,
+        previousRadio: result.previousRadio,
+        nextRadio: result.nextRadio,
+        timestamp: Date.now()
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       this.emitError(socket, message);
@@ -200,7 +234,8 @@ export class SocketServer {
   private handleChatMessage(socket: Socket, payload: ChatSendMessage): void {
     try {
       const message = this.roomManager.handleChatMessage(socket.id, payload);
-      this.io.to(message.roomId).emit("chat_message", message);
+      this.emitChatMessage(message);
+      this.npcChatHooks?.onChatMessage(message);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       this.emitError(socket, message);
@@ -216,6 +251,13 @@ export class SocketServer {
         username: player.username
       };
       this.io.to(player.roomId).emit("player_left", message);
+      this.npcChatHooks?.onPlayerEvent({
+        roomId: player.roomId,
+        type: "spectator_leave",
+        playerId: player.playerId,
+        username: player.username,
+        timestamp: Date.now()
+      });
     }
     for (const roomId of result.deletedRooms) {
       this.lastFullStates.delete(roomId);
