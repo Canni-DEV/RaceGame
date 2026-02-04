@@ -46,7 +46,7 @@ export const NPC_CHAT_ROOM_INTERVAL_MS = clamp(
   60000,
 );
 export const NPC_CHAT_SPONTANEOUS_CHANCE = clamp(
-  Number(process.env.NPC_CHAT_SPONTANEOUS_CHANCE ?? 0.15),
+  Number(process.env.NPC_CHAT_SPONTANEOUS_CHANCE ?? 0.02),
   0,
   1,
 );
@@ -69,7 +69,7 @@ export const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "mistral-small3.2";
 export const OLLAMA_TIMEOUT_MS = clamp(Number(process.env.OLLAMA_TIMEOUT_MS ?? 20000), 1000, 60000);
 export const OLLAMA_TEMPERATURE = clamp(Number(process.env.OLLAMA_TEMPERATURE ?? 0.6), 0, 2);
 export const OLLAMA_TOP_P = clamp(Number(process.env.OLLAMA_TOP_P ?? 0.9), 0, 1);
-export const OLLAMA_REPEAT_PENALTY = clamp(Number(process.env.OLLAMA_REPEAT_PENALTY ?? 1.15), 0.8, 2);
+export const OLLAMA_REPEAT_PENALTY = clamp(Number(process.env.OLLAMA_REPEAT_PENALTY ?? 1.8), 0.8, 2);
 export const OLLAMA_MAX_TOKENS = clamp(Number(process.env.OLLAMA_MAX_TOKENS ?? 120), 1, 800);
 export const NPC_PERSONA_PATH = process.env.NPC_PERSONA_PATH;
 export const MAX_PLAYERS_PER_ROOM = 8;
